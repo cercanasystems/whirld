@@ -17,12 +17,14 @@ whirld embed --model clay-v1 my_sentinel2_scene.tif
 
 ---
 
-## Status: walking skeleton (offline)
+## Status: working MVP
 
-This repository is an early, end-to-end **walking skeleton** of the Whirld MVP
-(see [`whirld-prd-mvp.md`](whirld-prd-mvp.md)). It proves the architecture with a
-real, fully tested vertical slice — **`pull` + Clay `embed`** — that runs **entirely
-offline**.
+This repository implements the Whirld MVP (see
+[`whirld-prd-mvp.md`](whirld-prd-mvp.md)): **three model paradigms** (embed / classify /
+segment) across four bundled models, a CLI, a REST API, local-file **and STAC** input,
+and a contributor-facing registry with a security + license **governance gate**. The
+offline `clay-v1` reference model runs with **no network**; the three real models
+download + sha256-verify genuine checkpoints and run the real networks.
 
 ### What is real and tested here
 
@@ -31,20 +33,28 @@ offline**.
   edge padding, and georeferenced chip bounding boxes.
 - **Sensor detection** with the full precedence chain (TIFF tags → band
   descriptions → resolution → `--sensor` override).
-- **Registry**: bundled, schema-validated model YAMLs seeded into `~/.whirld`.
+- **Three paradigms behind one pipeline**: `embed` (vectors), `classify` (zero-shot
+  text query → GeoJSON scores), `segment` (per-pixel mask GeoTIFF).
+- **Input**: local GeoTIFF/COG **or a STAC item URL** — band assets read with COG
+  `/vsicurl/` range requests, optional `--bbox` window, bearer-token auth.
+- **Registry**: bundled, schema-validated model YAMLs seeded into `~/.whirld`, with
+  registry-driven backend selection and a **governance gate** (license + weights-RCE
+  policy; see [Registry governance](#registry-governance-security--license)).
 - **`pull` contract**: resolve → acquire → **sha256 verify** → `manifest.json`,
   with the documented exit codes.
-- **CLI** (`pull`, `list`, `info`, `embed`, `serve`), **public Python API**,
-  structured logging, and a local `usage.jsonl` record.
-- **CLI** also includes `classify` (zero-shot text query → GeoJSON scores).
+- **CLI** (`pull`, `list`, `info`, `embed`, `classify`, `segment`, `serve`, `rm`),
+  **public Python API**, structured logging, and a local `usage.jsonl` record.
 - **REST API** (`whirld serve`): `GET /health`, `GET /models`, `POST /embed`
   (multipart upload → `.npy` + chip-metadata header, or JSON), `POST /classify`
-  (multipart upload + `query` → GeoJSON), with models warm-loaded and kept
-  resident. `POST /segment` exists and returns `501` until the Prithvi backend lands.
-- **Real model weights**: `clay-v1.5` (1024-dim embeddings, `hf` extra) and
-  `remoteclip` (zero-shot classification, `remoteclip` extra) both download +
-  sha256-verify genuine checkpoints and run the real models.
-- Unit + integration tests with synthetic Sentinel-2 fixtures; **88 % coverage**.
+  (multipart upload + `query` → GeoJSON), and `POST /segment` (→ `image/tiff` mask),
+  with models warm-loaded and kept resident.
+- **Real model weights**: `clay-v1.5` (1024-dim embeddings, `hf` extra), `remoteclip`
+  (zero-shot classification, `remoteclip` extra), and `prithvi-burn-scar` (segmentation,
+  `prithvi` extra) all download + sha256-verify genuine checkpoints and run the real
+  models.
+- **Clean-room install test** on fresh Linux x86 (Docker) — base deps only, no system
+  GDAL, validated end to end — plus a parallel macOS ARM (Tart VM) harness.
+- Unit + integration tests with synthetic fixtures; **170 passing, 89 % coverage**.
 
 ### Models
 
