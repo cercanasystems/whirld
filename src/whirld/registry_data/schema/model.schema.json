@@ -1,0 +1,158 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/whirld/registry/schema/model.schema.json",
+  "title": "Whirld Model Registry Entry",
+  "description": "Schema for a single model YAML in github.com/whirld/registry. Community submissions are merged automatically on passing this schema (PRD section 19).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "name",
+    "display_name",
+    "version",
+    "category",
+    "backend",
+    "trust",
+    "source",
+    "distribution",
+    "band_contract",
+    "output",
+    "license"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Machine-readable identifier (lowercase, hyphenated)."
+    },
+    "display_name": { "type": "string" },
+    "description": { "type": "string" },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of the model entry."
+    },
+    "category": {
+      "type": "string",
+      "enum": ["embedding", "segmentation", "classification"]
+    },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "backend": {
+      "type": "string",
+      "description": "Backend implementation that runs this model (e.g. 'clay', 'clay-reference', 'remoteclip', 'prithvi'). A model that reuses an existing backend is pure registry data — no code change. Only a genuinely new architecture needs a new backend implementation."
+    },
+    "trust": {
+      "type": "string",
+      "enum": ["first-party", "community"],
+      "description": "Provenance tier. 'first-party' = maintainer-curated (may use pickle weights; never auto-merged). 'community' = submitted entry (must ship safetensors; auto-merge gated on license + source). A submission cannot self-declare 'first-party' for auto-merge."
+    },
+    "model_name": {
+      "type": "string",
+      "description": "Optional architecture identifier for backends that build a named model (e.g. open_clip 'ViT-B-32')."
+    },
+    "config_file": {
+      "type": "string",
+      "description": "Optional auxiliary config file (downloaded alongside the weights), e.g. a TerraTorch YAML for Prithvi."
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["huggingface", "reference"],
+          "description": "huggingface = real weights from HF Hub; reference = deterministic offline backend materialized locally."
+        },
+        "repo": { "type": "string" },
+        "revision": {
+          "type": "string",
+          "description": "Pinned commit SHA, never HEAD."
+        },
+        "files": { "type": "array", "items": { "type": "string" } },
+        "seed": {
+          "type": "integer",
+          "description": "Deterministic seed for reference backends."
+        }
+      }
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["sha256", "size_bytes"],
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "whirld_cdn_url": { "type": "string" }
+      }
+    },
+    "band_contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["sensors", "target_resolution_m", "chip_size_px", "normalization"],
+      "properties": {
+        "sensors": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "required": ["bands", "aliases", "native_resolution_m"],
+            "properties": {
+              "bands": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+              "aliases": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+              "native_resolution_m": { "type": "number", "exclusiveMinimum": 0 },
+              "wavelengths": {
+                "type": "array",
+                "items": { "type": "number", "exclusiveMinimum": 0 },
+                "description": "Per-band center wavelengths (micrometres), aligned to bands/aliases. Required by spectral-metadata models such as Clay."
+              }
+            }
+          }
+        },
+        "target_resolution_m": { "type": "number", "exclusiveMinimum": 0 },
+        "chip_size_px": { "type": "integer", "minimum": 1 },
+        "patch_size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "ViT patch size in pixels (models that tokenize into patches, e.g. Clay)."
+        },
+        "normalization": {
+          "type": "object",
+          "required": ["type", "mean", "std"],
+          "properties": {
+            "type": { "type": "string", "enum": ["per_band_zscore"] },
+            "mean": { "type": "array", "items": { "type": "number" }, "minItems": 1 },
+            "std": { "type": "array", "items": { "type": "number" }, "minItems": 1 },
+            "scale": { "type": "number" }
+          }
+        },
+        "nodata_fill": { "type": "number" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["type", "format"],
+      "properties": {
+        "type": { "type": "string", "enum": ["embedding", "mask", "scores"] },
+        "shape": { "type": "array" },
+        "dtype": { "type": "string" },
+        "format": { "type": "string", "enum": ["npy", "geotiff", "geojson"] },
+        "embed_dim": { "type": "integer", "minimum": 1 },
+        "classes": { "type": "integer", "minimum": 1, "description": "Number of output classes (segmentation/classification masks)." }
+      }
+    },
+    "hardware": {
+      "type": "object",
+      "properties": {
+        "min_ram_gb": { "type": "number" },
+        "recommended_vram_gb": { "type": "number" },
+        "quantized_variants": { "type": "object" }
+      }
+    },
+    "license": { "type": "string", "description": "Required. SPDX identifier where possible (e.g. 'Apache-2.0', 'MIT'). Surfaced at pull/info; licenses outside the OSS allowlist trigger a terms warning and are not auto-merged." },
+    "license_url": { "type": "string" },
+    "citation": { "type": "string" },
+    "authors": { "type": "array", "items": { "type": "string" } },
+    "source_url": { "type": "string" },
+    "whirld_min_version": { "type": "string" }
+  }
+}

@@ -1,0 +1,29 @@
+# Development-only dependencies for Whirld.
+# Install with: .venv/bin/python -m pip install -r requirements.txt -r requirements-dev.txt
+# Regenerate pins with: .venv/bin/python -m pip freeze
+
+-r requirements.txt
+
+pytest==9.1.1
+pytest-cov==7.1.0
+coverage==7.14.3
+black==26.5.1
+ruff==0.15.19
+
+# Server (`serve` extra) — needed to run and test the REST API.
+fastapi==0.138.1
+uvicorn==0.49.0
+python-multipart==0.0.32
+httpx==0.28.1
+
+# Real-weights (`hf` extra) — needed to run and test the Clay v1.5 torch backend.
+torch==2.12.1
+einops==0.8.2
+huggingface_hub==1.21.0
+
+# RemoteCLIP (`remoteclip` extra) — zero-shot classification backend + tests.
+open_clip_torch==3.3.0
+
+# Prithvi (`prithvi` extra) — TerraTorch segmentation backend + tests.
+terratorch==1.2.8
+

@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files (never commit secrets)
+.env
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.mypy_cache/
+.ruff_cache/
+
+# Whirld local cache (default ~/.whirld, but ignore any in-repo cache)
+.whirld/
+
+# Test artifacts
+tests/fixtures/*.tif
+*_embeddings.npy
+*_embeddings_meta.json
+*_meta.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

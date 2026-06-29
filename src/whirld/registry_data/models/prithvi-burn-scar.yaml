@@ -1,0 +1,88 @@
+# Whirld registry entry for Prithvi EO 2.0 — burn-scar segmentation.
+#
+# Real fine-tuned weights (TerraTorch). Requires the `prithvi` extra:
+#   pip install 'whirld[prithvi]'
+#
+# NOTES / deviations from the PRD:
+#   * The PRD treats Prithvi as ONE model `prithvi-eo-2` with switchable `--head`.
+#     In reality the flood and burn-scar heads are SEPARATE fine-tuned checkpoints
+#     (different repos, configs, normalization, tile sizes), so Whirld exposes them
+#     as distinct models (`prithvi-burn-scar`, `prithvi-flood`). `whirld segment
+#     --model prithvi-eo-2 --head burn-scar` is accepted and resolves here.
+#   * The PRD says flood/burn-scar take TWO temporally-adjacent scenes (before/after).
+#     The published fine-tuned heads are SINGLE-IMAGE (T=1) binary segmentation —
+#     there is no temporal stacking.
+#   * Normalization uses the HEAD's reflectance-space mean/std (not the backbone's
+#     raw-DN stats): scale raw HLS DN by 0.0001, then per-band standardize.
+
+name: prithvi-burn-scar
+display_name: Prithvi EO 2.0 (burn scar)
+description: >
+  Prithvi EO 2.0 300M fine-tuned for binary burned-area segmentation on HLS
+  imagery. Single-image; outputs a per-pixel mask (0 = unburned, 1 = burn scar).
+version: 2.0.0
+category: segmentation
+backend: prithvi
+trust: first-party
+tags: [segmentation, burn-scar, prithvi, hls, mask]
+
+# TerraTorch config downloaded alongside the weights (needed to rebuild the model).
+config_file: burn_scars_config.yaml
+
+# Source — real fine-tuned weights from Hugging Face (pinned commit).
+source:
+  type: huggingface
+  repo: ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars
+  revision: a3f2c410e45b8ac7417976614528a872f024d831
+  files:
+    - Prithvi_EO_V2_300M_BurnScars.pt
+    - burn_scars_config.yaml
+
+# Distribution — verified sha256 + size of the primary weights file.
+distribution:
+  sha256: 0c5f9334be9a75c9006387ab8f3dc05a55ea7fb5ef7956717316be57c62954d3
+  size_bytes: 1297798380
+
+# Band contract — HLS 6 bands, reflectance-space standardization, 512px tiles.
+band_contract:
+  sensors:
+    hls:
+      bands: [B02, B03, B04, B8A, B11, B12]
+      aliases: [blue, green, red, nir_narrow, swir1, swir2]
+      native_resolution_m: 30
+  target_resolution_m: 30
+  chip_size_px: 512
+  patch_size: 16
+  normalization:
+    type: per_band_zscore
+    # Raw HLS DN -> reflectance (x * 0.0001), then per-band standardize with the
+    # burn-scar head's published mean/std (reflectance units).
+    scale: 0.0001
+    mean: [0.03335, 0.05701, 0.05890, 0.23232, 0.19729, 0.11945]
+    std: [0.02269, 0.02681, 0.04004, 0.07792, 0.08709, 0.07242]
+  nodata_fill: 0.0
+
+# Output specification — single-band per-pixel mask GeoTIFF.
+output:
+  type: mask
+  format: geotiff
+  classes: 2
+  dtype: uint8
+
+# Hardware.
+hardware:
+  min_ram_gb: 8
+  recommended_vram_gb: 8
+
+# Provenance.
+license: Apache-2.0
+license_url: https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars
+citation: >
+  IBM & NASA (2024). Prithvi-EO-2.0: A Geospatial Foundation Model.
+  https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0
+authors:
+  - IBM
+  - NASA
+source_url: https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars
+
+whirld_min_version: 0.1.0

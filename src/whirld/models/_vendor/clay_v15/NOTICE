@@ -1,0 +1,13 @@
+Whirld vendors the Clay v1.5 model encoder.
+
+  Clay foundation model
+  Copyright Clay Foundation and contributors
+  Source: https://github.com/Clay-foundation/model
+  Licensed under the Apache License, Version 2.0 (see LICENSE in this directory).
+
+The files in this directory (encoder.py, backbone.py, factory.py, utils.py) are
+copied from the `claymodel` package / Clay-foundation/model with import paths
+adapted for vendoring. See PROVENANCE.md for details. No functional changes were
+made to the model code.
+
+This product (Whirld) is itself licensed under the Apache License, Version 2.0.

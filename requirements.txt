@@ -1,0 +1,14 @@
+# Production dependencies for Whirld (walking-skeleton scope).
+# Pinned to exact versions resolved in the project virtualenv (Python 3.13).
+# Regenerate with: .venv/bin/python -m pip freeze
+#
+# NOTE: the optional `hf`, `serve`, and `stac` extras (torch, fastapi, pystac-client,
+# etc.) are intentionally omitted here; they belong to deferred command surfaces and
+# are declared in pyproject.toml [project.optional-dependencies].
+
+numpy==2.5.0
+rasterio==1.5.0
+typer==0.26.7
+rich==15.0.0
+pydantic==2.13.4
+PyYAML==6.0.3

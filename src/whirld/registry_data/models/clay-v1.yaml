@@ -1,0 +1,92 @@
+# Whirld registry entry for Clay v1.
+#
+# NOTE ON SOURCE TYPE:
+#   The PRD points `source` at the real Hugging Face repo `made-with-clay/clay-v1`.
+#   For the offline walking-skeleton build this entry uses `source.type: reference`,
+#   which makes Whirld deterministically materialize a tiny weights blob locally
+#   (seeded) instead of downloading ~847 MB. The whole pull contract
+#   (resolve -> fetch -> sha256 verify -> manifest) runs unchanged and fully offline.
+#   To switch to real weights, set `source.type: huggingface` with the repo/revision
+#   below and a real distribution.sha256; the fetch + backend interfaces already
+#   accommodate it.
+
+# Metadata
+name: clay-v1
+display_name: Clay v1.0
+description: >
+  Multi-sensor geospatial foundation model producing 512-dim embeddings from
+  optical satellite imagery.
+version: 1.0.0
+category: embedding
+backend: clay-reference
+trust: first-party
+tags: [multi-sensor, sentinel-2, landsat, embeddings]
+
+# Source
+source:
+  type: reference
+  seed: 1234
+  # Real-weights path (deferred / not exercised by the reference backend):
+  repo: made-with-clay/clay-v1
+  revision: a3f8c2d9e8f1b4c7
+  files:
+    - clay-v1.ckpt
+
+# Distribution — sha256 of the deterministic reference weights blob.
+distribution:
+  sha256: c93962f1c20298fe5976755720951b1b847cbc24f7f823a7533ff99f5736d749
+  size_bytes: 87
+
+# Band contract (PRD section 7)
+band_contract:
+  sensors:
+    sentinel-2-l2a:
+      bands: [B02, B03, B04, B08, B11, B12]
+      aliases: [blue, green, red, nir, swir16, swir22]
+      native_resolution_m: 10
+    landsat-8-l2:
+      bands: [SR_B2, SR_B3, SR_B4, SR_B5, SR_B6, SR_B7]
+      aliases: [blue, green, red, nir, swir16, swir22]
+      native_resolution_m: 30
+    landsat-9-l2:
+      bands: [SR_B2, SR_B3, SR_B4, SR_B5, SR_B6, SR_B7]
+      aliases: [blue, green, red, nir, swir16, swir22]
+      native_resolution_m: 30
+    # NOTE: NAIP (4-band RGBN) is a Clay sensor per the PRD but is omitted here:
+    # the 4-band contract needs a 4-value normalization, whereas this entry's
+    # normalization has 6 values. Re-add with a NAIP-specific normalization block
+    # when the multi-normalization contract lands (deferred).
+  target_resolution_m: 10
+  chip_size_px: 256
+  normalization:
+    type: per_band_zscore
+    mean: [0.0379, 0.0840, 0.0924, 0.1234, 0.1537, 0.1076]
+    std: [0.0233, 0.0308, 0.0417, 0.0566, 0.0730, 0.0583]
+    scale: 0.0001
+  nodata_fill: 0.0
+
+# Output specification
+output:
+  type: embedding
+  shape: [n_chips, 512]
+  dtype: float32
+  format: npy
+  embed_dim: 512
+
+# Hardware
+hardware:
+  min_ram_gb: 4
+  recommended_vram_gb: 6
+
+# Provenance
+license: MIT
+license_url: https://github.com/Clay-foundation/model/blob/main/LICENSE
+citation: >
+  Clay Foundation (2024). Clay: A foundation model for Earth.
+  https://github.com/Clay-foundation/model
+authors:
+  - Clay Foundation
+source_url: https://clay.foundation
+
+# Compatibility
+whirld_min_version: 0.1.0

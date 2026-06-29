@@ -1,0 +1,82 @@
+# Whirld registry entry for RemoteCLIP — zero-shot text-driven classification.
+#
+# Real weights (open_clip ViT-B/32 fine-tuned for remote sensing). Requires the
+# `remoteclip` extra:  pip install 'whirld[remoteclip]'
+#
+# NOTES / deviations from the PRD:
+#   * The PRD points at `BAAI/RemoteCLIP`, which is now GATED (HTTP 401). We use
+#     the lead author's public mirror `chendelong/RemoteCLIP` (pinned + sha256
+#     verified).
+#   * RemoteCLIP consumes RGB (3 bands) preprocessed exactly like OpenAI CLIP:
+#     scale to 0..1, then per-channel standardize with the CLIP mean/std (RGB
+#     order), at 224x224. The band contract below expresses that directly.
+#   * S2 reflectance scaling (0.0001) maps DN into ~0..1; RemoteCLIP was trained
+#     on 8-bit RGB, so absolute scores on Sentinel-2 are approximate (mechanism is
+#     correct; tone mapping is a known fidelity caveat).
+
+name: remoteclip
+display_name: RemoteCLIP (ViT-B/32)
+description: >
+  Remote-sensing CLIP model for zero-shot, text-driven classification. Scores how
+  well each image chip matches a free-text query.
+version: 1.0.0
+category: classification
+backend: remoteclip
+trust: first-party
+tags: [classification, zero-shot, clip, rgb, remote-sensing]
+
+# open_clip architecture name used to build the model before loading weights.
+model_name: ViT-B-32
+
+# Source — real weights from the public author mirror (pinned commit).
+source:
+  type: huggingface
+  repo: chendelong/RemoteCLIP
+  revision: bf1d8a3ccf2ddbf7c875705e46373bfe542bce38
+  files:
+    - RemoteCLIP-ViT-B-32.pt
+
+# Distribution — verified sha256 + size of the real checkpoint.
+distribution:
+  sha256: 60014e395d930a3f2963d1d89c8522bf4ad56775571e4356e866864789af85c4
+  size_bytes: 605208421
+
+# Band contract — RGB, CLIP preprocessing, 224px chips.
+band_contract:
+  sensors:
+    sentinel-2-l2a:
+      bands: [B04, B03, B02]
+      aliases: [red, green, blue]
+      native_resolution_m: 10
+  target_resolution_m: 10
+  chip_size_px: 224
+  normalization:
+    type: per_band_zscore
+    # DN -> reflectance (0..1), then OpenAI-CLIP per-channel standardization (RGB order).
+    scale: 0.0001
+    mean: [0.48145466, 0.4578275, 0.40821073]
+    std: [0.26862954, 0.26130258, 0.27577711]
+  nodata_fill: 0.0
+
+# Output specification.
+output:
+  type: scores
+  format: geojson
+
+# Hardware.
+hardware:
+  min_ram_gb: 4
+  recommended_vram_gb: 4
+
+# Provenance.
+license: Apache-2.0
+license_url: https://github.com/ChenDelong1999/RemoteCLIP/blob/main/LICENSE
+citation: >
+  Liu et al. (2024). RemoteCLIP: A Vision Language Foundation Model for Remote
+  Sensing. IEEE TGRS. https://github.com/ChenDelong1999/RemoteCLIP
+authors:
+  - Fan Liu
+  - Delong Chen
+source_url: https://github.com/ChenDelong1999/RemoteCLIP
+
+whirld_min_version: 0.1.0

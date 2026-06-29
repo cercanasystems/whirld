@@ -1,0 +1,84 @@
+# Whirld registry entry for the REAL Clay v1.5 model.
+#
+# Unlike clay-v1.yaml (an offline deterministic reference backend), this entry
+# downloads and runs the actual Clay v1.5 "large" encoder weights from Hugging
+# Face. Values here are GROUND TRUTH verified against the checkpoint and Clay's
+# configs/metadata.yaml — and they deviate from the original PRD in several ways:
+#
+#   * Embedding dim is 1024 (CLS token), NOT the PRD's 512.
+#   * Sentinel-2 L2A is 10 bands (incl. red-edge + narrow NIR), NOT 6.
+#   * Normalization is per-band standardization of raw DN values (scale 1.0),
+#     using Clay's published mean/std — not a reflectance z-score.
+#   * The real HF repo is `made-with-clay/Clay` (the PRD's `made-with-clay/clay-v1`
+#     does not exist), and the published checkpoint is v1.5 (no v1 checkpoint).
+#
+# Running this model requires the `hf` extra (torch + einops):  pip install 'whirld[hf]'
+
+name: clay-v1.5
+display_name: Clay v1.5 (large)
+description: >
+  Clay v1.5 multi-sensor geospatial foundation model. Real weights; produces a
+  1024-dim embedding (encoder CLS token) per chip from Sentinel-2 imagery.
+version: 1.5.0
+category: embedding
+backend: clay
+trust: first-party
+tags: [multi-sensor, sentinel-2, embeddings, real-weights, clay]
+
+# Source — real Hugging Face weights (pinned commit).
+source:
+  type: huggingface
+  repo: made-with-clay/Clay
+  revision: 70200ebcccdf67bf2a0cb9984c77ddee26c10ed2
+  files:
+    - v1.5/clay-v1.5.ckpt
+
+# Distribution — verified sha256 + size of the real checkpoint.
+distribution:
+  sha256: 21432069250b9b3f9a65ffd0071c5ad56b793247285ab0604edf7f531d4798d0
+  size_bytes: 5158764629
+
+# Band contract (real Clay Sentinel-2 L2A: 10 bands).
+band_contract:
+  sensors:
+    sentinel-2-l2a:
+      bands: [B02, B03, B04, B05, B06, B07, B08, B8A, B11, B12]
+      aliases: [blue, green, red, rededge1, rededge2, rededge3, nir, nir08, swir16, swir22]
+      native_resolution_m: 10
+      # Per-band center wavelengths (micrometres), aligned to the band order.
+      wavelengths: [0.493, 0.56, 0.665, 0.704, 0.74, 0.783, 0.842, 0.865, 1.61, 2.19]
+  target_resolution_m: 10
+  chip_size_px: 256
+  patch_size: 8
+  normalization:
+    type: per_band_zscore
+    # Clay standardizes raw DN values: (x - mean) / std, hence scale 1.0.
+    scale: 1.0
+    mean: [1105.0, 1355.0, 1552.0, 1887.0, 2422.0, 2630.0, 2743.0, 2785.0, 2388.0, 1835.0]
+    std:  [1809.0, 1757.0, 1888.0, 1870.0, 1732.0, 1697.0, 1742.0, 1648.0, 1470.0, 1379.0]
+  nodata_fill: 0.0
+
+# Output specification.
+output:
+  type: embedding
+  shape: [n_chips, 1024]
+  dtype: float32
+  format: npy
+  embed_dim: 1024
+
+# Hardware.
+hardware:
+  min_ram_gb: 8
+  recommended_vram_gb: 8
+
+# Provenance.
+license: Apache-2.0
+license_url: https://github.com/Clay-foundation/model/blob/main/LICENSE
+citation: >
+  Clay Foundation (2024). Clay: A foundation model for Earth.
+  https://github.com/Clay-foundation/model
+authors:
+  - Clay Foundation
+source_url: https://clay.foundation
+
+whirld_min_version: 0.1.0
