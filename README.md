@@ -1,6 +1,8 @@
 # Whirld
 
-**Local-first CLI and Python library for running geospatial foundation models — the Ollama for geospatial.**
+**Local-first CLI and Python library for running geospatial foundation models**
+
+Concept: "Like ollama, but for geospatial foundation models"
 
 Whirld owns the *sensor-to-model translation contract*. Give it a GeoTIFF and a
 model name; it detects the sensor, selects the right bands **by spectral alias**,
