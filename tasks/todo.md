@@ -4,12 +4,16 @@
 
 - [x] ~~Read all four failed checks and identify their shared setup failure.~~
 - [x] ~~Pin a runner with a published Python 3.13.7 build and verify workflow syntax.~~
-- [ ] Push the correction, resolve any subsequent failures, and verify remote checks.
+- [x] ~~Push the correction, resolve any subsequent failures, and verify remote checks.~~
 
 Review: both jobs ran for push and pull-request events. All four failed before
 dependency installation because `ubuntu-latest` selected Ubuntu 26.04, which has
 no Python 3.13.7 build in the setup-python manifest. Both jobs now pin Ubuntu 24.04,
-verified against the published x64 builds. Remote verification is pending.
+verified against the published x64 builds. All four checks passed for `9f88c3e`
+([push run](https://github.com/cercanasystems/whirld/actions/runs/44903259658),
+[PR run](https://github.com/cercanasystems/whirld/actions/runs/44903263698)). Linux
+results: **347 passed / 7 skipped, 91.78% coverage**, 50 source files type-checked,
+format/lint/schema checks and the fresh base-install smoke test all passed.
 
 Address all 18 confirmed findings from the holistic review below before starting
 new feature work. Work through R1–R5 in order, with regression tests accompanying
@@ -180,9 +184,9 @@ Validation limits: real Clay/RemoteCLIP/Prithvi checkpoint inference and GPU run
 remain gated and were not executed. Prithvi's offline regression verifies the
 configuration boundary and actual download trigger; its real-checkpoint test now
 blocks network access with an empty external cache when explicitly enabled.
-Fresh install validation ran on this macOS host; Linux GitHub Actions and macOS VM
-execution await their respective environments. CI has been configured, not run
-remotely. The historical review evidence below is retained unchanged.
+Fresh install validation ran on this macOS host and subsequently on Linux GitHub
+Actions after the runner correction recorded above. macOS VM execution remains
+unverified. The historical review evidence below is retained unchanged.
 
 ### GitHub issue tracking — 2026-11-21
 

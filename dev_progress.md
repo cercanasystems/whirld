@@ -11,8 +11,15 @@ remains.
 Both CI jobs failed at Python setup for both push and pull-request runs:
 `ubuntu-latest` selected Ubuntu 26.04, but setup-python has no Python 3.13.7 x64
 build for that OS. Pinned both jobs to `ubuntu-24.04`, verified against the
-published Python build manifest. Workflow structure and diff checks pass;
-hosted execution is pending. The project Python version remains 3.13.7.
+published Python build manifest. The project Python version remains 3.13.7.
+
+All four checks passed on `9f88c3e`: both the
+[push run](https://github.com/cercanasystems/whirld/actions/runs/44903259658) and
+[pull-request run](https://github.com/cercanasystems/whirld/actions/runs/44903263698).
+Hosted Linux results: **347 passed / 7 skipped, 91.78% coverage**; Black/Ruff,
+whole-package mypy (50 source files), registry validation, dependency installation,
+and the separate fresh base-package smoke test all pass. No application changes
+were needed for these CI failures.
 
 ---
 
@@ -70,11 +77,12 @@ standard HTTP parsing, and concurrent requests. Independent review additionally
 caught and fixed interrupted-backup resurrection, reserved artifact collisions,
 blocking status reads, and races between manifest validation and weight loading.
 
-**Validation limits:** no large checkpoints, GPU inference, Linux CI run, or macOS
-VM run in this pass. Real-model tests remain opt-in. Prithvi's ordinary offline
+**Validation limits:** no large checkpoints, GPU inference, or macOS VM run in this
+pass. Linux CI subsequently passed after the runner fix logged above. Real-model
+tests remain opt-in. Prithvi's ordinary offline
 test inspects deployment behavior with a stand-in; its gated real-checkpoint test
-now blocks network access with an empty external cache. CI configuration awaits
-execution on GitHub. GitHub issues remain open pending integration, and Pass 11
+now blocks network access with an empty external cache. GitHub issues remain open
+pending integration, and Pass 11
 COG streaming remains deferred while this remediation branch is reviewed.
 
 ---
