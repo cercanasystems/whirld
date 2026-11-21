@@ -59,7 +59,8 @@ def test_write_mask_geotiff_roundtrip(tmp_path: Path) -> None:
         assert ds.count == 1
         assert ds.dtypes[0] == "uint8"
         assert ds.crs.to_string() == "EPSG:32613"
-        assert ds.nodata == 0
+        assert ds.nodata == 255
+        assert ds.read(1, masked=True).count() == mask.size
         read = ds.read(1)
     assert np.array_equal(read, mask)
 

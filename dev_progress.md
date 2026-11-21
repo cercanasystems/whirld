@@ -6,6 +6,69 @@ remains.
 
 ---
 
+## 2026-11-21 — Holistic review remediation (implemented; awaiting integration)
+
+Branch: `fix/holistic-review-remediation`. Implemented all 18 findings in the R1–R5
+sequence in [tasks/todo.md](tasks/todo.md), where each task links to its GitHub issue
+(#2–#19). Changes are locally verified and await PR review and merge.
+
+**R1 — Security boundaries:** actual safetensors parsing with no pickle fallback;
+explicit trust at executable checkpoint loading; cache/model/artifact path
+containment; GTiff-only uploads; origin-scoped STAC credentials with safe redirect
+handling; packaged JSON Schema and backend compatibility validation at runtime and
+in the registry checker. Authenticated GDAL asset reads require GDAL >=3.10.
+
+**R2 — Data correctness:** missing or duplicate named bands fail before inference;
+unsupported geographic/non-meter/rotated grids are rejected; anisotropic metric
+pixels and partial STAC edge cells retain their extents. Local/upload masks and
+nodata survive resampling and normalization. Classification GeoJSON uses WGS84
+with source CRS provenance. Segmentation reserves 255 for missing data, preserving
+class 0. STAC/TIFF acquisition times are parsed and normalized to UTC.
+
+**R3 — Offline and cache integrity:** Prithvi deployment disables redundant
+pretrained-backbone downloads before loading the local task checkpoint. Model
+pulls stage complete installations before replacement, retain usable installations
+on failure, recover interrupted swaps, and validate required artifacts and recorded
+sizes. Registry fingerprints detect changed contracts; backend loading holds a
+lease through artifact consumption. Bundle upgrades add new models and refresh
+unedited entries while preserving user overrides. Primary checksums are verified
+during acquisition; ordinary installed-status checks do not rehash large files.
+
+**R4 — API/server contracts:** blocking work runs outside the event loop with one
+active inference per app and protected model state. `/models` status reads also
+run off-loop. REST `/embed` defaults to an archive containing `embeddings.npy` and
+`metadata.json`; explicit raw `.npy` omits the former unbounded metadata header.
+Typed multipart models expose constraints in OpenAPI and reject invalid domains
+with 422; Python/CLI paths enforce the same domains. URL-derived disk outputs use
+safe local basenames. README documents migration and compatibility behavior.
+
+**R5 — Verification:** **347 passed / 7 skipped, 91.78% coverage** on Python 3.13.7;
+Black/Ruff pass; whole-package mypy passes all **50 source files**, resolving the
+previous 25-error baseline. Bundled registry validation, dependency compatibility,
+and diff checks pass. Two pinned live Sentinel-2 radiometry checks pass. Independent
+pyogrio inspection confirms GeoJSON coordinates. New GitHub Actions jobs cover
+tests with an 80% coverage gate, lint/format, typing, schema validation, and a
+separate fresh base-install smoke test. FastAPI's serve extra now requires >=0.114
+for validated multipart form models; JSON Schema and safetensors dependencies and
+typing stubs are declared and pinned appropriately.
+
+A fresh base-only package installation in an isolated `.venv` on this macOS host
+passes lazy import, reference pull, local GeoTIFF embedding, and file-backed STAC
+embedding with empty application/external-model caches. Regression tests use
+harmless pickle payloads, temporary directories, real loopback HTTP/GDAL reads,
+standard HTTP parsing, and concurrent requests. Independent review additionally
+caught and fixed interrupted-backup resurrection, reserved artifact collisions,
+blocking status reads, and races between manifest validation and weight loading.
+
+**Validation limits:** no large checkpoints, GPU inference, Linux CI run, or macOS
+VM run in this pass. Real-model tests remain opt-in. Prithvi's ordinary offline
+test inspects deployment behavior with a stand-in; its gated real-checkpoint test
+now blocks network access with an empty external cache. CI configuration awaits
+execution on GitHub. GitHub issues remain open pending integration, and Pass 11
+COG streaming remains deferred while this remediation branch is reviewed.
+
+---
+
 ## 2026-11-21 — Pass 10: STAC asset scale/offset handling
 
 Merged in [PR #1 — Apply STAC asset radiometry before model normalization](https://github.com/cercanasystems/whirld/pull/1)

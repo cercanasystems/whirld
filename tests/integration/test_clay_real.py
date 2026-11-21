@@ -57,6 +57,7 @@ def test_real_clay_embed_1024(whirld_home: Path, s2_10band_tif: Path) -> None:
         embed_dim=entry.output.embed_dim,
         patch_size=entry.band_contract.patch_size,
         ckpt_path=Path(_ckpt),
+        trusted_checkpoint=True,  # Explicit opt-in to a supplied curated checkpoint.
     )
     ctx = InferenceContext(
         sensor=sensor,
@@ -104,6 +105,7 @@ def test_real_clay_metadata_conditions_embedding(
         embed_dim=1024,
         patch_size=8,
         ckpt_path=Path(_ckpt),
+        trusted_checkpoint=True,  # Explicit opt-in to a supplied curated checkpoint.
     )
     waves = entry.band_contract.sensors[sensor].wavelengths
 

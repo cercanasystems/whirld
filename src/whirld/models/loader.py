@@ -13,7 +13,7 @@ each concrete backend (and its heavy imports) is loaded lazily, only when select
 
 from __future__ import annotations
 
-from ..core.fetch import Manifest
+from ..core.fetch import Manifest, installation_lease
 from ..core.registry import ModelEntry
 from ..errors import WhirldError
 from .base import ModelBackend
@@ -42,27 +42,29 @@ def load_backend(
     if not backend:
         raise WhirldError(
             f"Registry entry '{entry.name}' declares no 'backend'.\n"
-            f"       Refresh the registry (re-pull / 'whirld update')."
+            f"       Upgrade Whirld or restore the bundled registry entry."
         )
 
-    if backend == "clay-reference":
-        from .clay import ClayBackend  # noqa: PLC0415
+    if backend not in {"clay-reference", "clay", "remoteclip", "prithvi"}:
+        raise WhirldError(
+            f"Model '{entry.name}' declares backend '{backend}', which is not "
+            "implemented in this build."
+        )
+    with installation_lease(entry, manifest):
+        if backend == "clay-reference":
+            from .clay import ClayBackend  # noqa: PLC0415
 
-        return ClayBackend.load(entry, manifest, device)
-    if backend == "clay":
-        from .clay_torch import ClayTorchBackend  # noqa: PLC0415
+            return ClayBackend.load(entry, manifest, device)
+        if backend == "clay":
+            from .clay_torch import ClayTorchBackend  # noqa: PLC0415
 
-        return ClayTorchBackend.load(entry, manifest, device)
-    if backend == "remoteclip":
-        from .remoteclip import RemoteCLIPBackend  # noqa: PLC0415
+            return ClayTorchBackend.load(entry, manifest, device)
+        if backend == "remoteclip":
+            from .remoteclip import RemoteCLIPBackend  # noqa: PLC0415
 
-        return RemoteCLIPBackend.load(entry, manifest, device)
-    if backend == "prithvi":
-        from .prithvi import PrithviBackend  # noqa: PLC0415
+            return RemoteCLIPBackend.load(entry, manifest, device)
+        if backend == "prithvi":
+            from .prithvi import PrithviBackend  # noqa: PLC0415
 
-        return PrithviBackend.load(entry, manifest, device)
-
-    raise WhirldError(
-        f"Model '{entry.name}' declares backend '{backend}', which is not "
-        f"implemented in this build."
-    )
+            return PrithviBackend.load(entry, manifest, device)
+    raise WhirldError(f"Unsupported backend: {backend}")

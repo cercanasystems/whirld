@@ -1,36 +1,37 @@
-## Remediation roadmap — next, before new features
+## Remediation roadmap — implemented and verified on branch
 
 Address all 18 confirmed findings from the holistic review below before starting
 new feature work. Work through R1–R5 in order, with regression tests accompanying
 each fix. Pass 11 (bounded-memory COG inference) is deferred until the remediation
-gate passes. These are planned tasks; the completed review does not mean its
-findings have been fixed.
+gate passes. All 18 findings are implemented and locally verified on
+`fix/holistic-review-remediation`. Changes await PR review and merge;
+GitHub issues remain open until integration. New feature work has not started.
 
 ### R1 — Trust, filesystem, and credential boundaries
 
-- [ ] **F01 / P1 — Safe checkpoint loading:** enforce trust and format at the
+- [x] ~~**F01 / P1 — Safe checkpoint loading:** enforce trust and format at the
       deserialization boundary, use a real safetensors reader, and restrict pickle
       loading to explicitly trusted artifacts. Verify a renamed pickle cannot
       execute a harmless test reducer and genuine safetensors still load.
-      Tracked in [#2](https://github.com/cercanasystems/whirld/issues/2).
-- [ ] **F02 / P1 — Cache path containment:** validate model identifiers and enforce
+      Tracked in [#2](https://github.com/cercanasystems/whirld/issues/2).~~
+- [x] ~~**F02 / P1 — Cache path containment:** validate model identifiers and enforce
       resolved cache containment for reads, writes, and deletion. Test traversal,
       absolute paths, and symlinks against isolated directories outside the cache.
-      Tracked in [#3](https://github.com/cercanasystems/whirld/issues/3).
-- [ ] **F03 / P1 — Upload driver restrictions:** accept only supported GeoTIFF
+      Tracked in [#3](https://github.com/cercanasystems/whirld/issues/3).~~
+- [x] ~~**F03 / P1 — Upload driver restrictions:** accept only supported GeoTIFF
       uploads before reading pixels. Reject VRT and filename/MIME spoofing; prove
       uploaded references cannot read server files or initiate remote reads.
-      Tracked in [#4](https://github.com/cercanasystems/whirld/issues/4).
-- [ ] **F04 / P1 — Origin-scoped STAC authentication:** prevent bearer credentials
+      Tracked in [#4](https://github.com/cercanasystems/whirld/issues/4).~~
+- [x] ~~**F04 / P1 — Origin-scoped STAC authentication:** prevent bearer credentials
       from crossing origins through redirects or global GDAL headers. Define
       explicit authorization for asset origins and test with synthetic credentials
       on separate local HTTP origins.
-      Tracked in [#5](https://github.com/cercanasystems/whirld/issues/5).
-- [ ] **F14 / P2 — Registry validation:** enforce the shipped schema in both the
+      Tracked in [#5](https://github.com/cercanasystems/whirld/issues/5).~~
+- [x] ~~**F14 / P2 — Registry validation:** enforce the shipped schema in both the
       registry checker and runtime ingestion, including safe identifiers and
       compatible backend/format declarations. Invalid fixtures must fail before
       approval, download, or model loading.
-      Tracked in [#15](https://github.com/cercanasystems/whirld/issues/15).
+      Tracked in [#15](https://github.com/cercanasystems/whirld/issues/15).~~
 
 **Acceptance:** the reproduced trust-boundary failures are covered by passing
 regression tests, while supported trusted models, uploads, and authenticated STAC
@@ -38,33 +39,33 @@ reads continue to work.
 
 ### R2 — Spatial, spectral, missing-data, and temporal correctness
 
-- [ ] **F05 / P1 — Required bands:** reject missing or ambiguous named bands;
+- [x] ~~**F05 / P1 — Required bands:** reject missing or ambiguous named bands;
       permit positional mapping only for wholly unlabeled inputs with a defined
       band order. Verify missing B02 fails before inference rather than reusing B03.
-      Tracked in [#6](https://github.com/cercanasystems/whirld/issues/6).
-- [ ] **F06 / P1 — CRS and resolution units:** reproject into a suitable metric
+      Tracked in [#6](https://github.com/cercanasystems/whirld/issues/6).~~
+- [x] ~~**F06 / P1 — CRS and resolution units:** reproject into a suitable metric
       grid or explicitly reject unsupported grids. Handle both pixel dimensions
       and affine transforms consistently; verify geographic and non-meter CRSs,
       anisotropic pixels, output resolution, and preserved spatial extent.
-      Tracked in [#7](https://github.com/cercanasystems/whirld/issues/7).
-- [ ] **F07 / P1 — Interoperable GeoJSON:** transform geometry to WGS84 longitude
+      Tracked in [#7](https://github.com/cercanasystems/whirld/issues/7).~~
+- [x] ~~**F07 / P1 — Interoperable GeoJSON:** transform geometry to WGS84 longitude
       and latitude, retaining source CRS separately if needed. Round-trip through
       an independent GIS reader and check coordinates against known locations.
-      Tracked in [#8](https://github.com/cercanasystems/whirld/issues/8).
-- [ ] **F08 / P1 — Input validity:** preserve local TIFF and upload nodata/internal
+      Tracked in [#8](https://github.com/cercanasystems/whirld/issues/8).~~
+- [x] ~~**F08 / P1 — Input validity:** preserve local TIFF and upload nodata/internal
       masks through resampling and normalization, consistently with STAC inputs.
       Exclude invalid observations from interpolation and apply the model's fill
       convention afterward; verify equivalent inputs across all three paths.
-      Tracked in [#9](https://github.com/cercanasystems/whirld/issues/9).
-- [ ] **F10 / P2 — Segmentation validity:** preserve class 0 as valid unburned data;
+      Tracked in [#9](https://github.com/cercanasystems/whirld/issues/9).~~
+- [x] ~~**F10 / P2 — Segmentation validity:** preserve class 0 as valid unburned data;
       use a distinct nodata representation and propagate actual invalid pixels.
       Verify masked raster reads retain both valid classes and exclude only nodata.
-      Tracked in [#11](https://github.com/cercanasystems/whirld/issues/11).
-- [ ] **F11 / P2 — Acquisition time:** preserve STAC ISO timestamps, support the
+      Tracked in [#11](https://github.com/cercanasystems/whirld/issues/11).~~
+- [x] ~~**F11 / P2 — Acquisition time:** preserve STAC ISO timestamps, support the
       documented TIFF timestamp format, and normalize timezone-aware instants to
       UTC with an explicit policy for naive timestamps. Verify equivalent instants
       produce identical time vectors and reach the backend correctly.
-      Tracked in [#12](https://github.com/cercanasystems/whirld/issues/12).
+      Tracked in [#12](https://github.com/cercanasystems/whirld/issues/12).~~
 
 **Acceptance:** independent expected values establish band order, pixel validity,
 spatial coordinates, and acquisition time; tests check semantic correctness in
@@ -72,22 +73,22 @@ addition to array shapes and internal representations.
 
 ### R3 — Offline inference and installation integrity
 
-- [ ] **F09 / P1 — Prithvi offline loading:** disable hidden pretrained-backbone
+- [x] ~~**F09 / P1 — Prithvi offline loading:** disable hidden pretrained-backbone
       downloads when loading the installed task checkpoint; explicitly pin and
       verify any artifacts that remain required. Test initialization with an empty
       external model cache and blocked network; document a real-checkpoint check.
-      Tracked in [#10](https://github.com/cercanasystems/whirld/issues/10).
-- [ ] **F15 / P2 — Atomic model installation:** stage and verify complete downloads
+      Tracked in [#10](https://github.com/cercanasystems/whirld/issues/10).~~
+- [x] ~~**F15 / P2 — Atomic model installation:** stage and verify complete downloads
       before replacing an installation, and validate required artifacts when
       reporting installed status. Test interrupted downloads, checksum failures,
       missing files, and forced pulls; retain the previous usable installation on
       replacement failure and never report a broken installation as successful.
-      Tracked in [#16](https://github.com/cercanasystems/whirld/issues/16).
-- [ ] **F16 / P2 — Registry upgrades:** refresh bundled entries across application
+      Tracked in [#16](https://github.com/cercanasystems/whirld/issues/16).~~
+- [x] ~~**F16 / P2 — Registry upgrades:** refresh bundled entries across application
       upgrades while preserving user entries under a documented conflict policy.
       Test older caches, new bundled models, schema changes, and actionable errors;
       remove guidance to invoke the nonexistent `whirld update` command.
-      Tracked in [#17](https://github.com/cercanasystems/whirld/issues/17).
+      Tracked in [#17](https://github.com/cercanasystems/whirld/issues/17).~~
 
 **Acceptance:** a complete installation works offline from a cold external cache,
 failed updates leave a truthful and recoverable state, and upgrades expose newly
@@ -95,26 +96,26 @@ bundled models without requiring users to delete their registry cache.
 
 ### R4 — Public API, server behavior, and output contracts
 
-- [ ] **F12 / P2 — Server responsiveness:** move blocking raster/model work off
+- [x] ~~**F12 / P2 — Server responsiveness:** move blocking raster/model work off
       the async event loop with bounded concurrency and safe shared model/cache
       access. Verify health requests remain responsive during inference and test
       concurrent requests for state races and resource limits.
-      Tracked in [#13](https://github.com/cercanasystems/whirld/issues/13).
-- [ ] **F13 / P2 — Embedding response metadata:** move scene-sized chip metadata
+      Tracked in [#13](https://github.com/cercanasystems/whirld/issues/13).~~
+- [x] ~~**F13 / P2 — Embedding response metadata:** move scene-sized chip metadata
       out of HTTP headers into a documented body/archive or separate resource.
       Define compatibility behavior and verify large responses with a real HTTP
       client/parser, including the reproduced 600-chip case.
-      Tracked in [#14](https://github.com/cercanasystems/whirld/issues/14).
-- [ ] **F17 / P2 — Request validation:** constrain chip size, overlap, batch size,
+      Tracked in [#14](https://github.com/cercanasystems/whirld/issues/14).~~
+- [x] ~~**F17 / P2 — Request validation:** constrain chip size, overlap, batch size,
       bbox, thresholds, and supported formats at public boundaries. Reject invalid
       and nonfinite values consistently in Python/CLI and with HTTP 422 in REST;
       ensure OpenAPI reflects the accepted domains.
-      Tracked in [#18](https://github.com/cercanasystems/whirld/issues/18).
-- [ ] **F18 / P2 — Default output paths:** derive safe local defaults for URL
+      Tracked in [#18](https://github.com/cercanasystems/whirld/issues/18).~~
+- [x] ~~**F18 / P2 — Default output paths:** derive safe local defaults for URL
       inputs or require explicit destinations under a documented policy. Test
       HTTPS, file URLs, local paths, and query strings across output-producing
       commands; never copy credentials or URL directory structures into filenames.
-      Tracked in [#19](https://github.com/cercanasystems/whirld/issues/19).
+      Tracked in [#19](https://github.com/cercanasystems/whirld/issues/19).~~
 
 **Acceptance:** invalid requests fail predictably, supported responses work with
 ordinary HTTP clients at scene scale, output locations are predictable, and
@@ -122,17 +123,17 @@ concurrent inference does not stall unrelated requests.
 
 ### R5 — Verification gate and review
 
-- [ ] Resolve the whole-package mypy baseline (25 errors in 8 files) with scoped
-      fixes and explicit third-party boundaries, rather than blanket suppression.
-- [ ] Add CI for the full hermetic pytest suite with >=80% coverage, Black, Ruff,
-      whole-package typing, and registry validation on supported Python 3.13.7.
-- [ ] Verify fresh installation and cold-cache offline behavior; keep live-data
+- [x] ~~Resolve the whole-package mypy baseline (25 errors in 8 files) with scoped
+      fixes and explicit third-party boundaries, rather than blanket suppression.~~
+- [x] ~~Add CI for the full hermetic pytest suite with >=80% coverage, Black, Ruff,
+      whole-package typing, and registry validation on supported Python 3.13.7.~~
+- [x] ~~Verify fresh installation and cold-cache offline behavior; keep live-data
       and real-checkpoint checks explicitly gated and document their execution
-      requirements and results separately from model-stand-in tests.
-- [ ] Re-run all 18 finding reproductions as permanent regression tests, review
-      the final changes for regressions, and record remaining validation limits.
-- [ ] Update user documentation for changed contracts and compatibility behavior,
-      record remediation results here, and only then unblock feature work.
+      requirements and results separately from model-stand-in tests.~~
+- [x] ~~Re-run all 18 finding reproductions as permanent regression tests, review
+      the final changes for regressions, and record remaining validation limits.~~
+- [x] ~~Update user documentation for changed contracts and compatibility behavior,
+      record remediation results here, and only then unblock feature work.~~
 
 **Acceptance:** all F01–F18 tasks and the verification gate are complete, required
 checks pass, and any limitations of real-model/platform validation are recorded.
@@ -141,8 +142,36 @@ verification.
 
 ### Review
 
-Planned only. No remediation has been implemented. The review baseline and
-confirmed evidence remain below; feature work is deferred pending R1–R5.
+Implemented F01–F18 on `fix/holistic-review-remediation`, with permanent regression
+coverage for every finding. Final Python 3.13.7 suite: **347 passed / 7 skipped,
+91.78% coverage**. Black/Ruff, whole-package mypy (**50 source files**), bundled
+registry validation, dependency compatibility, and diff checks pass. The two
+opt-in live Sentinel-2 radiometry checks also pass without model checkpoints.
+
+A fresh base-only installation in an isolated `.venv` passes lazy import, reference
+pull, local GeoTIFF inference, and file-backed STAC inference with empty application
+and external-model caches. Independent pyogrio inspection confirms WGS84 GeoJSON
+coordinates. Real loopback HTTP/GDAL tests verify credential origin boundaries;
+HTTP parser and concurrent-request tests verify bounded headers and responsive
+health requests. CI now runs checks and a separate base-install smoke job.
+
+Independent review also caught and fixed interrupted-backup resurrection during
+`rm --all`, reserved artifact names overwriting install metadata, status requests
+blocking the event loop, and manifest/artifact races during backend loading.
+
+Compatibility changes: REST embeddings default to an archive with complete
+metadata; explicit raw `.npy` has no chip header. Unsupported CRS units/orientations
+and incomplete named bands fail explicitly. GeoJSON is WGS84; mask nodata is 255;
+timestamps use UTC; tokens are origin-scoped; invalid option domains return 422.
+README documents these contracts and registry/cache upgrade behavior.
+
+Validation limits: real Clay/RemoteCLIP/Prithvi checkpoint inference and GPU runs
+remain gated and were not executed. Prithvi's offline regression verifies the
+configuration boundary and actual download trigger; its real-checkpoint test now
+blocks network access with an empty external cache when explicitly enabled.
+Fresh install validation ran on this macOS host; Linux GitHub Actions and macOS VM
+execution await their respective environments. CI has been configured, not run
+remotely. The historical review evidence below is retained unchanged.
 
 ### GitHub issue tracking — 2026-11-21
 
@@ -151,8 +180,8 @@ confirmed evidence remain below; feature work is deferred pending R1–R5.
 - [x] ~~Link each remediation task to its issue and verify the complete mapping.~~
 
 Tracking review: GitHub issues #2–#19 are open, one per finding. Read-back
-verification confirmed all 18 titles, bodies, and task links match. Remediation
-tasks remain unchecked; no implementation work has started.
+verification confirmed all 18 titles, bodies, and task links match. The remediation
+tasks above now record locally verified fixes; issues remain open pending merge.
 
 ## Holistic code review — 2026-11-21
 
@@ -295,7 +324,8 @@ and PyYAML typing stubs. README documents units, precedence, and supported metad
 
 ## Pass 11 — Bounded-memory COG inference (deferred)
 
-**Prerequisite:** complete remediation R1–R5 above before starting this feature.
+**Prerequisite:** integrate the verified remediation R1–R5 above before starting
+this feature. No COG streaming implementation is included in the remediation branch.
 
 Scope: embeddings first, using COG assets referenced by STAC items. Extend the
 existing remote range reads through preprocessing, inference, and output so a

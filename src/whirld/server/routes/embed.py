@@ -1,122 +1,69 @@
-"""``POST /embed`` — embed an uploaded GeoTIFF (PRD section 6.3).
-
-This build accepts ``multipart/form-data`` with a ``file`` field (the server
-cannot read a client's local path, and STAC URL input is deferred). The default
-response is the raw ``.npy`` bytes as ``application/octet-stream`` with chip
-metadata in the ``X-Whirld-Chips-Meta`` header (base64-encoded JSON);
-``format=json`` returns a JSON body with the embeddings inlined.
-"""
+"""POST /embed: a NumPy archive with complete metadata, raw npy, or JSON."""
 
 from __future__ import annotations
 
-import base64
 import io
 import json
+from typing import Annotated
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import numpy as np
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse, Response
 
 from ... import api
 from ...core.session import ModelSession
 from ...io.raster import read_raster_from_bytes
+from ..inference import require_multipart, run_inference
+from ..schemas import EmbedRequest
 
 router = APIRouter()
 
 
-@router.post("/embed")
-async def embed_endpoint(request: Request) -> Response:
-    """Embed an uploaded raster and return embeddings.
+@router.post("/embed", dependencies=[Depends(require_multipart)])
+async def embed_endpoint(
+    request: Request,
+    form: Annotated[EmbedRequest, Form(media_type="multipart/form-data")],
+) -> Response:
+    """Return an npz bundle by default; explicit npy omits chip metadata.
 
-    Args:
-        request: The incoming request. Must be ``multipart/form-data`` carrying a
-            ``file`` (GeoTIFF) plus form fields: ``model`` (required),
-            ``chip_size``, ``overlap``, ``sensor``, ``format`` (``npy``/``json``).
-
-    Returns:
-        ``application/octet-stream`` ``.npy`` bytes (default) with an
-        ``X-Whirld-Chips-Meta`` header, or a JSON body when ``format=json``.
-
-    Raises:
-        HTTPException: STAC/JSON input (400, deferred), wrong content type or
-            missing fields (422).
-        WhirldError: Pipeline errors, mapped to HTTP status by the app handler.
+    The default archive contains embeddings.npy and metadata.json. JSON includes
+    embeddings inline. Large chip metadata never travels in response headers.
+    Raster decoding, inference, and serialization run in a bounded worker.
     """
-    content_type = request.headers.get("content-type", "")
-    if content_type.startswith("application/json"):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "STAC URL input is not available in this build. "
-                "Upload a GeoTIFF via multipart/form-data with a 'file' field."
-            ),
-        )
-    if not content_type.startswith("multipart/form-data"):
-        raise HTTPException(
-            status_code=422,
-            detail="Expected multipart/form-data with a 'file' field.",
-        )
-
-    form = await request.form()
-    upload = form.get("file")
-    model = form.get("model")
-    if upload is None or not hasattr(upload, "read"):
-        raise HTTPException(status_code=422, detail="Missing 'file' upload.")
-    if not model:
-        raise HTTPException(status_code=422, detail="Missing 'model' field.")
-
-    chip_size = _opt_int(form.get("chip_size"), "chip_size")
-    overlap = _opt_int(form.get("overlap"), "overlap") or 0
-    sensor = form.get("sensor") or None
-    fmt = form.get("format") or "npy"
-
-    data = await upload.read()
-    raster = read_raster_from_bytes(data, label=getattr(upload, "filename", "upload"))
-
     session: ModelSession = request.app.state.session
-    result = api.embed_raster(
-        raster,
-        model=str(model),
-        session=session,
-        fmt=str(fmt),
-        chip_size=chip_size,
-        overlap=overlap,
-        sensor=sensor,
-    )
 
-    if fmt == "json":
-        payload = dict(result.meta)
-        payload["embeddings"] = result.embeddings.astype(np.float32).tolist()
-        return JSONResponse(content=payload)
+    def compute(data: bytes) -> Response:
+        """Build the complete response while holding the inference slot."""
+        raster = read_raster_from_bytes(data, label=form.file.filename or "upload")
+        result = api.embed_raster(
+            raster,
+            model=form.model,
+            session=session,
+            fmt="npy",
+            chip_size=form.chip_size,
+            overlap=form.overlap,
+            sensor=form.sensor,
+            batch_size=form.batch_size,
+        )
+        if form.format == "json":
+            payload = dict(result.meta)
+            payload["embeddings"] = result.embeddings.astype(np.float32).tolist()
+            return JSONResponse(content=payload)
+        buffer = io.BytesIO()
+        np.save(buffer, result.embeddings.astype(np.float32), allow_pickle=False)
+        if form.format == "npy":
+            return Response(
+                content=buffer.getvalue(), media_type="application/octet-stream"
+            )
+        archive = io.BytesIO()
+        with ZipFile(archive, "w", compression=ZIP_DEFLATED) as bundle:
+            bundle.writestr("embeddings.npy", buffer.getvalue())
+            bundle.writestr("metadata.json", json.dumps(result.meta))
+        return Response(
+            content=archive.getvalue(),
+            media_type="application/zip",
+            headers={"Content-Disposition": 'attachment; filename="embeddings.npz"'},
+        )
 
-    buffer = io.BytesIO()
-    np.save(buffer, result.embeddings.astype(np.float32))
-    meta_b64 = base64.b64encode(json.dumps(result.meta).encode("utf-8")).decode("ascii")
-    return Response(
-        content=buffer.getvalue(),
-        media_type="application/octet-stream",
-        headers={"X-Whirld-Chips-Meta": meta_b64},
-    )
-
-
-def _opt_int(value: object, field: str) -> int | None:
-    """Parse an optional integer form field.
-
-    Args:
-        value: The raw form value (str or ``None``).
-        field: Field name for error messages.
-
-    Returns:
-        The parsed integer, or ``None`` if not provided.
-
-    Raises:
-        HTTPException: The value is present but not a valid integer (422).
-    """
-    if value is None or value == "":
-        return None
-    try:
-        return int(str(value))
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=422, detail=f"Field '{field}' must be an integer."
-        ) from exc
+    return await run_inference(request, form.file, compute)

@@ -54,6 +54,7 @@ def test_real_remoteclip_classify(whirld_home: Path, s2_tif: Path) -> None:
         device="cpu",
         arch=entry.model_name,
         ckpt_path=Path(_ckpt),
+        trusted_checkpoint=True,  # Explicit opt-in to a supplied curated checkpoint.
     )
     queries = [
         "a satellite photo of a solar farm",

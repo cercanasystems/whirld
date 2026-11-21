@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 
 import pytest
 
@@ -61,3 +63,35 @@ def test_get_not_installed_raises(whirld_home: Path) -> None:
     session = ModelSession(device="cpu")
     with pytest.raises(ModelNotInstalledError):
         session.get("clay-v1")
+
+
+def test_concurrent_get_loads_once_and_snapshot_does_not_wait(
+    whirld_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Concurrent cache misses load once; health snapshots remain nonblocking."""
+    from whirld.core import session as module
+
+    pull("clay-v1")
+    session = ModelSession(device="cpu")
+    original = module.load_backend
+    entered, release = Event(), Event()
+    calls = 0
+
+    def blocked(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        entered.set()
+        assert release.wait(5)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(module, "load_backend", blocked)
+    with ThreadPoolExecutor(3) as workers:
+        first = workers.submit(session.get, "clay-v1")
+        try:
+            assert entered.wait(2)
+            second = workers.submit(session.get, "clay-v1")
+            assert workers.submit(lambda: session.loaded).result(timeout=1) == []
+        finally:
+            release.set()
+        assert first.result(timeout=3) is second.result(timeout=3)
+    assert calls == 1

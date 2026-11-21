@@ -92,7 +92,10 @@ def test_bearer_token_set_on_fetch(
         captured.update(request.headers)
         return _Resp()
 
-    monkeypatch.setattr(stac, "urlopen", _fake_urlopen)
+    class _Opener:
+        open = staticmethod(_fake_urlopen)
+
+    monkeypatch.setattr(stac, "build_opener", lambda *_: _Opener())
     stac._fetch_item("https://example.com/item.json", "secret-token")
     # urllib capitalizes header keys.
     assert captured.get("Authorization") == "Bearer secret-token"
@@ -112,3 +115,36 @@ def test_gdal_path_translations() -> None:
     assert stac._gdal_path("s3://bucket/x.tif") == "/vsis3/bucket/x.tif"
     assert stac._gdal_path("file:///tmp/x.tif") == "/tmp/x.tif"
     assert stac._gdal_path("/tmp/x.tif") == "/tmp/x.tif"
+    assert stac._gdal_path("file:///tmp/space%20name.tif") == "/tmp/space name.tif"
+    assert stac._gdal_path("/tmp/literal%20name.tif") == "/tmp/literal%20name.tif"
+
+
+def test_file_item_url_decodes_spaces(stac_item: Path, tmp_path: Path) -> None:
+    """Percent-encoded file URLs identify the same local JSON as a normal path."""
+    path = tmp_path / "item with spaces.json"
+    path.write_bytes(stac_item.read_bytes())
+    assert stac._fetch_item(path.as_uri(), None) == stac._fetch_item(str(path), None)
+
+
+def test_stac_grid_preserves_partial_edge_extent() -> None:
+    """A partial final cell is retained, rather than truncating the source edge."""
+    from types import SimpleNamespace
+
+    from rasterio.transform import from_origin
+
+    ref = SimpleNamespace(bounds=(0, 0, 101, 101), transform=from_origin(0, 101, 1, 1))
+    grid = stac._output_grid(ref, "EPSG:32630", 10, None)
+    assert (grid.width, grid.height) == (11, 11)
+
+
+def test_stac_geographic_grid_rejected_before_resampling() -> None:
+    """An angular reference grid cannot be interpreted as a meter-resolution grid."""
+    from types import SimpleNamespace
+
+    from rasterio.transform import from_origin
+
+    ref = SimpleNamespace(
+        bounds=(-1, 50, -0.99, 50.01), transform=from_origin(-1, 50.01, 0.0001, 0.0001)
+    )
+    with pytest.raises(InvalidInputError):
+        stac._output_grid(ref, "EPSG:4326", 10, None)

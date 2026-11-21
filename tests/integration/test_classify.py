@@ -81,7 +81,7 @@ def fake_remoteclip(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_classify_api(whirld_home: Path, s2_tif: Path, fake_remoteclip: None) -> None:
     """classify() returns a GeoJSON FeatureCollection of per-chip scores."""
     result = whirld.classify(
-        s2_tif, model="remoteclip", query="solar farm", top_k=10, threshold=-1.0
+        s2_tif, model="remoteclip", query="solar farm", top_k=10, threshold=0.0
     )
     fc = result.feature_collection
     assert fc["type"] == "FeatureCollection"
@@ -105,7 +105,7 @@ def test_classify_multi_query(
         model="remoteclip",
         query=["solar farm", "forest", "airport"],
         top_k=10,
-        threshold=-1.0,
+        threshold=0.0,
     )
     assert result.queries == ["solar farm", "forest", "airport"]
     feat = result.feature_collection["features"][0]
@@ -117,7 +117,7 @@ def test_classify_multi_query(
 def test_classify_top_k(whirld_home: Path, s2_tif: Path, fake_remoteclip: None) -> None:
     """top_k truncates the feature list."""
     result = whirld.classify(
-        s2_tif, model="remoteclip", query="x", top_k=2, threshold=-1.0
+        s2_tif, model="remoteclip", query="x", top_k=2, threshold=0.0
     )
     assert len(result.feature_collection["features"]) == 2
 

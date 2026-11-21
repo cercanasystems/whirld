@@ -26,10 +26,10 @@ from pathlib import Path
 import yaml
 
 from whirld.core import governance
-from whirld.core.registry import ModelEntry
+from whirld.core.registry import validate_registry_entry
 
 
-def check_entry(path: Path) -> int:
+def check_entry(path: Path, *, validate_only: bool = False) -> int:
     """Validate + evaluate one registry YAML, printing the verdict.
 
     Args:
@@ -40,10 +40,14 @@ def check_entry(path: Path) -> int:
     """
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        entry = ModelEntry.model_validate(raw)
+        entry = validate_registry_entry(raw)
     except Exception as exc:  # parse or schema failure
         print(f"INVALID  {path.name}: {exc}")
         return 2
+
+    if validate_only:
+        print(f"VALID  {path.name}")
+        return 0
 
     decision = governance.evaluate_automerge(entry)
     if decision.auto:
@@ -64,12 +68,14 @@ def main(argv: list[str]) -> int:
     Returns:
         The worst exit code across all entries (2 > 1 > 0).
     """
+    validate_only = "--validate-only" in argv
+    argv = [arg for arg in argv if arg != "--validate-only"]
     if not argv:
         print(__doc__)
         return 2
     worst = 0
     for arg in argv:
-        worst = max(worst, check_entry(Path(arg)))
+        worst = max(worst, check_entry(Path(arg), validate_only=validate_only))
     return worst
 
 

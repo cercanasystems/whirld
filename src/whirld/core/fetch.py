@@ -22,10 +22,18 @@ entry declares, so checksum verification is meaningful even offline.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
+import shutil
+import tempfile
+import threading
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from functools import wraps
 from pathlib import Path
+from typing import ParamSpec, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .. import config
 from ..errors import (
@@ -40,6 +48,83 @@ from . import governance
 from .registry import ModelEntry, Registry
 
 _log = get_logger("core.fetch")
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+_transaction_mutex = threading.RLock()
+_active_roots: set[Path] = set()
+
+
+@contextmanager
+def _cache_lease(paths: config.WhirldPaths) -> Iterator[None]:
+    """Hold the reentrant thread/process lock while consuming cache state."""
+    import fcntl
+
+    root = paths.home.resolve()
+    with _transaction_mutex:
+        if root in _active_roots:
+            yield
+            return
+        paths.ensure_dirs()
+        with config.cache_path(root, ".cache.lock").open("a+") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            _active_roots.add(root)
+            try:
+                yield
+            finally:
+                _active_roots.remove(root)
+                fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def _cache_transaction(function: Callable[_P, _R]) -> Callable[_P, _R]:
+    """Serialize cache state operations across threads and POSIX processes."""
+    signature = inspect.signature(function)
+
+    @wraps(function)
+    def locked(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        """Hold a transaction while validating or changing cache files."""
+        bound = signature.bind(*args, **kwargs)
+        paths = bound.arguments.get("paths") or config.get_paths()
+        with _cache_lease(paths):
+            name = bound.arguments.get("name")
+            if name is not None:
+                _recover_installation(name, paths)
+            return function(*args, **kwargs)
+
+    return locked
+
+
+@contextmanager
+def installation_lease(entry: ModelEntry, manifest: Manifest) -> Iterator[None]:
+    """Prevent replacement/deletion between manifest validation and weight reads.
+
+    Raises:
+        ModelNotInstalledError: The caller resolved an outdated manifest or entry.
+    """
+    paths = config.get_paths()
+    with _cache_lease(paths):
+        current = load_manifest(entry.name, paths)
+        current_entry = Registry(paths).get(entry.name)
+        if (
+            current != manifest
+            or current_entry != entry
+            or not _manifest_matches_entry(current, current_entry)
+        ):
+            raise ModelNotInstalledError(
+                f"Installation or registry entry for '{entry.name}' changed while "
+                "loading. Re-pull and resolve the model again before retrying."
+            )
+        yield
+
+
+def _recover_installation(name: str, paths: config.WhirldPaths) -> None:
+    """Recover an interrupted directory swap before reading cache state."""
+    model_dir = paths.model_dir(name)
+    backup = config.cache_path(paths.models_dir, f".{name}.previous")
+    if backup.exists():
+        if model_dir.exists():
+            shutil.rmtree(backup)
+        else:
+            backup.rename(model_dir)
 
 
 def _enforce_weights_security(entry: ModelEntry) -> None:
@@ -94,6 +179,21 @@ class Manifest(BaseModel):
     seed: int | None = None
     quantized: bool = False
     downloaded_at: str = Field(default="")
+    required_files: list[str] = Field(default_factory=list)
+    artifact_sizes: dict[str, int] = Field(default_factory=dict)
+    entry_sha256: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _safe_name(cls, value: str) -> str:
+        """Reject unsafe identifiers in editable local manifests."""
+        return config.validate_model_name(value)
+
+    @field_validator("weights_file")
+    @classmethod
+    def _safe_weights_file(cls, value: str) -> str:
+        """Reject absolute or traversing artifact paths in local manifests."""
+        return config.validate_artifact_path(value)
 
 
 def sha256_file(path: Path) -> str:
@@ -110,6 +210,28 @@ def sha256_file(path: Path) -> str:
         for block in iter(lambda: handle.read(_CHUNK), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _entry_digest(entry: ModelEntry) -> str:
+    """Fingerprint model configuration independently of YAML mapping order."""
+    raw = json.dumps(
+        entry.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _manifest_matches_entry(manifest: Manifest, entry: ModelEntry) -> bool:
+    """Check installed provenance against the current registry contract."""
+    return (
+        manifest.name == entry.name
+        and manifest.version == entry.version
+        and manifest.sha256 == entry.distribution.sha256
+        and manifest.source_type == entry.source.type
+        and (
+            manifest.entry_sha256 is None
+            or manifest.entry_sha256 == _entry_digest(entry)
+        )
+    )
 
 
 def reference_blob_bytes(name: str, version: str, embed_dim: int, seed: int) -> bytes:
@@ -134,17 +256,23 @@ def reference_blob_bytes(name: str, version: str, embed_dim: int, seed: int) -> 
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
+@_cache_transaction
 def is_installed(name: str, paths: config.WhirldPaths | None = None) -> bool:
-    """Return whether a model has a manifest in the local cache.
+    """Return whether a model has a valid manifest and all installed artifacts.
 
     Args:
         name: Model identifier.
         paths: Path bundle; defaults to the current environment.
     """
     paths = paths or config.get_paths()
-    return paths.model_manifest(name).exists()
+    try:
+        load_manifest(name, paths)
+        return True
+    except ModelNotInstalledError:
+        return False
 
 
+@_cache_transaction
 def remove_model(name: str, paths: config.WhirldPaths | None = None) -> None:
     """Delete a cached model's directory (weights + manifest).
 
@@ -155,7 +283,6 @@ def remove_model(name: str, paths: config.WhirldPaths | None = None) -> None:
     Raises:
         ModelNotInstalledError: The model is not installed.
     """
-    import shutil
 
     paths = paths or config.get_paths()
     model_dir = paths.model_dir(name)
@@ -167,6 +294,7 @@ def remove_model(name: str, paths: config.WhirldPaths | None = None) -> None:
     _log.info("Removed model '%s' from %s", name, model_dir)
 
 
+@_cache_transaction
 def remove_all(paths: config.WhirldPaths | None = None) -> list[str]:
     """Delete all cached models, preserving the registry (PRD section 11).
 
@@ -176,18 +304,26 @@ def remove_all(paths: config.WhirldPaths | None = None) -> list[str]:
     Returns:
         The sorted names of the models that were removed.
     """
-    import shutil
 
     paths = paths or config.get_paths()
     if not paths.models_dir.exists():
         return []
+    # Finish interrupted swaps before listing installations; otherwise a hidden
+    # backup could resurrect a model after `rm --all` reported it removed.
+    for backup in paths.models_dir.glob(".*.previous"):
+        _recover_installation(backup.name[1 : -len(".previous")], paths)
     removed = sorted(d.name for d in paths.models_dir.iterdir() if d.is_dir())
-    for name in removed:
-        shutil.rmtree(paths.model_dir(name))
+    directories = [
+        paths.model_dir(name) for name in removed if not name.startswith(".")
+    ]
+    removed = [path.name for path in directories]
+    for directory in directories:
+        shutil.rmtree(directory)
     _log.info("Removed %d model(s): %s", len(removed), ", ".join(removed) or "(none)")
     return removed
 
 
+@_cache_transaction
 def load_manifest(name: str, paths: config.WhirldPaths | None = None) -> Manifest:
     """Load the local manifest for an installed model.
 
@@ -208,9 +344,41 @@ def load_manifest(name: str, paths: config.WhirldPaths | None = None) -> Manifes
             f"Model '{name}' is not installed.\n"
             f"       Pull it first:  whirld pull {name}"
         )
-    return Manifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
+    try:
+        manifest = Manifest.model_validate_json(
+            manifest_path.read_text(encoding="utf-8")
+        )
+    except (ValueError, OSError) as exc:
+        raise ModelNotInstalledError(
+            f"Invalid installation for '{name}'; re-pull it."
+        ) from exc
+    if manifest.name != name:
+        raise SecurityError("Cached manifest name does not match its model directory.")
+    required = set(manifest.required_files) | {manifest.weights_file}
+    # Older manifests did not enumerate auxiliary artifacts. Consult the current
+    # entry when available so an absent Prithvi config is not called installed.
+    if not manifest.required_files:
+        try:
+            entry = Registry(paths).get(name)
+        except WhirldError:
+            entry = None
+        if entry is not None and entry.source.type == "huggingface":
+            required.update(entry.source.files)
+    for filename in required:
+        artifact = paths.model_file(name, filename)
+        expected_size = manifest.artifact_sizes.get(filename)
+        if not artifact.is_file() or (
+            expected_size is not None and artifact.stat().st_size != expected_size
+        ):
+            raise ModelNotInstalledError(
+                f"Incomplete installation for '{name}': "
+                f"'{filename}' is missing or truncated. "
+                f"Re-pull it: whirld pull {name}"
+            )
+    return manifest
 
 
+@_cache_transaction
 def pull(
     name: str,
     *,
@@ -254,24 +422,52 @@ def pull(
     _enforce_weights_security(entry)
 
     if is_installed(name, paths) and not force:
-        _log.info("Model '%s' already cached; use --force to re-pull.", name)
-        return load_manifest(name, paths)
+        installed = load_manifest(name, paths)
+        if _manifest_matches_entry(installed, entry):
+            _log.info("Model '%s' already cached; use --force to re-pull.", name)
+            return installed
 
     model_dir = paths.model_dir(name)
-    model_dir.mkdir(parents=True, exist_ok=True)
-
-    if entry.source.type == "reference":
-        manifest = _pull_reference(entry, model_dir)
-    elif entry.source.type == "huggingface":
-        manifest = _pull_huggingface(entry, model_dir)
-    else:
-        raise WhirldError(
-            f"Unknown source type '{entry.source.type}' for model '{name}'."
+    # Download into an isolated sibling directory. Nothing in the existing
+    # installation is touched until every artifact and the new manifest exist.
+    with tempfile.TemporaryDirectory(prefix=f".{name}-", dir=paths.models_dir) as work:
+        staging = Path(work) / "ready"
+        staging.mkdir()
+        if entry.source.type == "reference":
+            manifest = _pull_reference(entry, staging)
+            required = [manifest.weights_file]
+        elif entry.source.type == "huggingface":
+            manifest = _pull_huggingface(entry, staging)
+            required = entry.source.files
+        else:
+            raise WhirldError(
+                f"Unknown source type '{entry.source.type}' for model '{name}'."
+            )
+        sizes = {
+            filename: config.cache_path(staging, filename).stat().st_size
+            for filename in required
+        }
+        manifest = manifest.model_copy(
+            update={
+                "required_files": required,
+                "artifact_sizes": sizes,
+                "entry_sha256": _entry_digest(entry),
+            }
         )
-
-    paths.model_manifest(name).write_text(
-        manifest.model_dump_json(indent=2), encoding="utf-8"
-    )
+        (staging / "manifest.json").write_text(
+            manifest.model_dump_json(indent=2), encoding="utf-8"
+        )
+        backup = config.cache_path(paths.models_dir, f".{name}.previous")
+        if model_dir.exists():
+            model_dir.rename(backup)
+        try:
+            staging.rename(model_dir)
+        except BaseException:
+            if backup.exists():
+                backup.rename(model_dir)
+            raise
+        if backup.exists():
+            shutil.rmtree(backup)
     _log.info("Saved %s to %s", name, model_dir)
     return manifest
 
@@ -299,7 +495,7 @@ def _pull_reference(entry: ModelEntry, model_dir: Path) -> Manifest:
         )
 
     blob = reference_blob_bytes(entry.name, entry.version, embed_dim, seed)
-    weights_path = model_dir / _REFERENCE_WEIGHTS_FILENAME
+    weights_path = config.cache_path(model_dir, _REFERENCE_WEIGHTS_FILENAME)
     weights_path.write_bytes(blob)
 
     actual = sha256_file(weights_path)
@@ -356,6 +552,11 @@ def _pull_huggingface(entry: ModelEntry, model_dir: Path) -> Manifest:
             f"Hugging Face source for '{entry.name}' is missing repo/files."
         )
 
+    expected_paths = [
+        config.cache_path(model_dir, config.validate_artifact_path(name))
+        for name in entry.source.files
+    ]
+
     # Download every declared file (e.g. weights + an auxiliary config); the first
     # file is the primary artifact whose sha256 is verified.
     try:
@@ -377,6 +578,10 @@ def _pull_huggingface(entry: ModelEntry, model_dir: Path) -> Manifest:
         ) from exc
 
     downloaded = downloaded_paths[0]
+    if [path.resolve() for path in downloaded_paths] != expected_paths:
+        raise SecurityError("Downloaded artifacts must remain inside the model cache.")
+    for filename in entry.source.files:
+        config.cache_path(model_dir, filename)
     actual = sha256_file(downloaded)
     if actual != entry.distribution.sha256:
         downloaded.unlink(missing_ok=True)

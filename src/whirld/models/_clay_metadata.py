@@ -17,7 +17,7 @@ Pure math (no torch) so it is cheap and unit-testable in isolation.
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def normalize_timestamp(
@@ -28,11 +28,13 @@ def normalize_timestamp(
     Verbatim to ``stacchip``: ``week = isoweek · 2π/52``, ``hour = hour · 2π/24``.
 
     Args:
-        date: Acquisition datetime.
+        date: Acquisition datetime; naive values are interpreted as UTC.
 
     Returns:
         ``((sin(week), cos(week)), (sin(hour), cos(hour)))``.
     """
+    if date.tzinfo is not None:
+        date = date.astimezone(timezone.utc)
     week = date.isocalendar().week * 2 * math.pi / 52
     hour = date.hour * 2 * math.pi / 24
     return (math.sin(week), math.cos(week)), (math.sin(hour), math.cos(hour))

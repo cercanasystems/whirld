@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from anyio import to_thread
 from fastapi import APIRouter, Request
 
 from ...core.fetch import is_installed
@@ -23,6 +24,11 @@ async def list_models(request: Request) -> ModelsResponse:
         A :class:`ModelsResponse`.
     """
     session: ModelSession = request.app.state.session
+    return await to_thread.run_sync(_model_status, session)
+
+
+def _model_status(session: ModelSession) -> ModelsResponse:
+    """Read registry/install state off-loop, including installation lock waits."""
     registry = Registry()
     loaded = set(session.loaded)
 

@@ -17,12 +17,14 @@ torch — those are pulled in only when an operation actually runs.
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 import numpy as np
 
@@ -31,6 +33,12 @@ from .core import sensor as sensor_mod
 from .core.chips import ChipMeta, chip_raster, reassemble_mask
 from .core.fetch import Manifest, load_manifest
 from .core.fetch import pull as _pull
+from .core.options import (
+    ClassificationOptions,
+    EmbeddingOptions,
+    SegmentationOptions,
+    validate_options,
+)
 from .core.registry import ModelEntry, Registry
 from .errors import InvalidInputError, WhirldError
 from .io import output as output_mod
@@ -196,6 +204,15 @@ def embed(
             invalid input, etc.).
     """
 
+    validate_options(
+        EmbeddingOptions,
+        chip_size=chip_size,
+        overlap=overlap,
+        batch_size=batch_size,
+        fmt=fmt,
+        bbox=bbox,
+    )
+
     def resolve(resolved_device: str) -> _Resolved:
         entry = Registry().get(model)
         manifest = load_manifest(model)
@@ -235,6 +252,7 @@ def embed_raster(
     fmt: str = "npy",
     chip_size: int | None = None,
     overlap: int = 0,
+    batch_size: int | None = None,
     device: str | None = None,
     sensor: str | None = None,
 ) -> EmbedResult:
@@ -250,6 +268,7 @@ def embed_raster(
         fmt: Output format hint carried into the result metadata.
         chip_size: Override chip size in pixels.
         overlap: Chip overlap in pixels.
+        batch_size: Optional inference batch size; restored after this request.
         device: Device override; defaults to the session device.
         sensor: Explicit sensor override; ``None`` to auto-detect.
 
@@ -257,14 +276,29 @@ def embed_raster(
         An :class:`EmbedResult` (``output_path``/``meta_path`` are ``None``).
     """
 
+    validate_options(
+        EmbeddingOptions,
+        chip_size=chip_size,
+        overlap=overlap,
+        batch_size=batch_size,
+        fmt=fmt,
+    )
+
     def resolve(resolved_device: str) -> _Resolved:
         loaded = session.get(model, resolved_device)
         return loaded.entry, loaded.manifest, loaded.backend, raster
 
     def compute(p: _Prepared) -> EmbedResult:
-        return _embed_compute(
-            p, output=None, fmt=fmt, write=False, default_output_basis=None
-        )
+        previous = getattr(p.backend, "_batch_size", None)
+        try:
+            if batch_size is not None and hasattr(p.backend, "_batch_size"):
+                p.backend._batch_size = batch_size
+            return _embed_compute(
+                p, output=None, fmt=fmt, write=False, default_output_basis=None
+            )
+        finally:
+            if previous is not None and hasattr(p.backend, "_batch_size"):
+                p.backend._batch_size = previous
 
     return _run(
         model,
@@ -321,6 +355,7 @@ def classify(
         WhirldError: Any domain error (model not installed, unsupported sensor,
             empty query, invalid input, etc.).
     """
+    validate_options(ClassificationOptions, top_k=top_k, threshold=threshold, bbox=bbox)
     queries = _as_queries(query)
 
     def resolve(resolved_device: str) -> _Resolved:
@@ -377,6 +412,7 @@ def classify_raster(
     Returns:
         A :class:`ClassifyResult` (``output_path`` is ``None``).
     """
+    validate_options(ClassificationOptions, top_k=top_k, threshold=threshold)
     queries = _as_queries(query)
 
     def resolve(resolved_device: str) -> _Resolved:
@@ -404,10 +440,14 @@ def classify_raster(
 
 def _as_queries(query: str | list[str]) -> list[str]:
     """Normalize a query argument (str or list) to a non-empty list of strings."""
+    if not isinstance(query, (str, list)) or (
+        isinstance(query, list) and any(not isinstance(q, str) for q in query)
+    ):
+        raise InvalidInputError("query must be a string or a list of strings.")
     queries = [query] if isinstance(query, str) else list(query)
     queries = [q for q in queries if q and q.strip()]
     if not queries:
-        raise WhirldError("classify requires at least one non-empty --query.")
+        raise InvalidInputError("classify requires at least one non-empty --query.")
     return queries
 
 
@@ -474,6 +514,7 @@ def segment(
         WhirldError: Any domain error (model not installed, unsupported sensor,
             invalid input, etc.).
     """
+    validate_options(SegmentationOptions, threshold=threshold, bbox=bbox)
     resolved_model = _resolve_segment_model(model, head)
 
     def resolve(resolved_device: str) -> _Resolved:
@@ -528,6 +569,7 @@ def segment_raster(
     Returns:
         A :class:`SegmentResult` (``output_path`` is ``None``).
     """
+    validate_options(SegmentationOptions, threshold=threshold)
     resolved_model = _resolve_segment_model(model, head)
 
     def resolve(resolved_device: str) -> _Resolved:
@@ -622,7 +664,8 @@ def _run(
         detected_sensor = sensor_mod.detect_sensor(raster, entry, override=sensor)
         translated = contract_mod.translate(raster, entry, detected_sensor)
 
-        size = chip_size or entry.band_contract.chip_size_px
+        size = chip_size if chip_size is not None else entry.band_contract.chip_size_px
+        validate_options(EmbeddingOptions, chip_size=size, overlap=overlap)
         chips_array, chipset = chip_raster(
             translated,
             size,
@@ -708,7 +751,7 @@ def _embed_compute(
         model=p.entry.name,
         model_version=p.manifest.version,
         crs=p.translated.crs,
-        embed_dim=p.backend.embed_dim,
+        embed_dim=embeddings.shape[1],
         chip_size_px=p.chip_size,
         resolution_m=p.translated.target_resolution_m,
         chipset=p.chipset,
@@ -792,12 +835,14 @@ def _segment_compute(
     masks = p.backend.segment(p.chips_array, head, threshold, p.context)
     height, width = p.translated.data.shape[1], p.translated.data.shape[2]
     mask = reassemble_mask(masks, p.chipset, height, width)
+    if p.translated.valid_mask is not None:
+        mask[~p.translated.valid_mask] = 255
 
     out_path: Path | None = None
     if output is not None:
-        target: Path = Path(output)
+        target: Path | None = Path(output)
     elif default_basis is not None:
-        basis = Path(default_basis)
+        basis = _output_basis(default_basis)
         target = basis.with_name(f"{basis.stem}_{p.entry.name}.tif")
     else:
         target = None  # server path: caller serializes from the mask
@@ -825,15 +870,31 @@ def _default_output_path(input_path: str | Path | None) -> Path:
         input_path: The input raster path.
 
     Returns:
-        ``<input_stem>_embeddings.npy`` in the input's directory.
+        ``<input_stem>_embeddings.npy`` next to local inputs, or in the current
+        directory for HTTP(S) inputs. URL credentials and queries are discarded.
 
     Raises:
         InvalidInputError: No basis path is available to derive a name from.
     """
     if input_path is None:
         raise InvalidInputError("Cannot derive a default output path without input.")
-    p = Path(input_path)
+    p = _output_basis(input_path)
     return p.with_name(f"{p.stem}_embeddings.npy")
+
+
+def _output_basis(input_path: str | Path) -> Path:
+    """Use local paths directly and derive safe basenames from remote URLs."""
+    value = str(input_path)
+    parsed = urlsplit(value)
+    if parsed.scheme in {"http", "https"}:
+        name = unquote(parsed.path.rsplit("/", 1)[-1])
+        name = re.sub(r"[^A-Za-z0-9._-]", "_", name).lstrip(".")
+        return Path(name or "scene")
+    if parsed.scheme == "file":
+        if parsed.netloc not in {"", "localhost"}:
+            raise InvalidInputError("file URLs must refer to the local host.")
+        return Path(unquote(parsed.path))
+    return Path(input_path)
 
 
 def _looks_like_url(value: str | Path) -> bool:
@@ -947,8 +1008,9 @@ def _chip_latlons(chipset: Any, crs: str) -> list[tuple[float, float]] | None:
 def _resolve_datetime(override: str | None, tags: dict[str, str]) -> datetime | None:
     """Resolve a scene acquisition datetime from an override or TIFF tag.
 
-    Precedence: explicit ISO-8601 ``override`` › ``TIFFTAG_DATETIME``
-    (``"YYYY:MM:DD HH:MM:SS"``) › ``None``.
+    Precedence: explicit ISO-8601 ``override`` › ``TIFFTAG_DATETIME`` (TIFF or
+    STAC ISO format) › ``None``. Naive values are treated as UTC; offsets are
+    normalized to UTC before model metadata is encoded.
 
     Args:
         override: Optional ISO-8601 datetime string.
@@ -957,15 +1019,21 @@ def _resolve_datetime(override: str | None, tags: dict[str, str]) -> datetime | 
     Returns:
         A parsed :class:`datetime.datetime`, or ``None`` if neither source parses.
     """
-    if override:
+    for value in (override, tags.get("TIFFTAG_DATETIME")):
+        if not value:
+            continue
         try:
-            return datetime.fromisoformat(override.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
-            _log.warning("Could not parse --datetime '%s'; ignoring.", override)
-    tag = tags.get("TIFFTAG_DATETIME")
-    if tag:
-        try:
-            return datetime.strptime(tag, "%Y:%m:%d %H:%M:%S")
-        except ValueError:
-            _log.debug("Could not parse TIFFTAG_DATETIME '%s'; ignoring.", tag)
+            try:
+                parsed = datetime.strptime(value, "%Y:%m:%d %H:%M:%S")
+            except ValueError:
+                _log.debug("Could not parse acquisition datetime; ignoring.")
+                continue
+        # TIFF timestamps carry no zone; consistently interpret them as UTC.
+        return (
+            parsed.replace(tzinfo=timezone.utc)
+            if parsed.tzinfo is None
+            else parsed.astimezone(timezone.utc)
+        )
     return None

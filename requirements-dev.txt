@@ -11,6 +11,7 @@ black==26.5.1
 ruff==0.15.19
 mypy==2.4.1
 types-PyYAML==6.0.12.20261113
+types-jsonschema==4.26.0.20261006
 
 # Server (`serve` extra) — needed to run and test the REST API.
 fastapi==0.138.1
@@ -31,3 +32,6 @@ terratorch==1.2.8
 # TerraTorch 1.2 imports trainers.utils, removed in TorchGeo 0.10.
 torchgeo==0.9.0
 
+
+# Safe tensor checkpoint loading regression tests
+safetensors==0.8.0

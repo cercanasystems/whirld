@@ -15,6 +15,7 @@ context manager (PRD section 14); that public surface is deferred.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from threading import RLock
 
 from ..logging_setup import get_logger
 from ..models.base import ModelBackend, detect_device
@@ -56,6 +57,7 @@ class ModelSession:
         self._device = detect_device(device)
         self._registry = registry or Registry()
         self._cache: dict[tuple[str, str], LoadedModel] = {}
+        self._lock = RLock()
 
     @property
     def device(self) -> str:
@@ -84,17 +86,22 @@ class ModelSession:
         """
         resolved = detect_device(device) if device is not None else self._device
         key = (model, resolved)
-        cached = self._cache.get(key)
-        if cached is not None:
-            return cached
+        with self._lock:
+            cached = self._cache.get(key)
+            if cached is not None:
+                return cached
 
-        _log.info("Loading model '%s' on device '%s' into session.", model, resolved)
-        entry = self._registry.get(model)
-        manifest = load_manifest(model)
-        backend = load_backend(entry, manifest, resolved)
-        loaded = LoadedModel(entry=entry, manifest=manifest, backend=backend)
-        self._cache[key] = loaded
-        return loaded
+            _log.info(
+                "Loading model '%s' on device '%s' into session.", model, resolved
+            )
+            entry = self._registry.get(model)
+            manifest = load_manifest(model)
+            backend = load_backend(entry, manifest, resolved)
+            loaded = LoadedModel(entry=entry, manifest=manifest, backend=backend)
+            # Publish a new dictionary so health readers never wait on a model
+            # load or iterate a dictionary being mutated by another thread.
+            self._cache = {**self._cache, key: loaded}
+            return loaded
 
     def preload(self, models: list[str], device: str | None = None) -> None:
         """Eagerly load a list of models (e.g. at server startup).
@@ -108,4 +115,5 @@ class ModelSession:
 
     def clear(self) -> None:
         """Drop all resident models from the cache."""
-        self._cache.clear()
+        with self._lock:
+            self._cache = {}

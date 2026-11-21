@@ -6,7 +6,58 @@ accurate OpenAPI description.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Literal
+
+from fastapi import UploadFile
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class RasterRequest(BaseModel):
+    """Multipart raster upload and model selection shared by inference routes."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    file: UploadFile
+    model: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9.-]*$")
+    sensor: str | None = None
+
+
+class EmbedRequest(RasterRequest):
+    """Embedding options exposed directly in multipart OpenAPI schemas."""
+
+    chip_size: int | None = Field(default=None, gt=0)
+    overlap: int = Field(default=0, ge=0)
+    batch_size: int | None = Field(default=None, gt=0)
+    format: Literal["npz", "npy", "json"] = "npz"
+
+    @model_validator(mode="after")
+    def valid_overlap(self) -> EmbedRequest:
+        """Reject an overlap that would prevent forward chip traversal."""
+        if self.chip_size is not None and self.overlap >= self.chip_size:
+            raise ValueError("overlap must be less than chip_size")
+        return self
+
+
+class ClassifyRequest(RasterRequest):
+    """Classification queries and bounded probability/ranking options."""
+
+    query: list[str] = Field(min_length=1)
+    top_k: int = Field(default=5, gt=0)
+    threshold: float = Field(default=0.0, ge=0.0, le=1.0, allow_inf_nan=False)
+
+    @field_validator("query")
+    @classmethod
+    def nonempty_queries(cls, values: list[str]) -> list[str]:
+        """Require meaningful text for every submitted query."""
+        if any(not value.strip() for value in values):
+            raise ValueError("query entries must not be empty")
+        return values
+
+
+class SegmentRequest(RasterRequest):
+    """Segmentation head selection and finite probability threshold."""
+
+    head: str | None = None
+    threshold: float = Field(default=0.5, ge=0.0, le=1.0, allow_inf_nan=False)
 
 
 class HealthResponse(BaseModel):

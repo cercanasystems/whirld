@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from anyio import Semaphore, to_thread
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -66,12 +67,13 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         """Create the warm session and preload requested models at startup."""
         session = ModelSession(device=device)
+        app.state.inference_slots = Semaphore(1)
         if preload:
             _log.info("Preloading models at startup: %s", ", ".join(preload))
-            session.preload(preload)
+            await to_thread.run_sync(session.preload, preload)
         app.state.session = session
         yield
-        session.clear()
+        await to_thread.run_sync(session.clear)
 
     app = FastAPI(
         title="Whirld",

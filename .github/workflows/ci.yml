@@ -1,0 +1,47 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.7'
+          cache: pip
+      - name: Install development environment
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements-dev.txt -e .
+          .venv/bin/python -m pip check
+      - name: Formatting and lint
+        run: |
+          .venv/bin/black --check src tests scripts
+          .venv/bin/ruff check src tests scripts
+      - name: Package typing
+        run: .venv/bin/mypy src/whirld
+      - name: Bundled registry validation
+        run: .venv/bin/python scripts/check_registry.py --validate-only src/whirld/registry_data/models/*.yaml
+      - name: Regression suite and coverage
+        run: .venv/bin/python -m pytest --cov=whirld --cov-fail-under=80
+  base-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.7'
+      - name: Fresh package install and isolated smoke test
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt .
+          .venv/bin/python -m pip check
+          PATH="$PWD/.venv/bin:$PATH" WHIRLD_HOME="$RUNNER_TEMP/whirld-smoke" .venv/bin/python scripts/clean_room_test.py

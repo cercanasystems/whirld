@@ -215,7 +215,13 @@ def test_bundled_model_input_units(
         tmp_path / model, entry, 3000.0, {"scale": 0.0001, "offset": -0.1}
     )
     out = _translate(item, entry)
-    np.testing.assert_allclose(out.data[0], expected, rtol=1e-6, atol=1e-6)
+    # A 40m fixture on Prithvi's 30m grid retains a partial edge cell whose
+    # center lies outside the source. Compare observed pixels, not nodata fill.
+    assert out.valid_mask is not None and out.valid_mask.any()
+    np.testing.assert_allclose(
+        out.data[0][out.valid_mask], expected, rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_array_equal(out.data[:, ~out.valid_mask], 0.0)
 
 
 def test_cached_clay_entry_without_new_convention(

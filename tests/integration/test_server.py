@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import base64
 import io
 import json
 from collections.abc import Iterator
 from pathlib import Path
+from zipfile import ZipFile
 
 import numpy as np
 import pytest
@@ -57,17 +57,28 @@ def test_models(client: TestClient) -> None:
     assert "sentinel-2-l2a" in models["clay-v1"]["sensors"]
 
 
-def test_embed_npy(client: TestClient, s2_tif: Path) -> None:
-    """POST /embed returns npy bytes plus a chip-metadata header."""
+def test_embed_archive(client: TestClient, s2_tif: Path) -> None:
+    """POST /embed defaults to an archive containing embeddings and chip metadata."""
     resp = _upload(client, s2_tif)
     assert resp.status_code == 200, resp.text
-    assert resp.headers["content-type"] == "application/octet-stream"
-    arr = np.load(io.BytesIO(resp.content))
+    assert resp.headers["content-type"] == "application/zip"
+    assert "X-Whirld-Chips-Meta" not in resp.headers
+    with ZipFile(io.BytesIO(resp.content)) as bundle:
+        arr = np.load(io.BytesIO(bundle.read("embeddings.npy")))
+        meta = json.loads(bundle.read("metadata.json"))
     assert arr.shape[1] == 512
-    meta = json.loads(base64.b64decode(resp.headers["X-Whirld-Chips-Meta"]))
     assert meta["model"] == "clay-v1"
     assert len(meta["chips"]) == arr.shape[0]
     assert meta["chips"][0]["bbox"][0] == 320000.0
+
+
+def test_embed_npy(client: TestClient, s2_tif: Path) -> None:
+    """Explicit raw npy remains available without scene-sized response headers."""
+    resp = _upload(client, s2_tif, format="npy")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/octet-stream"
+    assert np.load(io.BytesIO(resp.content)).shape[1] == 512
+    assert "X-Whirld-Chips-Meta" not in resp.headers
 
 
 def test_embed_json(client: TestClient, s2_tif: Path) -> None:

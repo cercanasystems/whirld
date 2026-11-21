@@ -156,10 +156,10 @@ def build_feature_collection(
 ) -> dict[str, Any]:
     """Build a GeoJSON FeatureCollection of per-chip classification scores.
 
-    One Feature per chip: a footprint polygon (in the input CRS) plus the score for
+    One Feature per chip: a WGS84 footprint polygon plus the score for
     the primary query, a per-query ``scores`` map, the model, and chip index (PRD
-    section 10.3). Coordinates are in the input CRS, named in a top-level ``crs``
-    field for downstream tools.
+    section 10.3). Coordinates use RFC 7946 longitude/latitude order; the input
+    CRS is retained only as ``source_crs`` provenance, not a GeoJSON CRS override.
 
     Args:
         scores: Per-chip, per-query probabilities, shape ``(n_chips, n_queries)``.
@@ -167,11 +167,13 @@ def build_feature_collection(
         queries: The text queries that produced the scores; the first is primary.
         model: Model identifier.
         model_version: Resolved model version.
-        crs: Source CRS string (coordinates are in this CRS).
+        crs: Source CRS string for the chipset bounding boxes.
 
     Returns:
         A JSON-serializable GeoJSON FeatureCollection dictionary.
     """
+    from rasterio.warp import transform_geom
+
     matrix = np.atleast_2d(scores)
     primary = queries[0]
     features = []
@@ -180,10 +182,11 @@ def build_feature_collection(
         features.append(
             {
                 "type": "Feature",
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": _bbox_polygon(chip.bbox),
-                },
+                "geometry": transform_geom(
+                    crs,
+                    "EPSG:4326",
+                    {"type": "Polygon", "coordinates": _bbox_polygon(chip.bbox)},
+                ),
                 "properties": {
                     "score": per_query[primary],
                     "query": primary,
@@ -197,7 +200,7 @@ def build_feature_collection(
         )
     return {
         "type": "FeatureCollection",
-        "crs": crs,
+        "source_crs": crs,
         "model": model,
         "model_version": model_version,
         "whirld_version": __version__,
@@ -246,7 +249,7 @@ def write_mask_geotiff(
     crs: str,
     output_path: str | Path,
     *,
-    nodata: int = 0,
+    nodata: int = 255,
 ) -> Path:
     """Write a segmentation mask as a single-band uint8 GeoTIFF (PRD section 10.2).
 
@@ -258,7 +261,7 @@ def write_mask_geotiff(
         transform: Affine transform of the (translated) raster.
         crs: Coordinate reference system string.
         output_path: Destination path.
-        nodata: Nodata value written to the TIFF metadata.
+        nodata: Reserved missing-data class, distinct from valid class 0.
 
     Returns:
         The path written.
@@ -279,7 +282,7 @@ def mask_to_geotiff_bytes(
     transform: Any,
     crs: str,
     *,
-    nodata: int = 0,
+    nodata: int = 255,
 ) -> bytes:
     """Serialize a mask to in-memory GeoTIFF bytes (for the REST ``image/tiff``).
 

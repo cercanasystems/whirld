@@ -95,6 +95,10 @@ def weights_are_pickle(entry: ModelEntry) -> bool:
     treated as pickle (unsafe) so the policy fails safe. Reference (offline) models
     have no real weights and are never pickle.
 
+    This classifies the declared format only. Deserializers must use the
+    safetensors reader for that extension and must never fall back to pickle
+    when its contents are invalid; filename checks alone do not establish safety.
+
     Args:
         entry: The registry entry.
     """
