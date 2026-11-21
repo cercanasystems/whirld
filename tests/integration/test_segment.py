@@ -44,7 +44,7 @@ def _fake_manifest(name, paths=None):  # type: ignore[no-untyped-def]
     )
 
 
-def _fake_backend(entry, manifest, device=None):  # type: ignore[no-untyped-def]
+def _fake_backend(entry, manifest, device=None, **kwargs):  # type: ignore[no-untyped-def]
     return PrithviBackend(
         name=entry.name,
         version=manifest.version,
@@ -57,7 +57,10 @@ def _fake_backend(entry, manifest, device=None):  # type: ignore[no-untyped-def]
 @pytest.fixture
 def fake_prithvi(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch the api load path to use the fake Prithvi backend."""
-    monkeypatch.setattr("whirld.api.load_manifest", _fake_manifest)
+    monkeypatch.setattr(
+        "whirld.core.fetch.ModelStore.load_manifest",
+        lambda self, name: _fake_manifest(name),
+    )
     monkeypatch.setattr("whirld.api.load_backend", _fake_backend)
 
 
@@ -98,6 +101,28 @@ def test_segment_default_output_name(
     """The default mask name is <stem>_<model>.tif."""
     result = whirld.segment(hls_tif, model="prithvi-burn-scar")
     assert result.output_path.name == "hls_small_prithvi-burn-scar.tif"
+
+
+def test_segment_url_default_output_is_local(
+    whirld_home: Path,
+    hls_tif: Path,
+    fake_prithvi: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Remote item defaults use a local filename and discard URL query secrets."""
+    from whirld.io.raster import read_raster
+
+    raster = read_raster(hls_tif)
+    monkeypatch.setattr("whirld.api._read_input", lambda *args, **kwargs: raster)
+    monkeypatch.chdir(tmp_path)
+    result = whirld.segment(
+        "https://example.test/catalog/scene.json?token=secret",
+        model="prithvi-burn-scar",
+    )
+    assert result.output_path == Path("scene_prithvi-burn-scar.tif")
+    assert result.output_path.exists()
+    assert not (tmp_path / "https:").exists()
 
 
 def test_segment_usage_record(
@@ -142,7 +167,10 @@ def test_segment_rest(whirld_home: Path, hls_tif: Path, monkeypatch) -> None:
     from whirld.server.app import create_app
 
     # The server session resolves the backend through core.session, not api.
-    monkeypatch.setattr("whirld.core.session.load_manifest", _fake_manifest)
+    monkeypatch.setattr(
+        "whirld.core.fetch.ModelStore.load_manifest",
+        lambda self, name: _fake_manifest(name),
+    )
     monkeypatch.setattr("whirld.core.session.load_backend", _fake_backend)
 
     app = create_app(device="cpu", preload=["prithvi-burn-scar"])
@@ -156,3 +184,51 @@ def test_segment_rest(whirld_home: Path, hls_tif: Path, monkeypatch) -> None:
     assert resp.headers["content-type"] == "image/tiff"
     with rasterio.MemoryFile(resp.content) as mem, mem.open() as ds:
         assert ds.count == 1 and ds.dtypes[0] == "uint8"
+
+
+@pytest.mark.parametrize("surface", ["api", "rest"])
+def test_segment_preserves_input_validity(
+    whirld_home: Path,
+    hls_tif: Path,
+    fake_prithvi: None,
+    monkeypatch: pytest.MonkeyPatch,
+    surface: str,
+) -> None:
+    """Missing input pixels remain nodata while predicted background stays valid."""
+    with rasterio.Env(GDAL_TIFF_INTERNAL_MASK=True):
+        with rasterio.open(hls_tif, "r+") as dataset:
+            pixels = dataset.read()
+            pixels[0, 1, 1] = 65535
+            dataset.nodata = 65535
+            dataset.write(pixels)
+            validity = np.full((dataset.height, dataset.width), 255, dtype=np.uint8)
+            validity[3, 3] = 0
+            dataset.write_mask(validity)
+    if surface == "api":
+        result = whirld.segment(hls_tif, model="prithvi-burn-scar", threshold=1.0)
+        assert result.output_path is not None
+        payload = result.output_path.read_bytes()
+    else:
+        from fastapi.testclient import TestClient
+
+        from whirld.server.app import create_app
+
+        monkeypatch.setattr(
+            "whirld.core.fetch.ModelStore.load_manifest",
+            lambda self, name: _fake_manifest(name),
+        )
+        monkeypatch.setattr("whirld.core.session.load_backend", _fake_backend)
+        with TestClient(create_app(device="cpu")) as client:
+            response = client.post(
+                "/segment",
+                files={"file": ("hls.tif", hls_tif.read_bytes(), "image/tiff")},
+                data={"model": "prithvi-burn-scar", "threshold": "1"},
+            )
+        assert response.status_code == 200, response.text
+        payload = response.content
+    with rasterio.MemoryFile(payload) as memfile, memfile.open() as dataset:
+        masked = dataset.read(1, masked=True)
+        assert dataset.nodata == 255
+        assert masked.mask[1, 1] and masked.mask[3, 3]
+        assert masked.count() == masked.size - 2
+        assert (masked.compressed() == 0).all()

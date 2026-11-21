@@ -19,8 +19,13 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from types import ModuleType
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from torch import Tensor, nn
 
 from .. import config
 from ..core.fetch import Manifest
@@ -28,6 +33,7 @@ from ..core.registry import ModelEntry
 from ..errors import ModelNotInstalledError, WhirldError
 from ..logging_setup import get_logger
 from .base import InferenceContext, ModelBackend, detect_device
+from .checkpoints import CheckpointReader
 
 _log = get_logger("models.clay_torch")
 
@@ -35,7 +41,7 @@ _ENCODER_PREFIX = "model.encoder."
 _DEFAULT_BATCH = 8
 
 
-def _import_torch():
+def _import_torch() -> ModuleType:
     """Lazily import torch, raising an actionable error if the extra is absent.
 
     Returns:
@@ -80,15 +86,21 @@ class ClayTorchBackend(ModelBackend):
         embed_dim: int,
         patch_size: int,
         ckpt_path: Path | None = None,
-        encoder: object | None = None,
+        encoder: nn.Module | None = None,
         batch_size: int = _DEFAULT_BATCH,
+        trusted_checkpoint: bool = False,
     ) -> None:
-        super().__init__(name=name, version=version, device=device)
+        super().__init__(
+            name=name, version=version, device=device, batch_size=batch_size
+        )
         self.embed_dim = int(embed_dim)
         self.patch_size = int(patch_size)
-        self._ckpt_path = ckpt_path
+        self._checkpoint = (
+            CheckpointReader(ckpt_path, trusted=trusted_checkpoint)
+            if ckpt_path is not None
+            else None
+        )
         self._encoder = encoder
-        self._batch_size = batch_size
 
     @classmethod
     def load(
@@ -96,6 +108,8 @@ class ClayTorchBackend(ModelBackend):
         entry: ModelEntry,
         manifest: Manifest,
         device: str | None = None,
+        *,
+        paths: config.WhirldPaths | None = None,
     ) -> ClayTorchBackend:
         """Build the backend and load the real encoder weights.
 
@@ -112,7 +126,9 @@ class ClayTorchBackend(ModelBackend):
             WhirldError: The ``hf`` extra is not installed.
         """
         resolved = detect_device(device)
-        ckpt = config.get_paths().model_dir(entry.name) / manifest.weights_file
+        ckpt = (paths or config.get_paths()).model_file(
+            entry.name, manifest.weights_file
+        )
         if not ckpt.exists():
             raise ModelNotInstalledError(
                 f"Checkpoint for '{entry.name}' is missing at {ckpt}.\n"
@@ -125,11 +141,12 @@ class ClayTorchBackend(ModelBackend):
             embed_dim=entry.output.embed_dim or 1024,
             patch_size=entry.band_contract.patch_size or 8,
             ckpt_path=ckpt,
+            trusted_checkpoint=entry.trust == "first-party",
         )
         backend._ensure_encoder()
         return backend
 
-    def _ensure_encoder(self) -> object:
+    def _ensure_encoder(self) -> nn.Module:
         """Build the encoder and load weights on first use (or return the cached one).
 
         Returns:
@@ -138,15 +155,15 @@ class ClayTorchBackend(ModelBackend):
         if self._encoder is not None:
             return self._encoder
 
-        torch = _import_torch()
+        _import_torch()
         from ._vendor.clay_v15 import clay_v15_large_encoder  # noqa: PLC0415
 
         _log.info("Loading clay-v1.5 encoder weights on device '%s'.", self.device)
+        if self._checkpoint is None:
+            raise WhirldError("A checkpoint path is required to load Clay.")
+        checkpoint = self._checkpoint.read_state_dict()
         encoder = clay_v15_large_encoder()
-        checkpoint = torch.load(
-            self._ckpt_path, map_location="cpu", weights_only=False, mmap=True
-        )
-        state_dict = checkpoint["state_dict"]
+        state_dict = checkpoint.get("state_dict", checkpoint)
         encoder_state = {
             key[len(_ENCODER_PREFIX) :]: value
             for key, value in state_dict.items()
@@ -205,10 +222,9 @@ class ClayTorchBackend(ModelBackend):
         encoder = self._ensure_encoder()
         outputs: list[np.ndarray] = []
         with torch.no_grad():
-            for start in range(0, chips.shape[0], self._batch_size):
-                stop = start + self._batch_size
-                batch = chips[start:stop]
-                batch_latlons = latlons[start:stop] if latlons is not None else None
+            for selection in self.batches(chips.shape[0], context):
+                batch = chips[selection]
+                batch_latlons = latlons[selection] if latlons is not None else None
                 datacube = self._build_datacube(
                     batch, wavelengths, gsd, acq_dt, batch_latlons, torch
                 )
@@ -223,8 +239,8 @@ class ClayTorchBackend(ModelBackend):
         gsd: float,
         acquisition_datetime: datetime | None,
         latlons: list[tuple[float, float]] | None,
-        torch: object,
-    ) -> dict:
+        torch: ModuleType,
+    ) -> dict[str, Tensor]:
         """Assemble Clay's encoder input dict for a chip batch.
 
         ``time`` uses the scene's acquisition datetime (Clay's sin/cos encoding) for

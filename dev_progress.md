@@ -6,14 +6,149 @@ remains.
 
 ---
 
+## 2026-11-21 — PR #20 OOP alignment (locally verified; awaiting integration)
+
+Revisited the remediation implementation against AGENTS.md's OOP requirement on
+`fix/holistic-review-remediation`, retaining the 18 fixes and public Python/CLI/REST
+behavior. Responsibilities now belong to explicit objects:
+
+- `ModelEntry` owns registry document parsing, packaged-schema validation, and
+  provenance fingerprints. Runtime registry loading and `scripts/check_registry.py`
+  share its validated constructor.
+- `ModelStore` owns cache paths, registry dependencies, acquisition, transactions,
+  recovery, and artifact leases. `ModelSession` and backend loading use that same
+  store. `CacheLock` coordinates independent stores without a global mutex or a
+  signature-inspecting decorator; public cache functions remain thin delegates.
+- `InferenceService` owns the application session, lifecycle, and admission policy.
+  FastAPI routes consume an injected service. Separate apps retain independent
+  concurrency limits; failed startup releases loaded models.
+- Immutable `InferenceOptions` own per-call batch policy. Backend defaults remain
+  unchanged across overrides, failures, and overlapping requests.
+- `CheckpointReader`, `PrithviDeployment`, and `StacAccessPolicy` own trust-aware
+  checkpoint loading, temporary offline deployment resources, and per-read
+  credentials/GDAL scope. Pure transforms and response serializers remain functions.
+
+Ownership review also exposed and corrected three boundary gaps: relative cache
+roots drifting after a working-directory change; explicit STAC port `0` being
+treated as a default port (plus malformed-origin error conversion); and RemoteCLIP
+architecture selectors initiating unregistered downloads before checkpoint checks.
+RemoteCLIP now permits only local `RN50`, `ViT-B-32`, and `ViT-L-14` definitions,
+validated at registry ingestion and backend dispatch. README and registry
+contribution guidance document that restriction.
+
+**Verification:** 400 tests passed, 7 opt-in tests skipped, **92.46% coverage** on
+Python 3.13.7. Black/Ruff, mypy over 53 source files, all four bundled registry
+entries, dependency checks, and diff checks passed. A rebuilt base-only package
+passed the clean-room script's lazy import, offline pull, local GeoTIFF, and local
+STAC embedding checks. Two live public Sentinel-2 COG radiometry tests passed
+separately. New regression coverage exercises cross-store thread/process locking,
+fixed path identity, service injection and startup cleanup, actual per-call tensor
+batch sizes including concurrent calls, credential restoration, and rejected
+external RemoteCLIP sources. Large real-checkpoint/GPU tests were not run.
+
+The TODO has completed, struck-through items and a review record; lessons capture
+the requirement to preserve ownership when implementing security/correctness fixes.
+This pass is included in PR #20; hosted CI verification follows the branch push.
+
+---
+
+## 2026-11-21 — PR #20 hosted CI compatibility
+
+Both CI jobs failed at Python setup for both push and pull-request runs:
+`ubuntu-latest` selected Ubuntu 26.04, but setup-python has no Python 3.13.7 x64
+build for that OS. Pinned both jobs to `ubuntu-24.04`, verified against the
+published Python build manifest. The project Python version remains 3.13.7.
+
+All four checks passed on `9f88c3e`: both the
+[push run](https://github.com/cercanasystems/whirld/actions/runs/44903259658) and
+[pull-request run](https://github.com/cercanasystems/whirld/actions/runs/44903263698).
+Hosted Linux results: **347 passed / 7 skipped, 91.78% coverage**; Black/Ruff,
+whole-package mypy (50 source files), registry validation, dependency installation,
+and the separate fresh base-package smoke test all pass. No application changes
+were needed for these CI failures.
+
+---
+
+## 2026-11-21 — Holistic review remediation (implemented; awaiting integration)
+
+Branch: `fix/holistic-review-remediation`. Implemented all 18 findings in the R1–R5
+sequence in [tasks/todo.md](tasks/todo.md), where each task links to its GitHub issue
+(#2–#19). Changes are locally verified and await PR review and merge.
+
+**R1 — Security boundaries:** actual safetensors parsing with no pickle fallback;
+explicit trust at executable checkpoint loading; cache/model/artifact path
+containment; GTiff-only uploads; origin-scoped STAC credentials with safe redirect
+handling; packaged JSON Schema and backend compatibility validation at runtime and
+in the registry checker. Authenticated GDAL asset reads require GDAL >=3.10.
+
+**R2 — Data correctness:** missing or duplicate named bands fail before inference;
+unsupported geographic/non-meter/rotated grids are rejected; anisotropic metric
+pixels and partial STAC edge cells retain their extents. Local/upload masks and
+nodata survive resampling and normalization. Classification GeoJSON uses WGS84
+with source CRS provenance. Segmentation reserves 255 for missing data, preserving
+class 0. STAC/TIFF acquisition times are parsed and normalized to UTC.
+
+**R3 — Offline and cache integrity:** Prithvi deployment disables redundant
+pretrained-backbone downloads before loading the local task checkpoint. Model
+pulls stage complete installations before replacement, retain usable installations
+on failure, recover interrupted swaps, and validate required artifacts and recorded
+sizes. Registry fingerprints detect changed contracts; backend loading holds a
+lease through artifact consumption. Bundle upgrades add new models and refresh
+unedited entries while preserving user overrides. Primary checksums are verified
+during acquisition; ordinary installed-status checks do not rehash large files.
+
+**R4 — API/server contracts:** blocking work runs outside the event loop with one
+active inference per app and protected model state. `/models` status reads also
+run off-loop. REST `/embed` defaults to an archive containing `embeddings.npy` and
+`metadata.json`; explicit raw `.npy` omits the former unbounded metadata header.
+Typed multipart models expose constraints in OpenAPI and reject invalid domains
+with 422; Python/CLI paths enforce the same domains. URL-derived disk outputs use
+safe local basenames. README documents migration and compatibility behavior.
+
+**R5 — Verification:** **347 passed / 7 skipped, 91.78% coverage** on Python 3.13.7;
+Black/Ruff pass; whole-package mypy passes all **50 source files**, resolving the
+previous 25-error baseline. Bundled registry validation, dependency compatibility,
+and diff checks pass. Two pinned live Sentinel-2 radiometry checks pass. Independent
+pyogrio inspection confirms GeoJSON coordinates. New GitHub Actions jobs cover
+tests with an 80% coverage gate, lint/format, typing, schema validation, and a
+separate fresh base-install smoke test. FastAPI's serve extra now requires >=0.114
+for validated multipart form models; JSON Schema and safetensors dependencies and
+typing stubs are declared and pinned appropriately.
+
+A fresh base-only package installation in an isolated `.venv` on this macOS host
+passes lazy import, reference pull, local GeoTIFF embedding, and file-backed STAC
+embedding with empty application/external-model caches. Regression tests use
+harmless pickle payloads, temporary directories, real loopback HTTP/GDAL reads,
+standard HTTP parsing, and concurrent requests. Independent review additionally
+caught and fixed interrupted-backup resurrection, reserved artifact collisions,
+blocking status reads, and races between manifest validation and weight loading.
+
+**Validation limits:** no large checkpoints, GPU inference, or macOS VM run in this
+pass. Linux CI subsequently passed after the runner fix logged above. Real-model
+tests remain opt-in. Prithvi's ordinary offline
+test inspects deployment behavior with a stand-in; its gated real-checkpoint test
+now blocks network access with an empty external cache. GitHub issues remain open
+pending integration, and Pass 11
+COG streaming remains deferred while this remediation branch is reviewed.
+
+---
+
 ## 2026-11-21 — Pass 10: STAC asset scale/offset handling
 
-Implemented on `feat/stac-asset-offsets`. The STAC reader retains typed scale,
+Merged in [PR #1 — Apply STAC asset radiometry before model normalization](https://github.com/cercanasystems/whirld/pull/1)
+on 2026-11-21 at 11:31:55 UTC (`85894cf`, branch `feat/stac-asset-offsets`).
+
+The STAC reader retains typed scale,
 offset, nodata, and selected band indices. Raster extension v1 and v2 metadata
 are supported. Conversion uses physical reflectance and the sensor's explicit
 canonical DN convention before model normalization, preserving both real Clay's
 DN-based means and the other bundled models' reflectance-based means. Existing
 sensor entries cached before this change retain compatible unit defaults.
+
+For example, a stored pixel value of 3000 with scale 0.0001 and offset -0.1
+becomes reflectance 0.2, or canonical DN 2000 for real Clay, before normalization.
+Absent transform metadata preserves the legacy DN interpretation. Multiband
+assets retain the selected band's index and corresponding radiometric metadata.
 
 Missing pixels stay excluded during interpolation and receive normalized padding
 only afterward. Regression tests caught two GDAL behaviors: explicit nodata can
@@ -25,15 +160,23 @@ Validation: **218 passed / 7 skipped, 89.04% coverage** on Python 3.13.7; 48 new
 unit cases, plus two passing opt-in tests against a pinned public Sentinel-2 item.
 The live checks compare independently read pixels and arithmetic for both Clay
 normalization conventions without downloading checkpoints. Black/Ruff, targeted
-mypy, and dependency compatibility checks pass.
+mypy for all five changed source modules, and dependency compatibility checks
+passed during PR validation. These results do not establish whole-package typing
+or real-checkpoint inference coverage.
 
 Fresh installation exposed incompatible dependency versions. Updated Typer and
 Rasterio pins, pinned TorchGeo 0.9.0, capped the Prithvi extra at TorchGeo <0.10,
 and added development type-checking dependencies. No model checkpoints downloaded.
 
-Next: Pass 11, bounded-memory COG embedding inference. STAC radiometry currently
-assumes reflectance; item/collection inheritance and local TIFF scale/offset tags
-are not interpreted.
+Scope limits: STAC radiometry assumes reflectance; item/collection inheritance and
+local TIFF scale/offset tags are not interpreted. Remote range reads are preserved,
+but inference still materializes the requested region in memory.
+
+Next: complete the post-merge holistic review's 18 findings, tracked in GitHub
+issues #2–#19 and linked individually in the [remediation roadmap](tasks/todo.md).
+The R1–R5 security, correctness, offline/cache, API, and verification work now takes
+priority. Pass 11 (bounded-memory COG embedding inference) is deferred until that
+gate passes; the remediation findings are not fixes delivered by this PR.
 
 ---
 
@@ -811,6 +954,9 @@ changes.
 
 Ordered roughly by the PRD. "Extension point in place" means the interface/seam
 already exists and the feature slots in without reworking existing code.
+Feature work below is deferred until the [R1–R5 remediation gate](tasks/todo.md)
+passes; historical completion entries describe delivered functionality, not an
+assertion that the subsequently reviewed defects are resolved.
 
 ### Models (PRD §4)
 - [x] **Real Clay v1.5 weights** *(Pass 3)* — `clay-v1.5` runs the genuine encoder
@@ -879,6 +1025,10 @@ already exists and the feature slots in without reworking existing code.
 
 ### Input handling (PRD §9)
 - [x] Local GeoTIFF (incl. COG).
+- [x] ~~**STAC asset radiometry** *(Pass 10, [PR #1](https://github.com/cercanasystems/whirld/pull/1))* —
+      per-band scale/offset/nodata and band-index metadata, conversion to model
+      units before normalization, and mask-aware resampling; Raster extension
+      v1/v2 supported, with legacy behavior when transforms are absent.~~
 - [x] **STAC item URL** input *(Pass 9)* — fetch the item JSON, select only the
       required band assets (alias-matched), read them with COG **range requests**
       (`/vsicurl/` + WarpedVRT) onto one grid, assemble a `RasterSource`. Optional
@@ -887,6 +1037,9 @@ already exists and the feature slots in without reworking existing code.
 - [x] **`--stac-token` / `WHIRLD_STAC_TOKEN`** bearer auth *(Pass 9)* — sent on the
       item fetch and the `/vsicurl/` asset reads (via `GDAL_HTTP_HEADERS`).
       Planetary-Computer URL *signing* remains a documented follow-up.
+- [ ] **Bounded-memory COG embedding inference** *(Pass 11, deferred until R1–R5)* —
+      windowed batches and incremental output; current range reads alone do not
+      bound memory independently of the requested scene area.
 
 ### Output handling (PRD §10)
 - [x] Embeddings `.npy` + meta sidecar; optional inline JSON.

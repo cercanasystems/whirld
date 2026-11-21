@@ -39,6 +39,10 @@ on every user who pulls it. So:
 - Backend selection is a **closed allowlist** (`backend:` id → a hardcoded code
   branch in `models/loader.py`). Whirld **never imports a module path from YAML**, so
   a YAML cannot name arbitrary code to run.
+- RemoteCLIP `model_name` must be `RN50`, `ViT-B-32`, or `ViT-L-14`. Registry
+  ingestion and backend loading reject external source selectors (`hf-hub:`,
+  `local-dir:`) and other architectures with external model/tokenizer dependencies.
+  Model construction uses the local architecture and the registered checkpoint.
 - `sha256` of the primary artifact is verified on every pull.
 
 ### License — surfaced, allowlisted, propagated

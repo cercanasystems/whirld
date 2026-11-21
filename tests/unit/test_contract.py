@@ -93,8 +93,9 @@ def test_resample_changes_grid(whirld_home: Path, tmp_path: Path) -> None:
     )
     entry = Registry().get("clay-v1")
     raster = read_raster(path)
-    # Treat it as landsat (30 m native) so resampling to 10 m triggers.
-    out = translate(raster, entry, "landsat-8-l2")
+    # A coarse S2 grid still has S2 band descriptions; grid size is independent
+    # of the selected sensor's native resolution.
+    out = translate(raster, entry, "sentinel-2-l2a")
     assert out.target_resolution_m == 10.0
     # 60 px @ 30 m -> ~180 px @ 10 m.
     assert out.data.shape[1] > 100

@@ -1,7 +1,7 @@
 """FastAPI application factory for ``whirld serve`` (PRD sections 5.8, 6).
 
-``create_app`` builds an app that holds a single warm
-:class:`~whirld.core.session.ModelSession` in ``app.state``. Models named at
+``create_app`` builds an app that owns an explicitly injected inference service.
+The service owns its warm model session and worker admission policy. Models named at
 startup are loaded immediately; any other installed model loads on first request
 and stays resident. Domain errors (:class:`~whirld.errors.WhirldError`) are
 translated to appropriate HTTP status codes by a single exception handler.
@@ -27,6 +27,7 @@ from ..errors import (
     WhirldError,
 )
 from ..logging_setup import configure_logging, get_logger
+from .inference import InferenceService
 from .routes import classify, embed, health, models, segment
 
 _log = get_logger("server.app")
@@ -50,12 +51,16 @@ def _status_for(exc: WhirldError) -> int:
 def create_app(
     device: str | None = None,
     preload: list[str] | None = None,
+    *,
+    service: InferenceService | None = None,
 ) -> FastAPI:
     """Build the Whirld FastAPI application.
 
     Args:
         device: Inference device for the session; ``None`` for auto-detect.
         preload: Model names to load into memory at startup; ``None`` for none.
+        service: Explicit service with its own session/store. When supplied,
+            device comes from that session; the app starts and closes the service.
 
     Returns:
         A configured :class:`fastapi.FastAPI` instance.
@@ -64,14 +69,14 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        """Create the warm session and preload requested models at startup."""
-        session = ModelSession(device=device)
-        if preload:
-            _log.info("Preloading models at startup: %s", ", ".join(preload))
-            session.preload(preload)
-        app.state.session = session
-        yield
-        session.clear()
+        """Bind one service to app lifetime, including startup-failure cleanup."""
+        owned_service = service or InferenceService(ModelSession(device=device))
+        app.state.inference_service = owned_service
+        try:
+            await owned_service.start(preload)
+            yield
+        finally:
+            await owned_service.aclose()
 
     app = FastAPI(
         title="Whirld",

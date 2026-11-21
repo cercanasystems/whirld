@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from whirld.core import fetch, governance
-from whirld.core.registry import Registry, Source
+from whirld.core.registry import ModelEntry, Registry, Source
 from whirld.errors import SecurityError
 
 
@@ -24,8 +24,11 @@ def test_pull_refuses_community_pickle(whirld_home: Path) -> None:
         }
     )
 
-    class _FakeRegistry:
-        def get(self, name):  # type: ignore[no-untyped-def]
+    class _FakeRegistry(Registry):
+        """Keep the registry's cache identity while injecting an unsafe entry."""
+
+        def get(self, name: str) -> ModelEntry:
+            """Return the unsafe fixture to exercise acquisition-time rejection."""
             return evil
 
     with pytest.raises(SecurityError) as excinfo:

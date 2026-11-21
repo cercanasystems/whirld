@@ -28,14 +28,14 @@ class RasterSource:
     """An in-memory raster with the metadata Whirld needs to translate it.
 
     Attributes:
-        data: Pixel array of shape ``(bands, height, width)``.
+        data: Pixel array of shape ``(bands, height, width)``. Readers use float32
+            and represent masked/nodata observations as NaN.
         crs: Coordinate reference system as a string (e.g. ``EPSG:32630``).
         transform: Affine geotransform mapping pixel to world coordinates.
         band_descriptions: Per-band description strings (``None`` where absent).
         tags: Dataset-level TIFF tags (e.g. ``TIFFTAG_IMAGEDESCRIPTION``).
         nodata: Source nodata value, or ``None``.
-        band_radiometry: STAC metadata in data-band order; ``None`` for the legacy
-            local-file path. STAC missing pixels are represented by NaN in data.
+        band_radiometry: STAC metadata in data-band order; ``None`` for local files.
     """
 
     data: np.ndarray
@@ -63,8 +63,41 @@ class RasterSource:
 
     @property
     def resolution_m(self) -> tuple[float, float]:
-        """Pixel size ``(x, y)`` in CRS units (meters for projected CRSs)."""
-        return (abs(self.transform.a), abs(self.transform.e))
+        """Return metric pixel dimensions, rejecting unsupported source grids."""
+        return validate_metric_grid(self.crs, self.transform)
+
+
+def validate_metric_grid(crs: str, transform: rasterio.Affine) -> tuple[float, float]:
+    """Validate a north-up projected meter grid and return its pixel dimensions.
+
+    Geographic, non-meter, rotated, and flipped grids must be reprojected before
+    inference. Rejecting them prevents interpreting angular/foot units as meters.
+    Invalid CRS definitions and affine coefficients raise InvalidInputError.
+    """
+    try:
+        reference = rasterio.crs.CRS.from_user_input(crs)
+        metric = reference.is_projected and np.isclose(
+            reference.linear_units_factor[1], 1.0, rtol=0, atol=1e-12
+        )
+    except (ValueError, RasterioError) as exc:
+        raise InvalidInputError("Input has an invalid CRS definition.") from exc
+    if not metric:
+        raise InvalidInputError(
+            "Input requires a projected CRS with meter units. Reproject the "
+            "raster to a suitable metric CRS (for example its local UTM zone)."
+        )
+    if (
+        not np.isfinite(tuple(transform)).all()
+        or transform.b != 0
+        or transform.d != 0
+        or transform.a <= 0
+        or transform.e >= 0
+    ):
+        raise InvalidInputError(
+            "Input requires a north-up, unrotated grid with positive pixel sizes. "
+            "Reproject the raster to a north-up metric grid before inference."
+        )
+    return float(transform.a), float(-transform.e)
 
 
 def read_raster(path: str | Path, crs: str | None = None) -> RasterSource:
@@ -124,7 +157,12 @@ def read_raster_from_bytes(
             "Uploaded file is empty.\n       Provide a valid GeoTIFF."
         )
     try:
-        with rasterio.MemoryFile(data) as memfile, memfile.open() as dataset:
+        # Constrain driver selection before GDAL opens the dataset. Checking the
+        # reported driver afterward would already allow VRT external references.
+        with (
+            rasterio.MemoryFile(data) as memfile,
+            memfile.open(driver="GTiff") as dataset,
+        ):
             return _extract(dataset, label=label, crs_override=crs)
     except InvalidInputError:
         raise
@@ -163,7 +201,12 @@ def _extract(
             f"       Whirld requires a CRS. Re-tag the file or supply "
             f"--crs to assign one (e.g. --crs EPSG:32630)."
         )
-    data = dataset.read()
+    masked = dataset.read(masked=True).astype(np.float32)
+    data = masked.filled(np.nan)
+    # Explicit masks can supersede GDAL's nodata mask. Honor both independently.
+    for index, nodata in enumerate(dataset.nodatavals):
+        if nodata is not None:
+            data[index][data[index] == nodata] = np.nan
     _log.debug(
         "Read %s: %d bands, %dx%d, crs=%s",
         label,

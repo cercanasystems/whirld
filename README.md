@@ -45,7 +45,7 @@ download + sha256-verify genuine checkpoints and run the real networks.
 - **CLI** (`pull`, `list`, `info`, `embed`, `classify`, `segment`, `serve`, `rm`),
   **public Python API**, structured logging, and a local `usage.jsonl` record.
 - **REST API** (`whirld serve`): `GET /health`, `GET /models`, `POST /embed`
-  (multipart upload → `.npy` + chip-metadata header, or JSON), `POST /classify`
+  (multipart upload → `.npz` bundle with metadata, raw `.npy`, or JSON), `POST /classify`
   (multipart upload + `query` → GeoJSON), and `POST /segment` (→ `image/tiff` mask),
   with models warm-loaded and kept resident.
 - **Real model weights**: `clay-v1.5` (1024-dim embeddings, `hf` extra), `remoteclip`
@@ -136,6 +136,27 @@ COG **range requests** (`/vsicurl/`). Pass `--bbox MIN_LON,MIN_LAT,MAX_LON,MAX_L
 `--stac-token` (or `WHIRLD_STAC_TOKEN`) for gated endpoints. Works on
 `embed`/`classify`/`segment`; the item path needs no extra dependency.
 
+Bearer credentials are scoped to the original item's HTTP origin (scheme, host,
+and port). Cross-origin item redirects lose authorization, and asset redirects
+never forward it. Direct assets on another origin receive no token unless that
+origin is explicitly supplied to `read_stac_item(token_origins=(... ,))`.
+Authenticated asset reads require GDAL >=3.10; older builds fail with an error.
+
+Inputs must use a north-up projected grid in meters. Reproject geographic,
+feet-based, rotated, or south-up rasters before inference. Both pixel dimensions
+are respected when resampling. Named inputs must include every required band
+unambiguously; positional band order applies only to entirely unlabeled rasters
+with exactly the required band count. Local files and uploads preserve nodata and
+internal masks through resampling and normalization. Uploads accept GeoTIFF only.
+
+Acquisition timestamps accept ISO-8601 (including STAC) and TIFF date tags;
+timezone offsets normalize to UTC, and timestamps without a timezone mean UTC.
+Classification GeoJSON uses WGS84 longitude/latitude and retains provenance in
+`source_crs`. Segmentation masks use 255 for invalid pixels; class 0 remains valid.
+Default embedding and segmentation outputs from HTTP(S) inputs use a sanitized
+basename in the current directory, excluding URL credentials and query strings.
+Local inputs, including `file://` URLs, retain adjacent output defaults.
+
 **STAC radiometry:** the reader retains per-band scale, offset, and nodata from
 `raster:bands` (Raster extension v1), or `bands` with `raster:scale` /
 `raster:offset` (Raster extension v2). For multiband assets, named bands select
@@ -199,8 +220,10 @@ whirld serve --port 8765 --models clay-v1     # preload clay-v1; others load on 
 
 curl localhost:8765/health
 curl localhost:8765/models
-curl -F file=@scene.tif -F model=clay-v1 localhost:8765/embed -o embeddings.npy
-#   → embeddings.npy (octet-stream); chip bboxes in the X-Whirld-Chips-Meta header
+curl -F file=@scene.tif -F model=clay-v1 localhost:8765/embed -o embeddings.npz
+#   → ZIP/NumPy archive containing embeddings.npy and metadata.json
+curl -F file=@scene.tif -F model=clay-v1 -F format=npy localhost:8765/embed -o embeddings.npy
+#   → raw array only; use the default archive or format=json for chip metadata
 curl -F file=@scene.tif -F model=clay-v1 -F format=json localhost:8765/embed
 curl -F file=@scene.tif -F model=remoteclip -F query="solar farm" localhost:8765/classify
 #   → GeoJSON FeatureCollection of per-chip scores
@@ -209,6 +232,15 @@ curl -F file=@hls.tif -F model=prithvi-burn-scar localhost:8765/segment -o mask.
 ```
 
 Requires the `serve` extra: `pip install 'whirld[serve]'`.
+
+Migration: `/embed` now defaults to `format=npz`. The unbounded
+`X-Whirld-Chips-Meta` header has been removed; consumers needing chip metadata
+should read `metadata.json` from the archive or request JSON. Explicit `format=npy`
+still returns raw NumPy bytes. Chip sizes and batch sizes must be positive,
+`0 <= overlap < chip_size`, `top_k` must be positive, and probability thresholds
+must be finite values in `[0, 1]`. Invalid REST fields return HTTP 422 and are
+described in OpenAPI. Blocking raster/model work is serialized in a worker per
+server application, keeping health requests responsive and model state protected.
 
 ### Python
 
@@ -239,13 +271,14 @@ src/whirld/
   registry_data/      bundled registry: model YAMLs + JSON schema
   core/
     registry.py       typed (Pydantic) registry loading + validation
-    fetch.py          pull: acquire → sha256 → manifest
+    fetch.py          ModelStore: acquisition, manifests, transactions + leases
     sensor.py         sensor detection precedence
     contract.py       band-contract translation pipeline
     chips.py          tiling + georeferenced chip metadata
     session.py        ModelSession — warm-loaded backend cache (serve)
   models/
-    base.py           ModelBackend ABC + device detection + InferenceContext
+    base.py           ModelBackend ABC + per-call InferenceContext/options
+    checkpoints.py    CheckpointReader: format dispatch + artifact trust
     clay.py           Clay offline reference backend (clay-v1)
     clay_torch.py     real Clay v1.5 torch backend (clay-v1.5)
     remoteclip.py     real RemoteCLIP classification backend (remoteclip)
@@ -254,10 +287,25 @@ src/whirld/
     _vendor/clay_v15/ vendored Clay encoder (Apache-2.0; see PROVENANCE.md)
   io/
     raster.py         rasterio reader (path + in-memory bytes)
+    stac_auth.py      StacAccessPolicy: per-read credentials + GDAL scope
     output.py         npy + meta sidecar; GeoJSON; mask GeoTIFF writers
   server/             FastAPI app + routes (health, models, embed, classify, segment)
   cli/                Typer app + commands
 ```
+
+Stateful operations have explicit owners. `ModelEntry.from_registry_file()` owns
+schema and domain validation for both runtime loading and the registry checker.
+`ModelStore` binds a cache home and registry, coordinates installation transactions,
+and leases artifacts through backend loading. `ModelSession` retains that store
+alongside its warm backends. Existing module-level cache functions delegate to a
+store for compatibility.
+
+Each server app owns an `InferenceService`, which manages its session lifecycle
+and inference admission; routes obtain it through a FastAPI dependency. Immutable
+`InferenceOptions` travel with each call, so batch overrides never mutate resident
+backend defaults. `CheckpointReader`, `PrithviDeployment`, and `StacAccessPolicy`
+own checkpoint trust, offline deployment resources, and scoped credentials,
+respectively. Pure transformations and serialization remain functions.
 
 The cache lives at `~/.whirld` (override with `WHIRLD_HOME`):
 
@@ -279,10 +327,20 @@ geospatial-Python environment pain.
 ## Development
 
 ```bash
-.venv/bin/python -m pytest --cov=whirld   # tests + coverage (≥80%)
+.venv/bin/python -m pytest --cov=whirld --cov-fail-under=80
 .venv/bin/black src tests                 # format
 .venv/bin/ruff check src tests            # lint
+.venv/bin/mypy src/whirld                 # whole-package typing
+.venv/bin/python scripts/check_registry.py --validate-only src/whirld/registry_data/models/*.yaml
 ```
+
+GitHub Actions runs these checks on Python 3.13.7 and a separate fresh base-package
+smoke test. Tests using live data or real model checkpoints remain opt-in. The
+Prithvi real-model test accepts `WHIRLD_TEST_PRITHVI_CKPT` and
+`WHIRLD_TEST_PRITHVI_CONFIG`; it uses an empty external model cache and blocks
+network connections while loading and segmenting. Its ordinary unit counterpart
+checks deployment configuration with a model stand-in. Prithvi initialization
+disables pretrained-backbone bootstrap and loads the installed task checkpoint.
 
 **Clean-room install test** (fresh machine, base deps only, no system GDAL — proves
 the shipped package + the STAC reader work from scratch). Same smoke test
@@ -324,13 +382,30 @@ what may be pulled, executed, and auto-merged:
 - **Weights / RCE.** Pickle formats (`.pt`/`.ckpt`/…) run arbitrary code on load.
   Community entries **must** ship `safetensors`; pickle is allowed only for
   maintainer-curated `first-party` entries. A community + pickle entry is **refused at
-  pull** (`SecurityError`, exit 9).
+  pull** (`SecurityError`, exit 9). Deserialization also enforces trust:
+  `.safetensors` uses the safetensors parser exclusively, with no pickle fallback.
+  Prithvi's executable configuration is restricted to first-party entries.
 - **Backend dispatch is a closed allowlist** — `load_backend` maps an allowlisted id to
   a hardcoded branch and **never imports a module path from YAML** (test-locked).
+- **RemoteCLIP architecture selection** accepts `RN50`, `ViT-B-32`, or `ViT-L-14`.
+  External source selectors and architectures requiring additional external
+  models/tokenizers are rejected before loading; weights come from the registered
+  artifact.
 - **License.** A model's `license` is required and surfaced before download
   (`whirld pull`) and in `whirld info`. Only an OSS allowlist may auto-merge;
   use-restricted licenses (e.g. the OlmoEarth Artifact License) get a terms warning and
   human review. `scripts/check_registry.py` enforces the machine-checkable parts in CI.
+
+Runtime loading and the checker enforce the packaged JSON Schema and backend
+compatibility rules. Model names and artifact paths cannot escape cache directories
+or traverse symlinks. Pulls stage and verify a complete installation before
+replacement; failed replacements preserve the previous usable installation.
+Installed status requires the manifest and every declared artifact.
+
+Bundled registry upgrades add newly shipped entries and refresh unmodified copies.
+Edited entries and caches predating the bundle digest journal are preserved as user
+overrides. Remove an override's YAML to restore its current bundled entry on the
+next registry load; no `whirld update` command is required for bundled upgrades.
 
 ---
 

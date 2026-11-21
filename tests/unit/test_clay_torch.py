@@ -8,6 +8,7 @@ extraction, error handling) with a **tiny** randomly-initialized encoder — no
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +16,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
+from whirld.core.options import InferenceOptions  # noqa: E402
 from whirld.core.registry import Registry  # noqa: E402
 from whirld.errors import WhirldError  # noqa: E402
 from whirld.models._vendor.clay_v15 import Encoder  # noqa: E402
@@ -74,10 +76,12 @@ def test_embed_batches_match_single() -> None:
     """Batching over chips produces the same result as the whole set at once."""
     backend = _backend()
     chips = _chips(n=5)
-    backend._batch_size = 2
-    batched = backend.embed(chips, _ctx())
-    backend._batch_size = 100
-    whole = backend.embed(chips, _ctx())
+    batched = backend.embed(
+        chips, replace(_ctx(), options=InferenceOptions(batch_size=2))
+    )
+    whole = backend.embed(
+        chips, replace(_ctx(), options=InferenceOptions(batch_size=100))
+    )
     assert np.allclose(batched, whole, atol=1e-5)
 
 

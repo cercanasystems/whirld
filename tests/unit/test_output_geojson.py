@@ -37,7 +37,8 @@ def test_build_feature_collection() -> None:
         crs="EPSG:32630",
     )
     assert fc["type"] == "FeatureCollection"
-    assert fc["crs"] == "EPSG:32630"
+    assert fc["source_crs"] == "EPSG:32630"
+    assert "crs" not in fc
     assert fc["query"] == "solar farm"
     assert fc["queries"] == ["solar farm"]
     assert len(fc["features"]) == 2

@@ -17,10 +17,12 @@ contract, so "supported by this model" and "detectable" are the same set.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from ..errors import UnsupportedSensorError
 from ..io.raster import RasterSource
 from ..logging_setup import get_logger
-from .registry import ModelEntry
+from .registry import ModelEntry, SensorContract
 
 _log = get_logger("core.sensor")
 
@@ -98,7 +100,7 @@ def detect_sensor(
 
 
 def _detect_from_tags(
-    raster: RasterSource, candidates: dict[str, object]
+    raster: RasterSource, candidates: Mapping[str, SensorContract]
 ) -> str | None:
     """Match a sensor by scanning IMAGEDESCRIPTION/SOFTWARE TIFF tags."""
     haystack = " ".join(
@@ -114,7 +116,7 @@ def _detect_from_tags(
 
 
 def _detect_from_band_descriptions(
-    raster: RasterSource, candidates: dict[str, object]
+    raster: RasterSource, candidates: Mapping[str, SensorContract]
 ) -> str | None:
     """Match a sensor when the raster's band descriptions equal its native bands.
 
@@ -126,14 +128,14 @@ def _detect_from_band_descriptions(
     if not present:
         return None
     for sensor_key, contract in candidates.items():
-        native = {b.lower() for b in contract.bands}  # type: ignore[attr-defined]
+        native = {b.lower() for b in contract.bands}
         if native.issubset(present):
             return sensor_key
     return None
 
 
 def _detect_from_resolution(
-    raster: RasterSource, candidates: dict[str, object]
+    raster: RasterSource, candidates: Mapping[str, SensorContract]
 ) -> str | None:
     """Match a sensor by native ground resolution within a small tolerance.
 
@@ -143,7 +145,7 @@ def _detect_from_resolution(
     res_x, _ = raster.resolution_m
     matches = []
     for sensor_key, contract in candidates.items():
-        native = float(contract.native_resolution_m)  # type: ignore[attr-defined]
+        native = float(contract.native_resolution_m)
         if abs(res_x - native) <= _RESOLUTION_TOLERANCE * native:
             matches.append(sensor_key)
     if len(matches) == 1:

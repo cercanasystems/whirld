@@ -16,15 +16,21 @@ This module exposes:
 
 from __future__ import annotations
 
+import hashlib
+import json
+from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .. import config
 from ..errors import ModelNotFoundError, RegistryError
 from ..logging_setup import get_logger
+
+if TYPE_CHECKING:
+    from jsonschema import Draft7Validator
 
 _log = get_logger("core.registry")
 
@@ -159,6 +165,18 @@ class Source(BaseModel):
     files: list[str] = Field(default_factory=list)
     seed: int | None = None
 
+    @field_validator("files")
+    @classmethod
+    def _safe_files(cls, value: list[str]) -> list[str]:
+        """Prevent source filenames from escaping the model installation."""
+        for filename in value:
+            config.validate_artifact_path(filename)
+        if len(value) != len(set(value)) or any(
+            other.startswith(filename + "/") for filename in value for other in value
+        ):
+            raise ValueError("Source artifacts must have distinct nonoverlapping paths")
+        return value
+
 
 class Distribution(BaseModel):
     """Checksum and size for the model artifact.
@@ -237,9 +255,138 @@ class ModelEntry(BaseModel):
     hardware: dict[str, Any] = Field(default_factory=dict)
     whirld_min_version: str | None = None
 
+    @field_validator("name")
+    @classmethod
+    def _safe_name(cls, value: str) -> str:
+        """Validate model identifiers before they reach filesystem operations."""
+        return config.validate_model_name(value)
+
+    @field_validator("config_file")
+    @classmethod
+    def _safe_config(cls, value: str | None) -> str | None:
+        """Validate an optional auxiliary artifact path."""
+        return config.validate_artifact_path(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def _compatible_backend(self) -> ModelEntry:
+        """Reject supported-backend declarations with incompatible source/output."""
+        contracts = {
+            "clay-reference": ("reference", "embedding", "embedding", "npy"),
+            "clay": ("huggingface", "embedding", "embedding", "npy"),
+            "remoteclip": ("huggingface", "classification", "scores", "geojson"),
+            "prithvi": ("huggingface", "segmentation", "mask", "geotiff"),
+        }
+        if self.backend not in contracts:
+            raise ValueError(f"Unsupported backend: {self.backend!r}")
+        actual = (self.source.type, self.category, self.output.type, self.output.format)
+        if actual != contracts[self.backend]:
+            raise ValueError(f"Incompatible source/category/output for {self.backend}")
+        if self.source.type == "huggingface" and not (
+            self.source.repo and self.source.revision and self.source.files
+        ):
+            raise ValueError(
+                "Hugging Face sources require repo, pinned revision, and files"
+            )
+        if self.backend == "remoteclip":
+            self.validate_remoteclip_architecture(self.model_name)
+        if self.backend == "prithvi":
+            if self.trust != "first-party":
+                raise ValueError(
+                    "Prithvi's executable configuration requires first-party trust"
+                )
+            if not self.config_file or self.config_file not in self.source.files:
+                raise ValueError(
+                    "Prithvi config_file must be a declared source artifact"
+                )
+            if self.source.files[0].endswith(".safetensors"):
+                raise ValueError(
+                    "Prithvi requires a trusted Lightning checkpoint, not safetensors"
+                )
+        return self
+
+    @staticmethod
+    def validate_remoteclip_architecture(value: str | None) -> str:
+        """Allow supported local RemoteCLIP definitions, never source selectors.
+
+        open_clip accepts HF/local-directory selectors and other architectures
+        with external text/tokenizer dependencies. Whirld supports these three
+        self-contained definitions; its verified checkpoint is the weights source.
+        """
+        from ..errors import SecurityError
+
+        if value is None or value not in {"RN50", "ViT-B-32", "ViT-L-14"}:
+            raise SecurityError(
+                "RemoteCLIP model_name must be a supported local architecture: "
+                "RN50, ViT-B-32, or ViT-L-14. External source selectors and "
+                "architectures with external tokenizer/model dependencies "
+                "are not allowed."
+            )
+        return value
+
     def supported_sensors(self) -> list[str]:
         """Return the sorted list of sensor identifiers this model supports."""
         return sorted(self.band_contract.sensors)
+
+    def fingerprint(self) -> str:
+        """Return canonical configuration provenance independent of YAML order."""
+        document = json.dumps(
+            self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+        )
+        return hashlib.sha256(document.encode()).hexdigest()
+
+    @classmethod
+    @lru_cache(maxsize=1)
+    def _schema_validator(cls) -> Draft7Validator:
+        """Cache this model's packaged document schema, never a cached override."""
+        from jsonschema import Draft7Validator
+
+        path = config.bundled_registry_dir() / "schema" / "model.schema.json"
+        return Draft7Validator(json.loads(path.read_text(encoding="utf-8")))
+
+    @classmethod
+    def from_registry_data(cls, document: object) -> ModelEntry:
+        """Construct an entry from external data using all registry constraints.
+
+        Args:
+            document: Decoded YAML/JSON at the external-data boundary.
+
+        Returns:
+            An entry satisfying the packaged schema and model invariants.
+
+        Raises:
+            RegistryError: Schema, path, or backend compatibility checks fail.
+        """
+        from jsonschema.exceptions import ValidationError as SchemaValidationError
+        from pydantic import ValidationError
+
+        from ..errors import SecurityError
+
+        try:
+            cls._schema_validator().validate(document)
+            return cls.model_validate(document)
+        except (SchemaValidationError, ValidationError, SecurityError) as exc:
+            raise RegistryError(f"Registry entry failed validation: {exc}") from exc
+
+    @classmethod
+    def from_registry_file(cls, path: Path) -> ModelEntry:
+        """Load a registry YAML through the model's validated document constructor.
+
+        Args:
+            path: Input YAML file; the document name need not match its filename.
+
+        Returns:
+            A fully validated model entry, without leaking raw mappings to callers.
+
+        Raises:
+            RegistryError: The file cannot be read, parsed, or validated.
+        """
+        try:
+            document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise RegistryError(
+                f"Cannot read registry file '{path.name}': {exc}"
+            ) from exc
+        return cls.from_registry_data(document)
 
 
 class Registry:
@@ -257,29 +404,72 @@ class Registry:
         self._seed_if_missing()
 
     @property
+    def paths(self) -> config.WhirldPaths:
+        """Expose the immutable path configuration to collaborating cache objects."""
+        return self._paths
+
+    @property
     def models_dir(self) -> Path:
         """Directory containing registry model YAMLs."""
         return self._paths.registry_models_dir
 
     def _seed_if_missing(self) -> None:
-        """Copy the bundled registry into the cache when absent.
+        """Refresh bundled entries while preserving explicit user overrides.
 
-        Idempotent: only seeds when the registry models directory has no YAMLs.
+        A digest journal identifies the last packaged version of each installed
+        file. Unmodified bundled copies are upgraded; edited files and pre-journal
+        caches are preserved as user overrides. Newly bundled names are always
+        added. Removing an override restores the current bundled entry next time.
         """
-        if self.models_dir.exists() and any(self.models_dir.glob("*.yaml")):
-            return
-        import shutil
+        import hashlib
+        import os
+        import tempfile
 
         bundled = config.bundled_registry_dir()
-        _log.debug("Seeding registry from bundled copy at %s", bundled)
-        self._paths.registry_models_dir.mkdir(parents=True, exist_ok=True)
+        self.models_dir.mkdir(parents=True, exist_ok=True)
         self._paths.registry_schema_dir.mkdir(parents=True, exist_ok=True)
-        for yaml_file in (bundled / "models").glob("*.yaml"):
-            shutil.copy2(yaml_file, self.models_dir / yaml_file.name)
-        for schema_file in (bundled / "schema").glob("*.json"):
-            shutil.copy2(
-                schema_file, self._paths.registry_schema_dir / schema_file.name
+        journal = config.cache_path(self._paths.registry_dir, "bundled-hashes.json")
+        try:
+            previous = json.loads(journal.read_text()) if journal.exists() else {}
+            if not isinstance(previous, dict):
+                previous = {}
+        except (ValueError, OSError):
+            previous = {}
+        current: dict[str, str] = {}
+
+        def replace(path: Path, content: bytes) -> None:
+            """Publish one complete cache file using a same-directory rename."""
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as handle:
+                temp = Path(handle.name)
+                handle.write(content)
+            try:
+                os.replace(temp, path)
+            finally:
+                temp.unlink(missing_ok=True)
+
+        for source in (bundled / "models").glob("*.yaml"):
+            target = config.cache_path(self.models_dir, source.name)
+            content = source.read_bytes()
+            digest = hashlib.sha256(content).hexdigest()
+            current[source.name] = digest
+            existing = (
+                hashlib.sha256(target.read_bytes()).hexdigest()
+                if target.exists()
+                else None
             )
+            if existing is None or existing == previous.get(source.name):
+                replace(target, content)
+            elif existing != digest:
+                # Keep the previous baseline for an override; replacing it with
+                # the new digest would accidentally claim user content next run.
+                current[source.name] = previous.get(source.name, "user-override")
+                _log.debug("Preserving registry override: %s", target)
+        for source in (bundled / "schema").glob("*.json"):
+            replace(
+                config.cache_path(self._paths.registry_schema_dir, source.name),
+                source.read_bytes(),
+            )
+        replace(journal, json.dumps(current, sort_keys=True).encode())
 
     def available(self) -> list[str]:
         """Return the sorted names of all models present in the registry."""
@@ -298,13 +488,15 @@ class Registry:
             ModelNotFoundError: No YAML for ``name`` exists in the registry.
             RegistryError: The YAML is malformed or fails validation.
         """
-        path = self.models_dir / f"{name}.yaml"
+        config.validate_model_name(name)
+        path = config.cache_path(self.models_dir, f"{name}.yaml")
         if not path.exists():
             available = ", ".join(self.available()) or "(none)"
             raise ModelNotFoundError(
                 f"Model '{name}' is not in the registry.\n"
                 f"       Available models: {available}\n"
-                f"       Run 'whirld update' to refresh the registry."
+                "       Upgrade Whirld for new bundled models, "
+                "or add a valid registry entry."
             )
         return self._parse(path)
 
@@ -321,21 +513,11 @@ class Registry:
             RegistryError: On YAML or schema validation failure.
         """
         try:
-            raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except yaml.YAMLError as exc:
-            raise RegistryError(
-                f"Registry file '{path.name}' is not valid YAML.\n"
-                f"       {exc}\n"
-                f"       Re-run 'whirld update' to restore a clean copy."
-            ) from exc
-        if not isinstance(raw, dict):
-            raise RegistryError(
-                f"Registry file '{path.name}' must be a YAML mapping, "
-                f"got {type(raw).__name__}."
-            )
-        try:
-            return ModelEntry.model_validate(raw)
-        except Exception as exc:  # pydantic.ValidationError and friends
+            entry = ModelEntry.from_registry_file(path)
+            if entry.name != path.stem:
+                raise RegistryError("Registry name must match its filename")
+            return entry
+        except RegistryError as exc:
             raise RegistryError(
                 f"Registry entry '{path.stem}' failed validation:\n"
                 f"       {exc}\n"

@@ -17,8 +17,14 @@ segmentation; the PRD's before/after temporal stacking does not apply.
 from __future__ import annotations
 
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import numpy as np
+import yaml
+
+if TYPE_CHECKING:
+    from torch import Tensor
 
 from .. import config
 from ..core.fetch import Manifest
@@ -26,37 +32,82 @@ from ..core.registry import ModelEntry
 from ..errors import ModelNotInstalledError, WhirldError
 from ..logging_setup import get_logger
 from .base import InferenceContext, ModelBackend, detect_device
+from .checkpoints import CheckpointReader
 
 _log = get_logger("models.prithvi")
 
 _DEFAULT_BATCH = 4
 
 
-def _build_inference_model(config_path: Path, ckpt_path: Path):
-    """Lazily build a TerraTorch inference model, with a clear missing-extra error.
+class _LogitOutput(Protocol):
+    """TerraTorch's wrapper around its segmentation logits tensor."""
 
-    Args:
-        config_path: Path to the TerraTorch YAML config.
-        ckpt_path: Path to the ``.pt`` checkpoint.
+    output: Tensor
 
-    Returns:
-        The underlying ``nn.Module`` (TerraTorch ``SemanticSegmentationTask.model``).
 
-    Raises:
-        WhirldError: ``terratorch`` is not installed.
+class _SegmentationModel(Protocol):
+    """The inference surface consumed from a TerraTorch segmentation module."""
+
+    def __call__(self, pixels: Tensor) -> Tensor | _LogitOutput:
+        """Return raw or wrapped logits for the input batch."""
+        ...
+
+
+class PrithviDeployment:
+    """Build a trusted offline deployment from an installed training artifact.
+
+    Owns configuration sanitization and its temporary-file lifetime together with
+    the bound checkpoint's execution policy. Installed training files remain
+    untouched; no separate pretrained backbone is bootstrapped during inference.
     """
-    try:
-        from terratorch.cli_tools import LightningInferenceModel  # noqa: PLC0415
-    except ImportError as exc:
-        raise WhirldError(
-            "Prithvi segmentation requires the optional 'prithvi' extra "
-            "(terratorch).\n       Install it:  pip install 'whirld[prithvi]'"
-        ) from exc
 
-    lightning_model = LightningInferenceModel.from_config(
-        str(config_path), str(ckpt_path)
-    )
-    return lightning_model.model
+    def __init__(self, config_path: Path, checkpoint: CheckpointReader) -> None:
+        """Bind the installed training configuration and checkpoint reader."""
+        self._config_path = config_path
+        self._checkpoint = checkpoint
+
+    def _configuration(self) -> dict[str, Any]:
+        """Read a fresh deployment config with network/training bootstrap disabled."""
+        try:
+            inference_config = yaml.safe_load(self._config_path.read_text())
+            model_args = inference_config["model"]["init_args"]["model_args"]
+            if not isinstance(model_args, dict):
+                raise TypeError("model_args must be a mapping")
+            model_args["backbone_pretrained"] = False
+            if "pretrained" in model_args:
+                model_args["pretrained"] = False
+            inference_config.pop("ckpt_path", None)
+            trainer = inference_config.setdefault("trainer", {})
+            trainer["logger"] = False
+            trainer["callbacks"] = []
+        except (OSError, yaml.YAMLError, KeyError, TypeError, AttributeError) as exc:
+            raise WhirldError(
+                f"Invalid Prithvi inference config: {self._config_path}"
+            ) from exc
+        return cast(dict[str, Any], inference_config)
+
+    def load(self) -> Any:
+        """Authorize loading and return TerraTorch's underlying inference module.
+
+        The third-party object is adapted by PrithviBackend. Missing extras or
+        invalid config raise WhirldError; untrusted execution raises SecurityError.
+        """
+        self._checkpoint.require_trusted_execution()
+        try:
+            from terratorch.cli_tools import LightningInferenceModel  # noqa: PLC0415
+        except ImportError as exc:
+            raise WhirldError(
+                "Prithvi segmentation requires the optional 'prithvi' extra "
+                "(terratorch).\n       Install it:  pip install 'whirld[prithvi]'"
+            ) from exc
+        inference_config = self._configuration()
+        with TemporaryDirectory(prefix="whirld-prithvi-") as temporary:
+            deployment_config = Path(temporary) / "inference.yaml"
+            deployment_config.write_text(yaml.safe_dump(inference_config))
+            lightning_model = LightningInferenceModel.from_config(
+                str(deployment_config), str(self._checkpoint.path)
+            )
+        return lightning_model.model
 
 
 class PrithviBackend(ModelBackend):
@@ -83,15 +134,22 @@ class PrithviBackend(ModelBackend):
         classes: int,
         config_path: Path | None = None,
         ckpt_path: Path | None = None,
-        model: object | None = None,
+        model: _SegmentationModel | None = None,
         batch_size: int = _DEFAULT_BATCH,
+        trusted_checkpoint: bool = False,
     ) -> None:
-        super().__init__(name=name, version=version, device=device)
+        super().__init__(
+            name=name, version=version, device=device, batch_size=batch_size
+        )
         self.classes = int(classes)
-        self._config_path = config_path
-        self._ckpt_path = ckpt_path
+        self._deployment = (
+            PrithviDeployment(
+                config_path, CheckpointReader(ckpt_path, trusted=trusted_checkpoint)
+            )
+            if config_path is not None and ckpt_path is not None
+            else None
+        )
         self._model = model
-        self._batch_size = batch_size
 
     @classmethod
     def load(
@@ -99,6 +157,8 @@ class PrithviBackend(ModelBackend):
         entry: ModelEntry,
         manifest: Manifest,
         device: str | None = None,
+        *,
+        paths: config.WhirldPaths | None = None,
     ) -> PrithviBackend:
         """Build the backend and load the real TerraTorch weights.
 
@@ -120,9 +180,12 @@ class PrithviBackend(ModelBackend):
                 f"Registry entry '{entry.name}' must declare config_file "
                 f"(the TerraTorch YAML)."
             )
-        model_dir = config.get_paths().model_dir(entry.name)
-        ckpt = model_dir / manifest.weights_file
-        cfg = model_dir / entry.config_file
+        paths = paths or config.get_paths()
+        ckpt = paths.model_file(entry.name, manifest.weights_file)
+        cfg = paths.model_file(entry.name, entry.config_file)
+        CheckpointReader(
+            ckpt, trusted=entry.trust == "first-party"
+        ).require_trusted_execution()
         for path, kind in ((ckpt, "checkpoint"), (cfg, "config")):
             if not path.exists():
                 raise ModelNotInstalledError(
@@ -136,18 +199,23 @@ class PrithviBackend(ModelBackend):
             classes=entry.output.classes or 2,
             config_path=cfg,
             ckpt_path=ckpt,
+            trusted_checkpoint=entry.trust == "first-party",
         )
         backend._ensure_model()
         return backend
 
-    def _ensure_model(self) -> object:
+    def _ensure_model(self) -> _SegmentationModel:
         """Build the TerraTorch model on first use (or return the cached one)."""
         if self._model is not None:
             return self._model
+        if self._deployment is None:
+            raise WhirldError(
+                "Checkpoint and config paths are required to load Prithvi."
+            )
         _log.info(
             "Loading Prithvi (%s) weights on device '%s'.", self.name, self.device
         )
-        model = _build_inference_model(self._config_path, self._ckpt_path)
+        model = self._deployment.load()
         model.to(self.device).eval()
         self._model = model
         return model
@@ -198,8 +266,8 @@ class PrithviBackend(ModelBackend):
         model = self._ensure_model()
         outputs: list[np.ndarray] = []
         with torch.no_grad():
-            for start in range(0, chips.shape[0], self._batch_size):
-                batch = chips[start : start + self._batch_size]
+            for selection in self.batches(chips.shape[0], context):
+                batch = chips[selection]
                 # Prithvi expects (B, C, T, H, W); the heads are single-frame (T=1).
                 pixels = (
                     torch.from_numpy(np.ascontiguousarray(batch))
@@ -217,7 +285,7 @@ class PrithviBackend(ModelBackend):
         return np.concatenate(outputs, axis=0).astype(np.uint8)
 
 
-def _as_logits(output: object):
+def _as_logits(output: Tensor | _LogitOutput) -> Tensor:
     """Extract the logits tensor from a possibly-wrapped TerraTorch output.
 
     TerraTorch tasks may return a tensor or an object with a ``.output`` attribute.
@@ -228,4 +296,4 @@ def _as_logits(output: object):
     Returns:
         The logits tensor ``(B, classes, H, W)``.
     """
-    return getattr(output, "output", output)
+    return cast("Tensor", getattr(output, "output", output))

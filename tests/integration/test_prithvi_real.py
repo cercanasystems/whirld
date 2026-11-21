@@ -11,6 +11,7 @@ needs the 1.3 GB download or TerraTorch. To run it, set both::
 from __future__ import annotations
 
 import os
+import socket
 from pathlib import Path
 
 import numpy as np
@@ -28,8 +29,22 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_real_prithvi_segment(whirld_home: Path, hls_tif: Path) -> None:
-    """Real Prithvi burn-scar weights load and segment an HLS scene to a mask."""
+def test_real_prithvi_segment(
+    whirld_home: Path, hls_tif: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Real installed weights segment offline, without a cached base backbone."""
+    from huggingface_hub import constants as hf_constants
+
+    cache = tmp_path / "empty-hf-cache"
+    cache.mkdir()
+    monkeypatch.setenv("HF_HOME", str(cache))
+    monkeypatch.setattr(hf_constants, "HF_HUB_CACHE", str(cache))
+
+    def deny_network(*args: object, **kwargs: object) -> None:
+        """Fail if initialization or inference tries to contact a remote host."""
+        pytest.fail("Real Prithvi inference attempted network access")
+
+    monkeypatch.setattr(socket.socket, "connect", deny_network)
     from whirld.core.chips import chip_raster, reassemble_mask
     from whirld.core.contract import translate
     from whirld.core.registry import Registry
@@ -56,6 +71,7 @@ def test_real_prithvi_segment(whirld_home: Path, hls_tif: Path) -> None:
         classes=entry.output.classes,
         config_path=Path(_CONFIG),
         ckpt_path=Path(_CKPT),
+        trusted_checkpoint=True,  # Explicit opt-in to a supplied curated checkpoint.
     )
     masks = backend.segment(chips)
     assert masks.dtype == np.uint8

@@ -20,9 +20,15 @@ softmaxed against a neutral ``"background"`` prompt for a calibrated match score
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from torch import Tensor
 
 from .. import config
 from ..core.fetch import Manifest
@@ -30,6 +36,7 @@ from ..core.registry import ModelEntry
 from ..errors import ModelNotInstalledError, WhirldError
 from ..logging_setup import get_logger
 from .base import InferenceContext, ModelBackend, detect_device
+from .checkpoints import CheckpointReader
 
 _log = get_logger("models.remoteclip")
 
@@ -39,7 +46,21 @@ _DEFAULT_BATCH = 16
 _BACKGROUND_PROMPTS = ["background"]
 
 
-def _import_open_clip():
+class _CLIPModel(Protocol):
+    """The inference surface consumed from open_clip, without importing it."""
+
+    logit_scale: Tensor
+
+    def encode_image(self, pixels: Tensor) -> Tensor:
+        """Encode a batch of image tensors."""
+        ...
+
+    def encode_text(self, tokens: Tensor) -> Tensor:
+        """Encode a batch of tokenized prompts."""
+        ...
+
+
+def _import_open_clip() -> ModuleType:
     """Lazily import open_clip, raising an actionable error if the extra is absent.
 
     Returns:
@@ -83,16 +104,22 @@ class RemoteCLIPBackend(ModelBackend):
         *,
         arch: str,
         ckpt_path: Path | None = None,
-        model: object | None = None,
-        tokenizer: object | None = None,
+        model: _CLIPModel | None = None,
+        tokenizer: Callable[[list[str]], Tensor] | None = None,
         batch_size: int = _DEFAULT_BATCH,
+        trusted_checkpoint: bool = False,
     ) -> None:
-        super().__init__(name=name, version=version, device=device)
-        self.arch = arch
-        self._ckpt_path = ckpt_path
+        super().__init__(
+            name=name, version=version, device=device, batch_size=batch_size
+        )
+        self.arch = ModelEntry.validate_remoteclip_architecture(arch)
+        self._checkpoint = (
+            CheckpointReader(ckpt_path, trusted=trusted_checkpoint)
+            if ckpt_path is not None
+            else None
+        )
         self._model = model
         self._tokenizer = tokenizer
-        self._batch_size = batch_size
 
     @classmethod
     def load(
@@ -100,6 +127,8 @@ class RemoteCLIPBackend(ModelBackend):
         entry: ModelEntry,
         manifest: Manifest,
         device: str | None = None,
+        *,
+        paths: config.WhirldPaths | None = None,
     ) -> RemoteCLIPBackend:
         """Build the backend and load the real RemoteCLIP weights.
 
@@ -121,7 +150,9 @@ class RemoteCLIPBackend(ModelBackend):
                 f"Registry entry '{entry.name}' must declare model_name "
                 f"(the open_clip architecture)."
             )
-        ckpt = config.get_paths().model_dir(entry.name) / manifest.weights_file
+        ckpt = (paths or config.get_paths()).model_file(
+            entry.name, manifest.weights_file
+        )
         if not ckpt.exists():
             raise ModelNotInstalledError(
                 f"Checkpoint for '{entry.name}' is missing at {ckpt}.\n"
@@ -133,27 +164,34 @@ class RemoteCLIPBackend(ModelBackend):
             device=resolved,
             arch=entry.model_name,
             ckpt_path=ckpt,
+            trusted_checkpoint=entry.trust == "first-party",
         )
         backend._ensure_model()
         return backend
 
-    def _ensure_model(self) -> tuple[object, object]:
+    def _ensure_model(self) -> tuple[_CLIPModel, Callable[[list[str]], Tensor]]:
         """Build the open_clip model + tokenizer and load weights on first use.
 
         Returns:
             A tuple ``(model, tokenizer)`` ready for inference.
         """
+        # Validate again at dispatch so direct callers or edited runtime objects
+        # cannot route open_clip around the owned checkpoint/source boundary.
+        ModelEntry.validate_remoteclip_architecture(self.arch)
         if self._model is not None and self._tokenizer is not None:
             return self._model, self._tokenizer
 
         open_clip = _import_open_clip()
-        import torch  # noqa: PLC0415
 
         _log.info(
             "Loading RemoteCLIP (%s) weights on device '%s'.", self.arch, self.device
         )
-        model, _, _ = open_clip.create_model_and_transforms(self.arch)
-        state_dict = torch.load(self._ckpt_path, map_location="cpu")
+        model, _, _ = open_clip.create_model_and_transforms(
+            self.arch, pretrained=None, pretrained_hf=False
+        )
+        if self._checkpoint is None:
+            raise WhirldError("A checkpoint path is required to load RemoteCLIP.")
+        state_dict = self._checkpoint.read_state_dict()
         missing, unexpected = model.load_state_dict(state_dict, strict=False)
         _log.info(
             "RemoteCLIP weights: %d missing, %d unexpected.",
@@ -162,8 +200,9 @@ class RemoteCLIPBackend(ModelBackend):
         )
         model.to(self.device).eval()
         self._model = model
-        self._tokenizer = open_clip.get_tokenizer(self.arch)
-        return self._model, self._tokenizer
+        tokenizer: Callable[[list[str]], Tensor] = open_clip.get_tokenizer(self.arch)
+        self._tokenizer = tokenizer
+        return model, tokenizer
 
     def embed(
         self, chips: np.ndarray, context: InferenceContext | None = None
@@ -228,8 +267,8 @@ class RemoteCLIPBackend(ModelBackend):
             scale = model.logit_scale.exp()
             text_features = model.encode_text(tokens)
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-            for start in range(0, chips.shape[0], self._batch_size):
-                batch = chips[start : start + self._batch_size]
+            for selection in self.batches(chips.shape[0], context):
+                batch = chips[selection]
                 pixels = (
                     torch.from_numpy(np.ascontiguousarray(batch))
                     .float()

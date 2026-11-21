@@ -16,6 +16,7 @@ produce the correct ordered input for Clay: Whirld looks for "blue", not "band 1
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -24,7 +25,7 @@ from rasterio.enums import Resampling
 from rasterio.warp import reproject
 
 from ..errors import InvalidInputError, UnsupportedSensorError
-from ..io.raster import RasterSource
+from ..io.raster import RasterSource, validate_metric_grid
 from ..logging_setup import get_logger
 from .registry import ModelEntry
 
@@ -43,6 +44,9 @@ class TranslatedRaster:
         target_resolution_m: The contract's target resolution in meters.
         aliases: Canonical spectral alias order of ``data``'s bands.
         sensor: The sensor key the translation was performed for.
+        valid_mask: Two-dimensional validity where every required band has an
+            observation, before normalization fills invalid values. None means
+            all pixels are valid (compatibility for manually constructed rasters).
     """
 
     data: np.ndarray
@@ -51,6 +55,7 @@ class TranslatedRaster:
     target_resolution_m: float
     aliases: list[str]
     sensor: str
+    valid_mask: np.ndarray | None = None
 
 
 def translate(
@@ -82,6 +87,9 @@ def translate(
     sensor_contract = contract.sensors[sensor]
     indices = _select_band_indices(raster, sensor_contract.bands)
     selected = raster.data[indices].astype(np.float32, copy=True)
+    if raster.nodata is not None:
+        selected[selected == raster.nodata] = np.nan
+    selected[~np.isfinite(selected)] = np.nan
     if raster.band_radiometry is not None:
         if len(raster.band_radiometry) != raster.band_count:
             raise InvalidInputError("STAC radiometry must align with raster bands.")
@@ -109,9 +117,8 @@ def translate(
         selected,
         raster.transform,
         raster.crs,
-        raster.resolution_m[0],
         contract.target_resolution_m,
-        nodata=np.nan if raster.band_radiometry is not None else None,
+        nodata=np.nan,
     )
 
     out = resampled.astype(np.float32, copy=True)
@@ -128,15 +135,12 @@ def translate(
         )
     with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
         out = (out - mean) / std
-    if raster.band_radiometry is not None:
-        # Missing observations stay missing throughout conversion/interpolation;
-        # only now replace them with the model's normalized padding value.
-        valid = np.isfinite(resampled)
-        if not np.isfinite(out[valid]).all():
-            raise InvalidInputError(
-                "STAC model normalization produced nonfinite values."
-            )
-        out[~valid] = contract.nodata_fill
+    # Missing observations stay missing throughout conversion/interpolation;
+    # only now replace them with the model's normalized padding value.
+    valid = np.isfinite(resampled)
+    if not np.isfinite(out[valid]).all():
+        raise InvalidInputError("Model normalization produced nonfinite values.")
+    out[~valid] = contract.nodata_fill
 
     _log.debug(
         "Translated to %d bands at %.1f m, shape %s",
@@ -151,6 +155,7 @@ def translate(
         target_resolution_m=float(contract.target_resolution_m),
         aliases=list(sensor_contract.aliases),
         sensor=sensor,
+        valid_mask=valid.all(axis=0),
     )
 
 
@@ -170,15 +175,20 @@ def _select_band_indices(raster: RasterSource, native_bands: list[str]) -> list[
     """
     desc_to_index: dict[str, int] = {}
     for idx, desc in enumerate(raster.band_descriptions):
-        if desc:
-            desc_to_index[desc.strip().lower()] = idx
+        if desc and desc.strip():
+            key = desc.strip().lower()
+            if key in desc_to_index:
+                raise UnsupportedSensorError(
+                    f"Ambiguous band description '{desc}': band names must be unique."
+                )
+            desc_to_index[key] = idx
 
     selected = []
     for position, band_name in enumerate(native_bands):
         key = band_name.strip().lower()
         if key in desc_to_index:
             selected.append(desc_to_index[key])
-        elif position < raster.band_count:
+        elif not desc_to_index and position < raster.band_count:
             _log.debug(
                 "Band '%s' not found by description; using positional index %d.",
                 band_name,
@@ -187,8 +197,9 @@ def _select_band_indices(raster: RasterSource, native_bands: list[str]) -> list[
             selected.append(position)
         else:
             raise UnsupportedSensorError(
-                f"Required band '{band_name}' is not present in the input "
-                f"(only {raster.band_count} bands available)."
+                f"Required band '{band_name}' is not present in the input's "
+                "declared band descriptions. For unlabeled rasters, "
+                "all bands must follow the sensor contract's declared order."
             )
     return selected
 
@@ -197,7 +208,6 @@ def _resample(
     data: np.ndarray,
     transform: rasterio.Affine,
     crs: str,
-    source_res_m: float,
     target_res_m: float,
     nodata: float | None = None,
 ) -> tuple[np.ndarray, rasterio.Affine]:
@@ -207,21 +217,25 @@ def _resample(
         data: Band stack ``(bands, height, width)``.
         transform: Source affine transform.
         crs: Coordinate reference system string.
-        source_res_m: Source pixel size in meters.
         target_res_m: Desired pixel size in meters.
-        nodata: Missing-value sentinel excluded from interpolation for STAC inputs.
+        nodata: Missing-value sentinel excluded independently for each band.
 
     Returns:
         A tuple of the resampled array and its new affine transform. When source
         and target resolution match (within 0.5%), the input is returned as-is.
     """
-    if abs(source_res_m - target_res_m) <= 0.005 * target_res_m:
+    source_x, source_y = validate_metric_grid(crs, transform)
+    if not math.isfinite(target_res_m) or target_res_m <= 0:
+        raise InvalidInputError("Target resolution must be finite and positive.")
+    if all(
+        abs(size - target_res_m) <= 0.005 * target_res_m
+        for size in (source_x, source_y)
+    ):
         return data, transform
 
-    scale = source_res_m / target_res_m
     bands, height, width = data.shape
-    dst_height = max(1, int(round(height * scale)))
-    dst_width = max(1, int(round(width * scale)))
+    dst_height = max(1, math.ceil(height * source_y / target_res_m))
+    dst_width = max(1, math.ceil(width * source_x / target_res_m))
     dst_transform = rasterio.Affine(
         target_res_m,
         transform.b,
@@ -235,20 +249,24 @@ def _resample(
         nodata if nodata is not None else 0.0,
         dtype=np.float32,
     )
-    reproject(
-        source=data.astype(np.float32),
-        destination=destination,
-        src_transform=transform,
-        src_crs=crs,
-        dst_transform=dst_transform,
-        dst_crs=crs,
-        resampling=Resampling.bilinear,
-        src_nodata=nodata,
-        dst_nodata=nodata,
-    )
+    # Warp bands independently: GDAL's multiband unified nodata behavior can
+    # otherwise treat a band's missing sample as valid when another band is valid.
+    for index in range(bands):
+        reproject(
+            source=data[index].astype(np.float32),
+            destination=destination[index],
+            src_transform=transform,
+            src_crs=crs,
+            dst_transform=dst_transform,
+            dst_crs=crs,
+            resampling=Resampling.bilinear,
+            src_nodata=nodata,
+            dst_nodata=nodata,
+        )
     _log.debug(
-        "Resampled %.1f m -> %.1f m: %dx%d -> %dx%d",
-        source_res_m,
+        "Resampled %.1fx%.1f m -> %.1f m: %dx%d -> %dx%d",
+        source_x,
+        source_y,
         target_res_m,
         width,
         height,

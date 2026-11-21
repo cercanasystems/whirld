@@ -53,7 +53,7 @@ def _fake_tokenizer(texts):  # type: ignore[no-untyped-def]
 
 @pytest.fixture
 def fake_remoteclip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch api.load_manifest + load_backend to use a fake RemoteCLIP backend."""
+    """Inject model-store and backend seams to use a fake RemoteCLIP backend."""
 
     def fake_manifest(name, paths=None):  # type: ignore[no-untyped-def]
         return Manifest(
@@ -64,7 +64,7 @@ def fake_remoteclip(monkeypatch: pytest.MonkeyPatch) -> None:
             weights_file="RemoteCLIP-ViT-B-32.pt",
         )
 
-    def fake_load_backend(entry, manifest, device=None):  # type: ignore[no-untyped-def]
+    def fake_load_backend(entry, manifest, device=None, **kwargs):  # type: ignore[no-untyped-def]
         return RemoteCLIPBackend(
             name=entry.name,
             version=manifest.version,
@@ -74,14 +74,17 @@ def fake_remoteclip(monkeypatch: pytest.MonkeyPatch) -> None:
             tokenizer=_fake_tokenizer,
         )
 
-    monkeypatch.setattr("whirld.api.load_manifest", fake_manifest)
+    monkeypatch.setattr(
+        "whirld.core.fetch.ModelStore.load_manifest",
+        lambda self, name: fake_manifest(name),
+    )
     monkeypatch.setattr("whirld.api.load_backend", fake_load_backend)
 
 
 def test_classify_api(whirld_home: Path, s2_tif: Path, fake_remoteclip: None) -> None:
     """classify() returns a GeoJSON FeatureCollection of per-chip scores."""
     result = whirld.classify(
-        s2_tif, model="remoteclip", query="solar farm", top_k=10, threshold=-1.0
+        s2_tif, model="remoteclip", query="solar farm", top_k=10, threshold=0.0
     )
     fc = result.feature_collection
     assert fc["type"] == "FeatureCollection"
@@ -105,7 +108,7 @@ def test_classify_multi_query(
         model="remoteclip",
         query=["solar farm", "forest", "airport"],
         top_k=10,
-        threshold=-1.0,
+        threshold=0.0,
     )
     assert result.queries == ["solar farm", "forest", "airport"]
     feat = result.feature_collection["features"][0]
@@ -117,7 +120,7 @@ def test_classify_multi_query(
 def test_classify_top_k(whirld_home: Path, s2_tif: Path, fake_remoteclip: None) -> None:
     """top_k truncates the feature list."""
     result = whirld.classify(
-        s2_tif, model="remoteclip", query="x", top_k=2, threshold=-1.0
+        s2_tif, model="remoteclip", query="x", top_k=2, threshold=0.0
     )
     assert len(result.feature_collection["features"]) == 2
 

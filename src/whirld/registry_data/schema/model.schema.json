@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/whirld/registry/schema/model.schema.json",
   "title": "Whirld Model Registry Entry",
-  "description": "Schema for a single model YAML in github.com/whirld/registry. Community submissions are merged automatically on passing this schema (PRD section 19).",
+  "description": "Schema for a single model YAML in github.com/whirld/registry. Valid entries must also pass runtime semantic and governance checks.",
   "type": "object",
   "additionalProperties": true,
   "required": [
@@ -21,8 +21,8 @@
   "properties": {
     "name": {
       "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9-]*$",
-      "description": "Machine-readable identifier (lowercase, hyphenated)."
+      "pattern": "^[a-z0-9][a-z0-9.-]*$",
+      "description": "Machine-readable lowercase identifier; dots support versioned names such as clay-v1.5."
     },
     "display_name": { "type": "string" },
     "description": { "type": "string" },
@@ -38,6 +38,7 @@
     "tags": { "type": "array", "items": { "type": "string" } },
     "backend": {
       "type": "string",
+      "enum": ["clay", "clay-reference", "remoteclip", "prithvi"],
       "description": "Backend implementation that runs this model (e.g. 'clay', 'clay-reference', 'remoteclip', 'prithvi'). A model that reuses an existing backend is pure registry data — no code change. Only a genuinely new architecture needs a new backend implementation."
     },
     "trust": {

@@ -28,17 +28,18 @@ dependencies = [
     "numpy>=1.26",
     "pydantic>=2.0",
     "pyyaml>=6.0",
+    "jsonschema>=4.26",
 ]
 
 [project.optional-dependencies]
 # Real Hugging Face weight loading + the torch-backed Clay v1.5 encoder.
-hf = ["huggingface_hub>=0.23", "torch>=2.2,<3.0", "einops>=0.8"]
+hf = ["huggingface_hub>=0.23", "torch>=2.2,<3.0", "einops>=0.8", "safetensors>=0.8"]
 # RemoteCLIP zero-shot classification backend.
-remoteclip = ["open_clip_torch>=2.24", "huggingface_hub>=0.23"]
+remoteclip = ["open_clip_torch>=2.24", "huggingface_hub>=0.23", "safetensors>=0.8"]
 # Prithvi EO 2.0 segmentation backend (TerraTorch).
 prithvi = ["terratorch>=1.2", "torchgeo<0.10", "huggingface_hub>=0.23"]
 # REST API server (`whirld serve`).
-serve = ["fastapi>=0.111", "uvicorn>=0.30", "python-multipart>=0.0.9"]
+serve = ["fastapi>=0.114", "uvicorn>=0.30", "python-multipart>=0.0.9"]
 # STAC item-URL input works in the base install (stdlib fetch + rasterio /vsicurl/
 # range reads); no extra needed. This extra is reserved for a future multi-item
 # STAC *search*/mosaic surface.
@@ -103,3 +104,18 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["whirld"]
 omit = ["*/tests/*", "*/models/_vendor/*"]
+
+[tool.mypy]
+python_version = "3.13"
+exclude = ["src/whirld/models/_vendor/"]
+check_untyped_defs = true
+
+# These upstream libraries do not ship typing metadata. Whirld's adapters use
+# explicit protocols at model boundaries; no first-party errors are suppressed.
+[[tool.mypy.overrides]]
+module = ["rasterio", "rasterio.*", "open_clip", "open_clip.*", "terratorch", "terratorch.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["whirld.models._vendor.*"]
+follow_imports = "skip"

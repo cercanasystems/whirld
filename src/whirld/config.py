@@ -23,9 +23,63 @@ locations; nothing else in the codebase should hard-code ``~/.whirld``.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+
+from .errors import SecurityError
+
+
+def validate_model_name(name: str) -> str:
+    """Reject identifiers that could be interpreted as filesystem paths."""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", name):
+        raise SecurityError(f"Invalid model identifier: {name!r}.")
+    return name
+
+
+def validate_relative_path(value: str) -> str:
+    """Validate a nonempty portable relative artifact path, excluding traversal."""
+    if (
+        not value
+        or "\\" in value
+        or ":" in value
+        or "\x00" in value
+        or any(part in {"", ".", ".."} for part in value.split("/"))
+    ):
+        raise SecurityError(f"Unsafe cache-relative path: {value!r}.")
+    return value
+
+
+def cache_path(root: Path, relative: str) -> Path:
+    """Resolve a contained cache path, rejecting symlinks below the trusted root.
+
+    Args:
+        root: Explicitly selected cache root.
+        relative: Portable relative path to read, write, or delete.
+
+    Raises:
+        SecurityError: The path is malformed or traverses a symlink.
+    """
+    validate_relative_path(relative)
+    root = root.resolve()
+    candidate = root
+    for part in relative.split("/"):
+        candidate = candidate / part
+        if candidate.is_symlink():
+            raise SecurityError(f"Cache paths must not traverse symlinks: {candidate}.")
+    if not candidate.resolve().is_relative_to(root):
+        raise SecurityError(f"Cache path escapes its root: {candidate}.")
+    return candidate
+
+
+def validate_artifact_path(value: str) -> str:
+    """Reject artifact paths colliding with installation/download metadata."""
+    validate_relative_path(value)
+    if value.split("/")[0] in {"manifest.json", ".cache"}:
+        raise SecurityError(f"Reserved model artifact path: {value!r}.")
+    return value
+
 
 _ENV_HOME = "WHIRLD_HOME"
 _ENV_LOG_LEVEL = "WHIRLD_LOG_LEVEL"
@@ -42,20 +96,29 @@ class WhirldPaths:
 
     home: Path
 
+    def __post_init__(self) -> None:
+        """Bind the selected root once, independent of later working directories.
+
+        A symlink used to select the trusted root is resolved at construction,
+        matching environment-based configuration. Symlinks below that root remain
+        subject to cache_path containment checks on every access.
+        """
+        object.__setattr__(self, "home", self.home.expanduser().resolve())
+
     @property
     def registry_dir(self) -> Path:
         """Directory holding the synced registry (models + schema)."""
-        return self.home / "registry"
+        return cache_path(self.home, "registry")
 
     @property
     def registry_models_dir(self) -> Path:
         """Directory holding per-model registry YAML files."""
-        return self.registry_dir / "models"
+        return cache_path(self.home, "registry/models")
 
     @property
     def registry_schema_dir(self) -> Path:
         """Directory holding the registry JSON Schema."""
-        return self.registry_dir / "schema"
+        return cache_path(self.home, "registry/schema")
 
     @property
     def registry_last_updated(self) -> Path:
@@ -65,7 +128,7 @@ class WhirldPaths:
     @property
     def models_dir(self) -> Path:
         """Directory holding downloaded/materialized model weights."""
-        return self.home / "models"
+        return cache_path(self.home, "models")
 
     @property
     def logs_dir(self) -> Path:
@@ -91,11 +154,17 @@ class WhirldPaths:
         Returns:
             Path to ``<home>/models/<name>`` (not guaranteed to exist).
         """
-        return self.models_dir / name
+        validate_model_name(name)
+        return cache_path(self.models_dir, name)
 
     def model_manifest(self, name: str) -> Path:
         """Return the ``manifest.json`` path for a cached model."""
-        return self.model_dir(name) / "manifest.json"
+        return cache_path(self.model_dir(name), "manifest.json")
+
+    def model_file(self, name: str, filename: str) -> Path:
+        """Return a validated artifact path contained in a model installation."""
+        validate_artifact_path(filename)
+        return cache_path(self.model_dir(name), filename)
 
     def ensure_dirs(self) -> None:
         """Create the home, models, and logs directories if absent.
