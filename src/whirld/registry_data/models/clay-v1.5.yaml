@@ -45,6 +45,7 @@ band_contract:
       bands: [B02, B03, B04, B05, B06, B07, B08, B8A, B11, B12]
       aliases: [blue, green, red, rededge1, rededge2, rededge3, nir, nir08, swir16, swir22]
       native_resolution_m: 10
+      canonical_reflectance_scale: 0.0001
       # Per-band center wavelengths (micrometres), aligned to the band order.
       wavelengths: [0.493, 0.56, 0.665, 0.704, 0.74, 0.783, 0.842, 0.865, 1.61, 2.19]
   target_resolution_m: 10

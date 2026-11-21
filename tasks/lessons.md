@@ -3,6 +3,12 @@
 Patterns captured from user corrections, so the same mistake is not repeated.
 Reviewed at the start of each session.
 
+## TODO presentation
+
+- Keep completed tasks checked and strike through their full descriptions in
+  `tasks/todo.md`. Also strike through historical deferred items when later passes
+  complete them; leave unfinished portions unstruck.
+
 ## Environment
 
 - **Use Python 3.13 even if the default `python3` is older.** This machine's default

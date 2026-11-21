@@ -1,0 +1,39 @@
+{
+  "description": "Pinned public Sentinel-2 L2A sample for STAC radiometric conversion validation; imagery is fetched only by the opt-in network test.",
+  "item_url": "https://earth-search.aws.element84.com/v1/collections/sentinel-2-l2a/items/S2A_30UXD_20230630_1_L2A",
+  "item_id": "S2A_30UXD_20230630_1_L2A",
+  "bbox": [-1.2902, 52.5098, -1.2898, 52.5102],
+  "sensor": "sentinel-2-l2a",
+  "bands": {
+    "B02": "blue",
+    "B03": "green",
+    "B04": "red",
+    "B05": "rededge1",
+    "B06": "rededge2",
+    "B07": "rededge3",
+    "B08": "nir",
+    "B8A": "nir08",
+    "B11": "swir16",
+    "B12": "swir22"
+  },
+  "radiometry": {"scale": 0.0001, "offset": -0.1, "nodata": 0},
+  "source_pixel": {
+    "asset": "blue",
+    "band": 1,
+    "row": 8090,
+    "col": 1604,
+    "longitude": -1.29,
+    "latitude": 52.51,
+    "stored_value": 4636,
+    "reflectance": 0.3636,
+    "clay_dn": 3636
+  },
+  "provenance": {
+    "checked_date": "2026-11-21",
+    "pixel_verification": "Independent GDAL gdallocationinfo range read at longitude -1.29, latitude 52.51 returned column 1604, row 8090, blue DN 4636.",
+    "formula": "reflectance = stored_value * scale + offset; Clay DN convention = reflectance / 0.0001.",
+    "specification": "https://github.com/stac-extensions/raster/blob/v1.1.0/README.md",
+    "data_terms": "https://registry.opendata.aws/sentinel-2-l2a-cogs/",
+    "note": "Per-asset raster:bands metadata is authoritative for this test; no offset is inferred from the item processing baseline or earthsearch:boa_offset_applied flag. Cloudy imagery is intentional: this verifies numerical input handling, not prediction quality."
+  }
+}

@@ -1,164 +1,263 @@
+## Code walkthrough — 2026-11-21
+
+- [x] ~~Trace public entry points and shared inference pipeline.~~
+- [x] ~~Verify model behavior and output formats against implementations and tests.~~
+- [x] ~~Explain architecture, one concrete execution path, and key caveats with source links.~~
+
+### Review
+
+Verified the walkthrough against public API, shared orchestration, preprocessing,
+chipping, model loading, output writers, server session, and existing integration
+test assertions. Highlighted the reference/real Clay distinction and positional
+band fallback. No application code changed. Tests were not executed: the project
+has no `.venv/bin/python`; verification for this explanation was source inspection.
+
 # Whirld MVP — Walking Skeleton (Clay embed, offline)
 
 Scope chosen with the user: **offline reference backend** + **minimal walking skeleton**.
 Full plan: `~/.claude/plans/melodic-popping-map.md`.
 Per-pass details and remaining PRD work: `dev_progress.md`.
 
+## Pass 10 — STAC asset scale/offset handling (done)
+
+Scope: honor per-band STAC asset radiometric metadata while preserving the units
+expected by each model's normalization contract.
+
+Implementation plan (branch `feat/stac-asset-offsets`): retain typed asset-band
+metadata and band indices; convert `stored * scale + offset` to canonical DN
+using an explicit sensor reflectance scale before existing model normalization.
+Keep legacy behavior when no transform is declared, and compatibility defaults
+only for existing sensor keys in older registry caches. Exclude nodata during
+resampling and fill invalid pixels after normalization. Verify synthetic encoding
+equivalence, a pinned live Sentinel-2 sample, the full suite with >=80% coverage,
+format/lint checks, and static typing of the changed modules.
+
+- [x] ~~Retain each selected asset band's scale, offset, and nodata metadata in
+      the input pipeline; define defaults and validation for missing/invalid values.~~
+- [x] ~~Define the conversion from stored pixel values to model input units,
+      accounting for asset scale/offset and model normalization exactly once.
+      Preserve Clay's expected DN convention and reflectance-based contracts;
+      do not blindly apply asset scaling followed by the existing model scaling.~~
+- [x] ~~Preserve nodata masks through conversion and resampling so offset values
+      do not turn missing pixels into valid observations.~~
+- [x] ~~Test nonzero offsets, differing per-band values, absent metadata, already
+      corrected assets, and equivalent imagery encoded with different scale/offset
+      values; verify expected normalized inputs and unchanged legacy behavior.~~
+- [x] ~~Validate a pinned real Sentinel-2 STAC sample against independently computed
+      expected values and document the supported metadata/unit conventions.~~
+
+**Acceptance:** equivalent physical observations produce equivalent model inputs
+within documented numerical tolerances, with scale/offset applied exactly once
+and nodata preserved.
+
+### Review
+
+Implemented typed per-band metadata for Raster extension v1/v2, explicit canonical
+DN conventions, legacy-cache compatibility, and nodata-aware conversion/resampling.
+A lazy single-band VRT preserves internal masks and prevents other bands from
+making a selected band's nodata appear valid during interpolation.
+
+Verification on Python 3.13.7: **218 passed / 7 skipped, 89.04% coverage** (>=80%
+gate); 48 new unit cases. The two opt-in live Sentinel-2 tests also pass without
+model checkpoints: stored blue pixel 4636 -> reflectance 0.3636 -> Clay DN 3636.
+Black/Ruff pass, mypy passes for all five changed source modules, and the installed
+dependency set is consistent. Large-checkpoint tests remain opt-in.
+
+Fresh-environment fixes: Typer 0.25.1 satisfies the pinned Hugging Face dependency;
+Rasterio 1.5.2 satisfies rioxarray; TorchGeo 0.9.0 retains the trainers API required
+by TerraTorch (the Prithvi extra now caps TorchGeo below 0.10). Added pinned mypy
+and PyYAML typing stubs. README documents units, precedence, and supported metadata.
+
+## Pass 11 — Bounded-memory COG inference (next)
+
+Scope: embeddings first, using COG assets referenced by STAC items. Extend the
+existing remote range reads through preprocessing, inference, and output so a
+large scene does not require loading the full region or all chips into RAM.
+
+- [ ] Add a windowed reader yielding configurable chip batches on the model's
+      common output grid, with optional bbox and existing asset authentication.
+- [ ] Preserve band selection/order, resampling, normalization, overlap, edge
+      padding, chip order/bounding boxes, and location/acquisition-time metadata.
+- [ ] Reuse one loaded backend across batches and release each batch's pixel
+      arrays after inference; bound GDAL caches as well as application buffers.
+- [ ] Write embeddings and chip metadata incrementally, preserving the existing
+      `.npy` and metadata sidecar formats without accumulating all results in RAM.
+- [ ] Expose streaming explicitly for disk output in the CLI/Python API while
+      preserving existing in-memory Python return behavior; document usage and
+      memory expectations in the README.
+- [ ] Verify streaming against the existing pipeline: equivalent embeddings
+      within documented numerical tolerances, matching chip order/coordinates,
+      bbox reads, overlap, resampling, and partial edge tiles.
+- [ ] Verify HTTP range reads with a controlled COG fixture and measure peak
+      memory across increasing scene sizes at a fixed chip/batch size.
+
+**Acceptance:** larger scenes take longer and produce more output, but working
+memory stays within a documented bound determined by model size, chip/batch size,
+and bounded I/O caches rather than total scene area or chip count.
+
+**Follow-up:** direct remote `.tif` URL input; extend streaming to classification
+and segmentation after the embedding path is verified.
+
+### Review
+
+Planned only. Implementation and runtime verification remain unchecked above.
+
 ## Pass 9 — STAC item URL input (done)
 
-- [x] `io/stac.py` `read_stac_item`: stdlib fetch (no new dep; local/file:// offline,
+- [x] ~~`io/stac.py` `read_stac_item`: stdlib fetch (no new dep; local/file:// offline,
       http(s) + bearer), sensor resolve (override → infer → ask), 3-tier band→asset
       match (native id → eo:bands name → common_name/alias), `/vsicurl/` + WarpedVRT
-      range reads onto one grid, datetime + platform stamped into tags
-- [x] `api.embed/classify/segment`: shared `_read_input` routes URL/`.json`/`file://`
+      range reads onto one grid, datetime + platform stamped into tags~~
+- [x] ~~`api.embed/classify/segment`: shared `_read_input` routes URL/`.json`/`file://`
       to the STAC reader (lazy import); `--bbox` + `--stac-token` threaded;
-      `usage.jsonl` records `input_type=stac`
-- [x] CLI `--bbox` + `--stac-token` on all three commands (`cli/commands/_stac.py`
-      parser + `WHIRLD_STAC_TOKEN` fallback); help text path-or-URL
-- [x] `pyproject` `stac` extra slimmed to `pystac-client` (reserved for future search);
-      item path needs no extra
-- [x] Fixtures `make_stac_item` (file:// per-band COGs, native- and common-name-keyed)
+      `usage.jsonl` records `input_type=stac`~~
+- [x] ~~CLI `--bbox` + `--stac-token` on all three commands (`cli/commands/_stac.py`
+      parser + `WHIRLD_STAC_TOKEN` fallback); help text path-or-URL~~
+- [x] ~~`pyproject` `stac` extra slimmed to `pystac-client` (reserved for future search);
+      item path needs no extra~~
+- [x] ~~Fixtures `make_stac_item` (file:// per-band COGs, native- and common-name-keyed)
       + tests: `unit/test_stac`, `integration/test_stac_input`, gated `test_stac_real`
-      (`WHIRLD_TEST_STAC_URL`); **170 passed / 5 skipped, 89% cov** (stac.py 91%), lint clean
-- [x] **Verified:** `embed <item.json>` → (4,512) + `input_type=stac`; `--bbox` windows
-      300×300→209×227 (4→1 chips); bad `--bbox` → exit 7; unreachable URL → NetworkError
-- [x] **Clean-room container** (`docker/clean-room.Dockerfile` + `scripts/clean_room_test.py`):
+      (`WHIRLD_TEST_STAC_URL`); **170 passed / 5 skipped, 89% cov** (stac.py 91%), lint clean~~
+- [x] ~~**Verified:** `embed <item.json>` → (4,512) + `input_type=stac`; `--bbox` windows
+      300×300→209×227 (4→1 chips); bad `--bbox` → exit 7; unreachable URL → NetworkError~~
+- [x] ~~**Clean-room container** (`docker/clean-room.Dockerfile` + `scripts/clean_room_test.py`):
       fresh python:3.13-slim, base deps only, no system GDAL → lazy import, pull, embed
       GeoTIFF + STAC item; **real Earth Search item via live /vsicurl/** range reads.
-      Found+fixed the `libexpat1` syslib gap. Advances PRD §17.3 acceptance gate.
-- [x] **macOS clean-room** (`scripts/clean_room_macos.sh` + `_clean_room_macos_provision.sh`):
+      Found+fixed the `libexpat1` syslib gap. Advances PRD §17.3 acceptance gate.~~
+- [x] ~~**macOS clean-room** (`scripts/clean_room_macos.sh` + `_clean_room_macos_provision.sh`):
       throwaway **Tart** VM, base deps, **no Homebrew GDAL**, runs the same
       `clean_room_test.py` → the macOS ARM half of §17.3. shellcheck-clean; local
-      on-demand. (Run requires `brew install cirruslabs/cli/tart hudochenkov/sshpass/sshpass`.)
+      on-demand. (Run requires `brew install cirruslabs/cli/tart hudochenkov/sshpass/sshpass`.)~~
 - Deferred: REST STAC bodies (still 400), multi-item search/mosaic, PC URL signing,
   clean-room CI wiring (Cirrus / self-hosted Apple-Silicon runner for the macOS leg)
 
 ## Pass 8 — Registry governance: security + license posture (done)
 
-- [x] `core/governance.py` — OSS-license allowlist + `is_oss_license`;
+- [x] ~~`core/governance.py` — OSS-license allowlist + `is_oss_license`;
       `weights_are_pickle` (safetensors/reference safe, pickle + unknown unsafe);
       `TRUSTED_SOURCE_ORGS` + `source_org`; `evaluate_automerge` →
-      `AutomergeDecision(auto, reasons)`. Pure stdlib (lazy-import safe).
-- [x] `SecurityError` (exit code **9**); `fetch.pull` runtime gate refuses a
-      **community + pickle** entry before download (first-party pickle unaffected)
-- [x] `trust` field (`first-party|community`): schema-required, `ModelEntry`
-      optional-at-parse; 4 bundled YAMLs declare `trust: first-party`; license desc → SPDX
-- [x] CLI: `pull` shows license + ⚠ non-OSS terms warning *before* download; `info`
-      annotates `(OSS)`/`(non-OSS — review terms)` + trust tier
-- [x] Closed backend allowlist locked by test (module-path ids rejected, nothing
+      `AutomergeDecision(auto, reasons)`. Pure stdlib (lazy-import safe).~~
+- [x] ~~`SecurityError` (exit code **9**); `fetch.pull` runtime gate refuses a
+      **community + pickle** entry before download (first-party pickle unaffected)~~
+- [x] ~~`trust` field (`first-party|community`): schema-required, `ModelEntry`
+      optional-at-parse; 4 bundled YAMLs declare `trust: first-party`; license desc → SPDX~~
+- [x] ~~CLI: `pull` shows license + ⚠ non-OSS terms warning *before* download; `info`
+      annotates `(OSS)`/`(non-OSS — review terms)` + trust tier~~
+- [x] ~~Closed backend allowlist locked by test (module-path ids rejected, nothing
       imported); `scripts/check_registry.py` (exit 0/1/2) + `registry_data/CONTRIBUTING.md`
-      merge policy (OlmoEarth = declined worked example)
-- [x] Tests: governance unit, loader allowlist, pull `SecurityError`, bundled-entry
-      invariants, CLI/checker integration; **156 passed / 4 skipped, 88% cov**, lint clean
-- [x] **Verified:** `info clay-v1.5` → `Apache-2.0 (OSS)` / `first-party`; checker over
+      merge policy (OlmoEarth = declined worked example)~~
+- [x] ~~Tests: governance unit, loader allowlist, pull `SecurityError`, bundled-entry
+      invariants, CLI/checker integration; **156 passed / 4 skipped, 88% cov**, lint clean~~
+- [x] ~~**Verified:** `info clay-v1.5` → `Apache-2.0 (OSS)` / `first-party`; checker over
       bundled → review (exit 1), crafted community-OSS-safetensors → auto-merge (exit 0);
-      community-pickle pull → exit 9
+      community-pickle pull → exit 9~~
 - Deferred: remote registry sync (the gate now exists for when community PRs arrive)
 
 ## Pass 7 — Prithvi segmentation, burn-scar first (done)
 
-- [x] `prithvi` extra (terratorch); `prithvi-burn-scar.yaml` (real coords/sha256,
-      HLS contract, mask output); schema `config_file` + `output.classes`
-- [x] New output modality: `chips.reassemble_mask` + `io/output` mask GeoTIFF
-      (+bytes); `fetch` multi-file download (weight + config)
-- [x] `models/prithvi.py` `PrithviBackend.segment` (TerraTorch, lazy); `base.segment`;
-      loader; `api.segment`/`segment_raster` + `SegmentResult`; `--head` alias
-- [x] `segment` CLI; real `POST /segment` (`image/tiff`); public `whirld.segment`
-- [x] Tests (fake-segmodel unit, reassembly/GeoTIFF unit, API/CLI/server integration,
-      gated real) + `make_hls` fixture; 135 passed / 4 skipped, 88% cov, lint clean
-- [x] **Real proof:** `whirld pull prithvi-burn-scar` (sha256 ✓) + `segment` → real
-      uint8 mask GeoTIFF; `--head` alias + `/segment` over HTTP verified
+- [x] ~~`prithvi` extra (terratorch); `prithvi-burn-scar.yaml` (real coords/sha256,
+      HLS contract, mask output); schema `config_file` + `output.classes`~~
+- [x] ~~New output modality: `chips.reassemble_mask` + `io/output` mask GeoTIFF
+      (+bytes); `fetch` multi-file download (weight + config)~~
+- [x] ~~`models/prithvi.py` `PrithviBackend.segment` (TerraTorch, lazy); `base.segment`;
+      loader; `api.segment`/`segment_raster` + `SegmentResult`; `--head` alias~~
+- [x] ~~`segment` CLI; real `POST /segment` (`image/tiff`); public `whirld.segment`~~
+- [x] ~~Tests (fake-segmodel unit, reassembly/GeoTIFF unit, API/CLI/server integration,
+      gated real) + `make_hls` fixture; 135 passed / 4 skipped, 88% cov, lint clean~~
+- [x] ~~**Real proof:** `whirld pull prithvi-burn-scar` (sha256 ✓) + `segment` → real
+      uint8 mask GeoTIFF; `--head` alias + `/segment` over HTTP verified~~
 - Deferred: `prithvi-flood` (follow-up); multi-temporal heads
 
 ## Pass 6 — Finish the paydown: CPU warning + RemoteCLIP softmax scoring (done)
 
-- [x] CPU full-precision runtime warning (`api._maybe_warn_cpu` in `_run`) +
-      `--no-warnings` on embed/classify (reference/quantized/non-CPU stay silent)
-- [x] RemoteCLIP scoring → `logit_scale` softmax probabilities; multi-query support
+- [x] ~~CPU full-precision runtime warning (`api._maybe_warn_cpu` in `_run`) +
+      `--no-warnings` on embed/classify (reference/quantized/non-CPU stay silent)~~
+- [x] ~~RemoteCLIP scoring → `logit_scale` softmax probabilities; multi-query support
       (`classify --query` repeatable, `/classify` getlist); per-query `scores` in
-      GeoJSON; single query softmaxed vs a neutral `background` prompt
-- [x] `ModelBackend.classify` → `queries: list[str]`, returns `(n, n_queries)`
-- [x] Tests (softmax/probabilities, multi-query, cpu-warning, geojson, server,
-      gated real); 117 passed / 3 skipped, 89% cov, lint clean
-- [x] **Real proof:** single-query 0–1 prob (0.089 vs background); 3-query softmax
-      sums to 1.0; CPU warning fires for clay-v1.5, silent with `--no-warnings`
+      GeoJSON; single query softmaxed vs a neutral `background` prompt~~
+- [x] ~~`ModelBackend.classify` → `queries: list[str]`, returns `(n, n_queries)`~~
+- [x] ~~Tests (softmax/probabilities, multi-query, cpu-warning, geojson, server,
+      gated real); 117 passed / 3 skipped, 89% cov, lint clean~~
+- [x] ~~**Real proof:** single-query 0–1 prob (0.089 vs background); 3-query softmax
+      sums to 1.0; CPU warning fires for clay-v1.5, silent with `--no-warnings`~~
 
 ## Pass 5 — Deferral paydown: Clay metadata fidelity + CLI completeness (done)
 
-- [x] Clay metadata: `models/_clay_metadata.py` (Clay's exact normalize formulas);
+- [x] ~~Clay metadata: `models/_clay_metadata.py` (Clay's exact normalize formulas);
       `InferenceContext` + `api._run` derive per-chip lat/lon (reprojected) + scene
-      time (`--datetime`/`TIFFTAG_DATETIME`); `clay_torch` datacube uses them
-- [x] `rm` command (`rm <model>` / `rm --all`) + `core/fetch` remove helpers
-- [x] `--crs` override for CRS-less inputs; `--batch-size` for embed
-- [x] Tests (metadata formulas, reprojection, rm, crs, batch-size) + extended gated
-      real test (metadata changes the embedding); 109 passed / 3 skipped, 89% cov
-- [x] **Real proof:** `--datetime` changes real Clay embedding (Δ 0.018); `--crs`
-      embeds a CRS-less S2; `rm`/`rm --all` clear models, registry intact
+      time (`--datetime`/`TIFFTAG_DATETIME`); `clay_torch` datacube uses them~~
+- [x] ~~`rm` command (`rm <model>` / `rm --all`) + `core/fetch` remove helpers~~
+- [x] ~~`--crs` override for CRS-less inputs; `--batch-size` for embed~~
+- [x] ~~Tests (metadata formulas, reprojection, rm, crs, batch-size) + extended gated
+      real test (metadata changes the embedding); 109 passed / 3 skipped, 89% cov~~
+- [x] ~~**Real proof:** `--datetime` changes real Clay embedding (Δ 0.018); `--crs`
+      embeds a CRS-less S2; `rm`/`rm --all` clear models, registry intact~~
 
 ## Pass 4 — RemoteCLIP `classify` (second real model, done)
 
-- [x] `remoteclip.yaml` (real `chendelong/RemoteCLIP` mirror, RGB CLIP contract,
-      `model_name: ViT-B-32`); optional `model_name` schema/registry field
-- [x] `models/remoteclip.py` `RemoteCLIPBackend.classify` (open_clip, injectable
-      model for tests); GeoJSON writer in `io/output.py`
-- [x] `api.py` refactor → one generic `_run`; `classify` + `classify_raster` +
-      `ClassifyResult`; `classify` CLI + real `POST /classify` route + public API
-- [x] Tests (fake-model unit + integration + server + gated real); 91 passed /
-      2 skipped, 88% cov, lint clean
-- [x] **Real proof:** `whirld pull remoteclip` (sha256 ✓) + `whirld classify
-      --query "solar farm"` → GeoJSON cosine scores; `/classify` over HTTP
-- [x] Fixed server double-load bug (warm device reuse)
-- Deferred: multi-prompt softmax scoring; S2→8-bit tone mapping fidelity
+- [x] ~~`remoteclip.yaml` (real `chendelong/RemoteCLIP` mirror, RGB CLIP contract,
+      `model_name: ViT-B-32`); optional `model_name` schema/registry field~~
+- [x] ~~`models/remoteclip.py` `RemoteCLIPBackend.classify` (open_clip, injectable
+      model for tests); GeoJSON writer in `io/output.py`~~
+- [x] ~~`api.py` refactor → one generic `_run`; `classify` + `classify_raster` +
+      `ClassifyResult`; `classify` CLI + real `POST /classify` route + public API~~
+- [x] ~~Tests (fake-model unit + integration + server + gated real); 91 passed /
+      2 skipped, 88% cov, lint clean~~
+- [x] ~~**Real proof:** `whirld pull remoteclip` (sha256 ✓) + `whirld classify
+      --query "solar farm"` → GeoJSON cosine scores; `/classify` over HTTP~~
+- [x] ~~Fixed server double-load bug (warm device reuse)~~
+- Deferred: ~~multi-prompt softmax scoring~~ (completed in Pass 6); S2→8-bit tone mapping fidelity
 
 ## Pass 3 — Real Clay v1.5 weights (proof-of-load, done)
 
-- [x] Vendored Clay encoder (Apache-2.0) → `models/_vendor/clay_v15/`
-      (+ LICENSE/NOTICE/PROVENANCE; black/ruff/coverage excluded)
-- [x] Real `clay-v1.5.yaml` (huggingface source, real sha256, 10-band contract,
-      1024-dim); schema + registry gained optional `wavelengths`/`patch_size`
-- [x] `models/clay_torch.py` `ClayTorchBackend`; `InferenceContext` threaded
-      through `api`; `loader` + `fetch` wiring
-- [x] Tiny-encoder unit tests + gated real-weights test + 10-band fixture
-- [x] **Real proof:** `whirld pull clay-v1.5` (sha256 ✓) + `whirld embed` →
+- [x] ~~Vendored Clay encoder (Apache-2.0) → `models/_vendor/clay_v15/`
+      (+ LICENSE/NOTICE/PROVENANCE; black/ruff/coverage excluded)~~
+- [x] ~~Real `clay-v1.5.yaml` (huggingface source, real sha256, 10-band contract,
+      1024-dim); schema + registry gained optional `wavelengths`/`patch_size`~~
+- [x] ~~`models/clay_torch.py` `ClayTorchBackend`; `InferenceContext` threaded
+      through `api`; `loader` + `fetch` wiring~~
+- [x] ~~Tiny-encoder unit tests + gated real-weights test + 10-band fixture~~
+- [x] ~~**Real proof:** `whirld pull clay-v1.5` (sha256 ✓) + `whirld embed` →
       real `(n, 1024)`, 265 tensors / 0 missing; 77 passed/1 skipped, 91% cov,
-      lint clean
-- Deferred: faithful `time`/`latlon` metadata (currently zeros)
+      lint clean~~
+- Deferred: ~~faithful `time`/`latlon` metadata~~ (completed in Pass 5)
 
 ## Pass 2 — `serve` REST API (done)
 
-- [x] `core/session.py` (`ModelSession` warm-load cache) + `io/raster.py`
-      `read_raster_from_bytes`
-- [x] `api.py` refactored to one shared pipeline (`embed` + `embed_raster`)
-- [x] `server/` FastAPI app: `GET /health`, `GET /models`, `POST /embed`;
-      `segment`/`classify` → 501; `WhirldError`→HTTP mapping
-- [x] `whirld serve` CLI command (lazy uvicorn import)
-- [x] Tests (TestClient + live curl smoke); 71 passing, 93% coverage, lint clean
+- [x] ~~`core/session.py` (`ModelSession` warm-load cache) + `io/raster.py`
+      `read_raster_from_bytes`~~
+- [x] ~~`api.py` refactored to one shared pipeline (`embed` + `embed_raster`)~~
+- [x] ~~`server/` FastAPI app: `GET /health`, `GET /models`, `POST /embed`;
+      `segment`/`classify` → 501; `WhirldError`→HTTP mapping~~
+- [x] ~~`whirld serve` CLI command (lazy uvicorn import)~~
+- [x] ~~Tests (TestClient + live curl smoke); 71 passing, 93% coverage, lint clean~~
 
 ## Pass 1 — Walking skeleton plan
 
-- [x] **1. Scaffold** — `pyproject.toml`, `requirements*.txt`, `.gitignore`,
-      `.env.example`, `README.md`, `.venv`, `tasks/`
-- [x] **2. Foundation** — `config.py` (WHIRLD_HOME paths), `errors.py` (exception
-      hierarchy + exit codes), `_version.py`, `logging_setup.py` (app log + usage.jsonl)
-- [x] **3. Registry** — `registry_data/schema/model.schema.json`,
+- [x] ~~**1. Scaffold** — `pyproject.toml`, `requirements*.txt`, `.gitignore`,
+      `.env.example`, `README.md`, `.venv`, `tasks/`~~
+- [x] ~~**2. Foundation** — `config.py` (WHIRLD_HOME paths), `errors.py` (exception
+      hierarchy + exit codes), `_version.py`, `logging_setup.py` (app log + usage.jsonl)~~
+- [x] ~~**3. Registry** — `registry_data/schema/model.schema.json`,
       `registry_data/models/clay-v1.yaml`, `core/registry.py` (Pydantic models, load,
-      validate, cache seed)
-- [x] **4. Pull/fetch** — `core/fetch.py` (offline reference source, sha256 verify,
-      manifest.json; HF path wired but not exercised)
-- [x] **5. Translation pipeline** — `io/raster.py`, `core/sensor.py`,
-      `core/contract.py`, `core/chips.py`
-- [x] **6. Model + output** — `models/base.py` (ABC), `models/clay.py` (reference
-      backend), `models/loader.py`, `io/output.py` (npy + meta sidecar), `api.py`
-- [x] **7. CLI + Python API** — `cli/` (`pull`, `list`, `info`, `embed`),
-      `src/whirld/__init__.py` (lazy public API)
-- [x] **8. Tests** — fixture generator, unit + integration, `pytest --cov` = 93%
-- [x] **9. Polish** — black + ruff clean, end-to-end offline five-minute test, README,
-      review section below
+      validate, cache seed)~~
+- [x] ~~**4. Pull/fetch** — `core/fetch.py` (offline reference source, sha256 verify,
+      manifest.json; HF path wired but not exercised)~~
+- [x] ~~**5. Translation pipeline** — `io/raster.py`, `core/sensor.py`,
+      `core/contract.py`, `core/chips.py`~~
+- [x] ~~**6. Model + output** — `models/base.py` (ABC), `models/clay.py` (reference
+      backend), `models/loader.py`, `io/output.py` (npy + meta sidecar), `api.py`~~
+- [x] ~~**7. CLI + Python API** — `cli/` (`pull`, `list`, `info`, `embed`),
+      `src/whirld/__init__.py` (lazy public API)~~
+- [x] ~~**8. Tests** — fixture generator, unit + integration, `pytest --cov` = 93%~~
+- [x] ~~**9. Polish** — black + ruff clean, end-to-end offline five-minute test, README,
+      review section below~~
 
 ## Deferred (extension points left in place)
 
-Prithvi/`segment`, RemoteCLIP/`classify`, `serve`/REST API, `update`/`rm`, STAC input,
-quantization, real Hugging Face weight loading.
+~~Prithvi/`segment`~~, ~~RemoteCLIP/`classify`~~, ~~`serve`/REST API~~,
+`update`/~~`rm`~~, ~~STAC input~~, quantization,
+~~real Hugging Face weight loading~~.
 
 ## Review
 
@@ -192,6 +291,6 @@ quantization, real Hugging Face weight loading.
   a stale path. Fixed by rebinding handlers when the target path changes
   (`logging_setup.py`).
 
-**Next iteration (deferred, extension points in place):** real HF weight loading,
-Prithvi `segment`, RemoteCLIP `classify`, `serve` REST API, `update`/`rm`, STAC
-input, quantized variants.
+**Next iteration (deferred, extension points in place):** ~~real HF weight loading~~,
+~~Prithvi `segment`~~, ~~RemoteCLIP `classify`~~, ~~`serve` REST API~~,
+`update`/~~`rm`~~, ~~STAC input~~, quantized variants.

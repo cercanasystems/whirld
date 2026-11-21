@@ -48,6 +48,7 @@ band_contract:
       bands: [B04, B03, B02]
       aliases: [red, green, blue]
       native_resolution_m: 10
+      canonical_reflectance_scale: 0.0001
   target_resolution_m: 10
   chip_size_px: 224
   normalization:

@@ -54,7 +54,8 @@ download + sha256-verify genuine checkpoints and run the real networks.
   models.
 - **Clean-room install test** on fresh Linux x86 (Docker) — base deps only, no system
   GDAL, validated end to end — plus a parallel macOS ARM (Tart VM) harness.
-- Unit + integration tests with synthetic fixtures; **170 passing, 89 % coverage**.
+- Unit + integration tests with synthetic fixtures; **218 passing, 89 % coverage**,
+  plus opt-in checks against real model weights and public COGs.
 
 ### Models
 
@@ -134,6 +135,48 @@ COG **range requests** (`/vsicurl/`). Pass `--bbox MIN_LON,MIN_LAT,MAX_LON,MAX_L
 (EPSG:4326) to window the read, `--sensor` if it can't be inferred from the item, and
 `--stac-token` (or `WHIRLD_STAC_TOKEN`) for gated endpoints. Works on
 `embed`/`classify`/`segment`; the item path needs no extra dependency.
+
+**STAC radiometry:** the reader retains per-band scale, offset, and nodata from
+`raster:bands` (Raster extension v1), or `bands` with `raster:scale` /
+`raster:offset` (Raster extension v2). For multiband assets, named bands select
+both the pixel plane and its corresponding metadata. In the v2 form, band fields
+override asset-level defaults. Mixed v1/v2 band metadata is rejected as ambiguous.
+
+When either scale or offset is declared, Whirld computes
+`reflectance = stored_value * scale + offset` (missing scale defaults to 1,
+missing offset to 0). It then converts reflectance to the model's canonical DN
+using the sensor's `canonical_reflectance_scale`, before applying the existing
+normalization. For example, a stored Sentinel-2 value of 3000 with scale 0.0001
+and offset -0.1 becomes reflectance 0.2: real Clay receives canonical DN 2000
+before its z-score, while the other bundled models normalize reflectance 0.2.
+Offsets are taken from asset metadata, not inferred from processing-baseline or
+item-level flags; already-corrected assets with offset 0 are not corrected again.
+
+The bundled sensor contracts declare a canonical scale of 0.0001. Older cached
+entries for Sentinel-2, Landsat 8/9, and HLS use that compatibility default; new
+sensors must declare their convention explicitly. These contracts assume the
+asset's physical values are **reflectance**, not radiance or another quantity.
+If neither scale nor offset is declared, the legacy raw-DN interpretation is
+preserved, including for local GeoTIFFs. TIFF scale/offset tags are not used as
+a substitute for STAC radiometry. Already-scaled reflectance inputs should
+declare scale 1 explicitly in their STAC metadata.
+
+STAC nodata takes precedence over a TIFF nodata sentinel; explicit TIFF masks
+are also honored. Invalid pixels are excluded from bilinear resampling and
+replaced with the model's `nodata_fill` **after** normalization. Invalid declared
+metadata raises an input error. Item/collection-level radiometric inheritance
+is not supported; put the metadata on the selected assets/bands.
+
+The opt-in test below reads a small window from a pinned public Sentinel-2 item
+and checks both Clay normalization conventions against independently read pixels.
+It does not download model weights:
+
+```bash
+WHIRLD_TEST_STAC_RADIOMETRY=1 .venv/bin/python -m pytest tests/integration/test_stac_radiometry_real.py
+```
+
+Metadata semantics: [STAC Raster v1](https://github.com/stac-extensions/raster/blob/v1.1.0/README.md)
+and [Raster v2](https://github.com/stac-extensions/raster/blob/v2.0.0/README.md).
 
 Useful `embed` options: `--output`, `--format {npy,json}`, `--chip-size`,
 `--overlap`, `--device {cuda,mps,cpu}`, `--sensor`, `--crs EPSG:…` (assign a CRS to
