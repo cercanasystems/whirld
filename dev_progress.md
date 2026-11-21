@@ -6,6 +6,52 @@ remains.
 
 ---
 
+## 2026-11-21 — PR #20 OOP alignment (locally verified; awaiting integration)
+
+Revisited the remediation implementation against AGENTS.md's OOP requirement on
+`fix/holistic-review-remediation`, retaining the 18 fixes and public Python/CLI/REST
+behavior. Responsibilities now belong to explicit objects:
+
+- `ModelEntry` owns registry document parsing, packaged-schema validation, and
+  provenance fingerprints. Runtime registry loading and `scripts/check_registry.py`
+  share its validated constructor.
+- `ModelStore` owns cache paths, registry dependencies, acquisition, transactions,
+  recovery, and artifact leases. `ModelSession` and backend loading use that same
+  store. `CacheLock` coordinates independent stores without a global mutex or a
+  signature-inspecting decorator; public cache functions remain thin delegates.
+- `InferenceService` owns the application session, lifecycle, and admission policy.
+  FastAPI routes consume an injected service. Separate apps retain independent
+  concurrency limits; failed startup releases loaded models.
+- Immutable `InferenceOptions` own per-call batch policy. Backend defaults remain
+  unchanged across overrides, failures, and overlapping requests.
+- `CheckpointReader`, `PrithviDeployment`, and `StacAccessPolicy` own trust-aware
+  checkpoint loading, temporary offline deployment resources, and per-read
+  credentials/GDAL scope. Pure transforms and response serializers remain functions.
+
+Ownership review also exposed and corrected three boundary gaps: relative cache
+roots drifting after a working-directory change; explicit STAC port `0` being
+treated as a default port (plus malformed-origin error conversion); and RemoteCLIP
+architecture selectors initiating unregistered downloads before checkpoint checks.
+RemoteCLIP now permits only local `RN50`, `ViT-B-32`, and `ViT-L-14` definitions,
+validated at registry ingestion and backend dispatch. README and registry
+contribution guidance document that restriction.
+
+**Verification:** 400 tests passed, 7 opt-in tests skipped, **92.46% coverage** on
+Python 3.13.7. Black/Ruff, mypy over 53 source files, all four bundled registry
+entries, dependency checks, and diff checks passed. A rebuilt base-only package
+passed the clean-room script's lazy import, offline pull, local GeoTIFF, and local
+STAC embedding checks. Two live public Sentinel-2 COG radiometry tests passed
+separately. New regression coverage exercises cross-store thread/process locking,
+fixed path identity, service injection and startup cleanup, actual per-call tensor
+batch sizes including concurrent calls, credential restoration, and rejected
+external RemoteCLIP sources. Large real-checkpoint/GPU tests were not run.
+
+The TODO has completed, struck-through items and a review record; lessons capture
+the requirement to preserve ownership when implementing security/correctness fixes.
+This pass is included in PR #20; hosted CI verification follows the branch push.
+
+---
+
 ## 2026-11-21 — PR #20 hosted CI compatibility
 
 Both CI jobs failed at Python setup for both push and pull-request runs:

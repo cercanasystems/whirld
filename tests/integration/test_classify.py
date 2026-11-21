@@ -53,7 +53,7 @@ def _fake_tokenizer(texts):  # type: ignore[no-untyped-def]
 
 @pytest.fixture
 def fake_remoteclip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch api.load_manifest + load_backend to use a fake RemoteCLIP backend."""
+    """Inject model-store and backend seams to use a fake RemoteCLIP backend."""
 
     def fake_manifest(name, paths=None):  # type: ignore[no-untyped-def]
         return Manifest(
@@ -64,7 +64,7 @@ def fake_remoteclip(monkeypatch: pytest.MonkeyPatch) -> None:
             weights_file="RemoteCLIP-ViT-B-32.pt",
         )
 
-    def fake_load_backend(entry, manifest, device=None):  # type: ignore[no-untyped-def]
+    def fake_load_backend(entry, manifest, device=None, **kwargs):  # type: ignore[no-untyped-def]
         return RemoteCLIPBackend(
             name=entry.name,
             version=manifest.version,
@@ -74,7 +74,10 @@ def fake_remoteclip(monkeypatch: pytest.MonkeyPatch) -> None:
             tokenizer=_fake_tokenizer,
         )
 
-    monkeypatch.setattr("whirld.api.load_manifest", fake_manifest)
+    monkeypatch.setattr(
+        "whirld.core.fetch.ModelStore.load_manifest",
+        lambda self, name: fake_manifest(name),
+    )
     monkeypatch.setattr("whirld.api.load_backend", fake_load_backend)
 
 

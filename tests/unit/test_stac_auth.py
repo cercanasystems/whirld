@@ -18,8 +18,65 @@ from rasterio.transform import from_origin
 from whirld.core.registry import Registry
 from whirld.errors import InvalidInputError
 from whirld.io import stac
+from whirld.io.stac_auth import StacAccessPolicy
 
 Route = tuple[int, dict[str, str], bytes]
+
+
+@pytest.mark.parametrize("scheme,port", [("http", 80), ("https", 443)])
+def test_access_policy_compares_explicit_ports(scheme: str, port: int) -> None:
+    """Default ports normalize equivalently; explicit zero remains distinct."""
+    policy = StacAccessPolicy(f"{scheme}://example.test/item", "test-token")
+    assert policy.token_for(f"{scheme}://example.test:{port}/asset") == "test-token"
+    assert policy.token_for(f"{scheme}://example.test:0/asset") is None
+
+
+@pytest.mark.parametrize("url", ["http://[bad", "https://example.test:bad"])
+def test_access_policy_rejects_malformed_origins(url: str) -> None:
+    """Malformed item, asset, and allowlist origins raise the domain error."""
+    with pytest.raises(InvalidInputError):
+        StacAccessPolicy(url, "test-token")
+    with pytest.raises(InvalidInputError):
+        StacAccessPolicy("https://example.test", "test-token", (url,))
+    policy = StacAccessPolicy("https://example.test", "test-token")
+    with pytest.raises(InvalidInputError):
+        policy.token_for(url)
+
+
+def test_access_policies_do_not_share_credentials() -> None:
+    """Independent reads retain distinct tokens and authorized-origin sets."""
+    first = StacAccessPolicy(
+        "https://first.test/item", "first-token", ("https://asset.test",)
+    )
+    second = StacAccessPolicy("https://second.test/item", "second-token")
+    assert first.token_for("https://asset.test/band.tif") == "first-token"
+    assert second.token_for("https://asset.test/band.tif") is None
+    assert first.token_for("https://second.test/band.tif") is None
+    assert second.token_for("https://second.test/band.tif") == "second-token"
+    assert "first-token" not in repr(first)
+
+
+def test_asset_environment_restores_credentials_after_failure() -> None:
+    """Nested policies restore their owner's GDAL context even on read failure."""
+    from rasterio.env import get_gdal_config
+
+    first = StacAccessPolicy("https://first.test", "first-token")
+    second = StacAccessPolicy("https://second.test", "second-token")
+    with rasterio.Env(GDAL_HTTP_HEADERS="X-Original: value"):
+        with first.asset_environment("https://first.test/band.tif"):
+            assert (
+                get_gdal_config("GDAL_HTTP_HEADERS")
+                == "Authorization: Bearer first-token"
+            )
+            with pytest.raises(RuntimeError, match="read failure"):
+                with second.asset_environment("https://first.test/band.tif"):
+                    assert get_gdal_config("GDAL_HTTP_HEADERS") == ""
+                    raise RuntimeError("read failure")
+            assert (
+                get_gdal_config("GDAL_HTTP_HEADERS")
+                == "Authorization: Bearer first-token"
+            )
+        assert get_gdal_config("GDAL_HTTP_HEADERS") == "X-Original: value"
 
 
 @contextmanager
@@ -175,5 +232,7 @@ def test_old_gdal_rejects_authenticated_asset_reads(
     """GDAL versions without redirect credential control must fail closed."""
     monkeypatch.setattr(rasterio, "__gdal_version__", "3.9.0")
     with pytest.raises(InvalidInputError, match="GDAL >=3.10"):
-        with stac._gdal_env("test-token"):
+        with stac.StacAccessPolicy(
+            "https://example.test", "test-token"
+        ).asset_environment("https://example.test/asset.tif"):
             pytest.fail("unsafe authenticated read was allowed")

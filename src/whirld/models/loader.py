@@ -13,7 +13,7 @@ each concrete backend (and its heavy imports) is loaded lazily, only when select
 
 from __future__ import annotations
 
-from ..core.fetch import Manifest, installation_lease
+from ..core.fetch import Manifest, ModelStore
 from ..core.registry import ModelEntry
 from ..errors import WhirldError
 from .base import ModelBackend
@@ -23,6 +23,8 @@ def load_backend(
     entry: ModelEntry,
     manifest: Manifest,
     device: str | None = None,
+    *,
+    store: ModelStore | None = None,
 ) -> ModelBackend:
     """Instantiate the backend declared by a model's registry entry.
 
@@ -31,6 +33,8 @@ def load_backend(
             implementation).
         manifest: The local manifest from ``whirld pull``.
         device: Requested device, or ``None`` for auto-detection.
+        store: Model cache/registry owning the installation; defaults to the
+            current environment. Its lease and artifact paths are used together.
 
     Returns:
         A ready :class:`ModelBackend`.
@@ -50,21 +54,22 @@ def load_backend(
             f"Model '{entry.name}' declares backend '{backend}', which is not "
             "implemented in this build."
         )
-    with installation_lease(entry, manifest):
+    store = store or ModelStore()
+    with store.installation_lease(entry, manifest):
         if backend == "clay-reference":
             from .clay import ClayBackend  # noqa: PLC0415
 
-            return ClayBackend.load(entry, manifest, device)
+            return ClayBackend.load(entry, manifest, device, paths=store.paths)
         if backend == "clay":
             from .clay_torch import ClayTorchBackend  # noqa: PLC0415
 
-            return ClayTorchBackend.load(entry, manifest, device)
+            return ClayTorchBackend.load(entry, manifest, device, paths=store.paths)
         if backend == "remoteclip":
             from .remoteclip import RemoteCLIPBackend  # noqa: PLC0415
 
-            return RemoteCLIPBackend.load(entry, manifest, device)
+            return RemoteCLIPBackend.load(entry, manifest, device, paths=store.paths)
         if backend == "prithvi":
             from .prithvi import PrithviBackend  # noqa: PLC0415
 
-            return PrithviBackend.load(entry, manifest, device)
+            return PrithviBackend.load(entry, manifest, device, paths=store.paths)
     raise WhirldError(f"Unsupported backend: {backend}")

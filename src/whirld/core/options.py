@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
 from typing import Literal, TypeVar
 
 from pydantic import (
@@ -16,8 +17,55 @@ from pydantic import (
 
 from ..errors import InvalidInputError
 
+OptionsT = TypeVar("OptionsT", bound="RequestOptions")
 
-class SpatialOptions(BaseModel):
+
+class RequestOptions(BaseModel):
+    """Base for option schemas that own public argument validation and errors."""
+
+    @classmethod
+    def from_arguments(cls: type[OptionsT], **values: object) -> OptionsT:
+        """Construct typed options, mapping schema failures to InvalidInputError."""
+        try:
+            return cls.model_validate(values)
+        except ValidationError as exc:
+            messages = "; ".join(
+                f"{'.'.join(str(part) for part in error['loc']) or 'options'}: "
+                f"{error['msg']}"
+                for error in exc.errors()
+            )
+            raise InvalidInputError(messages) from exc
+
+
+class InferenceOptions(RequestOptions):
+    """Immutable per-call execution policy, independent of a resident backend.
+
+    An absent batch size inherits the backend's policy. Explicit sizes must be
+    positive integers. This object owns batch partitioning so every backend uses
+    the same override semantics without changing cached model state.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+    batch_size: int | None = Field(default=None, gt=0)
+
+    def batches(
+        self, count: int, *, fallback: InferenceOptions | None = None
+    ) -> Iterator[slice]:
+        """Yield ordered, nonoverlapping slices covering all input chips.
+
+        Args:
+            count: Number of chips to partition; zero yields no batches.
+            fallback: Backend defaults used only when this call has no override.
+        """
+        size = self.batch_size
+        if size is None and fallback is not None:
+            size = fallback.batch_size
+        size = size if size is not None else max(1, count)
+        for start in range(0, count, size):
+            yield slice(start, min(start + size, count))
+
+
+class SpatialOptions(RequestOptions):
     """Validate a finite, ordered EPSG:4326 read window when supplied."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -67,19 +115,3 @@ class SegmentationOptions(SpatialOptions):
     """Finite probability threshold for binary segmentation."""
 
     threshold: float = Field(default=0.5, ge=0.0, le=1.0, allow_inf_nan=False)
-
-
-OptionsT = TypeVar("OptionsT", bound=BaseModel)
-
-
-def validate_options(schema: type[OptionsT], **values: object) -> OptionsT:
-    """Return validated options, mapping schema errors to a public domain error."""
-    try:
-        return schema.model_validate(values)
-    except ValidationError as exc:
-        messages = "; ".join(
-            f"{'.'.join(str(part) for part in error['loc']) or 'options'}: "
-            f"{error['msg']}"
-            for error in exc.errors()
-        )
-        raise InvalidInputError(messages) from exc

@@ -185,12 +185,12 @@ def test_model_status_lock_wait_does_not_block_health(
     """Installation-state checks may wait for pulls without blocking the event loop."""
     entered, release = Event(), Event()
 
-    def blocked_status(name: str) -> bool:
+    def blocked_status(self: object, name: str) -> bool:
         entered.set()
         assert release.wait(5)
         return False
 
-    monkeypatch.setattr("whirld.server.routes.models.is_installed", blocked_status)
+    monkeypatch.setattr("whirld.core.fetch.ModelStore.is_installed", blocked_status)
     with (
         TestClient(create_app(device="cpu")) as client,
         ThreadPoolExecutor(2) as workers,

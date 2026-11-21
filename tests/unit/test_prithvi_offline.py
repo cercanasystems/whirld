@@ -8,7 +8,8 @@ from types import ModuleType, SimpleNamespace
 import pytest
 import yaml
 
-from whirld.models.prithvi import _build_inference_model
+from whirld.models.checkpoints import CheckpointReader
+from whirld.models.prithvi import PrithviDeployment
 
 
 def test_prithvi_disables_pretrained_bootstrap(
@@ -64,6 +65,9 @@ def test_prithvi_disables_pretrained_bootstrap(
     module = ModuleType("terratorch.cli_tools")
     module.LightningInferenceModel = FakeInference
     monkeypatch.setitem(sys.modules, "terratorch.cli_tools", module)
-    assert _build_inference_model(config, checkpoint) is marker
+    assert (
+        PrithviDeployment(config, CheckpointReader(checkpoint, trusted=True)).load()
+        is marker
+    )
     assert yaml.safe_load(config.read_text()) == original
     assert not list(cache.iterdir())

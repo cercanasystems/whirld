@@ -33,7 +33,7 @@ from ..core.registry import ModelEntry
 from ..errors import ModelNotInstalledError, WhirldError
 from ..logging_setup import get_logger
 from .base import InferenceContext, ModelBackend, detect_device
-from .checkpoints import load_checkpoint
+from .checkpoints import CheckpointReader
 
 _log = get_logger("models.clay_torch")
 
@@ -90,13 +90,17 @@ class ClayTorchBackend(ModelBackend):
         batch_size: int = _DEFAULT_BATCH,
         trusted_checkpoint: bool = False,
     ) -> None:
-        super().__init__(name=name, version=version, device=device)
+        super().__init__(
+            name=name, version=version, device=device, batch_size=batch_size
+        )
         self.embed_dim = int(embed_dim)
         self.patch_size = int(patch_size)
-        self._ckpt_path = ckpt_path
+        self._checkpoint = (
+            CheckpointReader(ckpt_path, trusted=trusted_checkpoint)
+            if ckpt_path is not None
+            else None
+        )
         self._encoder = encoder
-        self._batch_size = batch_size
-        self._trusted_checkpoint = trusted_checkpoint
 
     @classmethod
     def load(
@@ -104,6 +108,8 @@ class ClayTorchBackend(ModelBackend):
         entry: ModelEntry,
         manifest: Manifest,
         device: str | None = None,
+        *,
+        paths: config.WhirldPaths | None = None,
     ) -> ClayTorchBackend:
         """Build the backend and load the real encoder weights.
 
@@ -120,7 +126,9 @@ class ClayTorchBackend(ModelBackend):
             WhirldError: The ``hf`` extra is not installed.
         """
         resolved = detect_device(device)
-        ckpt = config.get_paths().model_file(entry.name, manifest.weights_file)
+        ckpt = (paths or config.get_paths()).model_file(
+            entry.name, manifest.weights_file
+        )
         if not ckpt.exists():
             raise ModelNotInstalledError(
                 f"Checkpoint for '{entry.name}' is missing at {ckpt}.\n"
@@ -151,7 +159,9 @@ class ClayTorchBackend(ModelBackend):
         from ._vendor.clay_v15 import clay_v15_large_encoder  # noqa: PLC0415
 
         _log.info("Loading clay-v1.5 encoder weights on device '%s'.", self.device)
-        checkpoint = load_checkpoint(self._ckpt_path, trusted=self._trusted_checkpoint)
+        if self._checkpoint is None:
+            raise WhirldError("A checkpoint path is required to load Clay.")
+        checkpoint = self._checkpoint.read_state_dict()
         encoder = clay_v15_large_encoder()
         state_dict = checkpoint.get("state_dict", checkpoint)
         encoder_state = {
@@ -212,10 +222,9 @@ class ClayTorchBackend(ModelBackend):
         encoder = self._ensure_encoder()
         outputs: list[np.ndarray] = []
         with torch.no_grad():
-            for start in range(0, chips.shape[0], self._batch_size):
-                stop = start + self._batch_size
-                batch = chips[start:stop]
-                batch_latlons = latlons[start:stop] if latlons is not None else None
+            for selection in self.batches(chips.shape[0], context):
+                batch = chips[selection]
+                batch_latlons = latlons[selection] if latlons is not None else None
                 datacube = self._build_datacube(
                     batch, wavelengths, gsd, acq_dt, batch_latlons, torch
                 )

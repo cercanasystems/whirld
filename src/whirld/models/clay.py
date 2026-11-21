@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .. import config
 from ..core.fetch import Manifest
 from ..core.registry import ModelEntry
 from ..logging_setup import get_logger
@@ -50,6 +51,8 @@ class ClayBackend(ModelBackend):
         entry: ModelEntry,
         manifest: Manifest,
         device: str | None = None,
+        *,
+        paths: config.WhirldPaths | None = None,
     ) -> ClayBackend:
         """Construct a backend from a registry entry and local manifest.
 
@@ -59,6 +62,7 @@ class ClayBackend(ModelBackend):
                 architecture details from it).
             manifest: The local manifest from ``whirld pull``.
             device: Requested device, or ``None`` for auto-detection.
+            paths: Owning store paths; unused by the in-memory reference backend.
 
         Returns:
             A ready :class:`ClayBackend`.

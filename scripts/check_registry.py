@@ -23,10 +23,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import yaml
-
 from whirld.core import governance
-from whirld.core.registry import validate_registry_entry
+from whirld.core.registry import ModelEntry
+from whirld.errors import RegistryError
 
 
 def check_entry(path: Path, *, validate_only: bool = False) -> int:
@@ -34,14 +33,14 @@ def check_entry(path: Path, *, validate_only: bool = False) -> int:
 
     Args:
         path: Path to a model YAML.
+        validate_only: Report schema validity without evaluating auto-merge policy.
 
     Returns:
         ``0`` auto-merge, ``1`` needs review, ``2`` invalid.
     """
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        entry = validate_registry_entry(raw)
-    except Exception as exc:  # parse or schema failure
+        entry = ModelEntry.from_registry_file(path)
+    except RegistryError as exc:
         print(f"INVALID  {path.name}: {exc}")
         return 2
 

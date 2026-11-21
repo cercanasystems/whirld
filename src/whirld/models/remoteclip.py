@@ -36,7 +36,7 @@ from ..core.registry import ModelEntry
 from ..errors import ModelNotInstalledError, WhirldError
 from ..logging_setup import get_logger
 from .base import InferenceContext, ModelBackend, detect_device
-from .checkpoints import load_checkpoint
+from .checkpoints import CheckpointReader
 
 _log = get_logger("models.remoteclip")
 
@@ -109,13 +109,17 @@ class RemoteCLIPBackend(ModelBackend):
         batch_size: int = _DEFAULT_BATCH,
         trusted_checkpoint: bool = False,
     ) -> None:
-        super().__init__(name=name, version=version, device=device)
-        self.arch = arch
-        self._ckpt_path = ckpt_path
+        super().__init__(
+            name=name, version=version, device=device, batch_size=batch_size
+        )
+        self.arch = ModelEntry.validate_remoteclip_architecture(arch)
+        self._checkpoint = (
+            CheckpointReader(ckpt_path, trusted=trusted_checkpoint)
+            if ckpt_path is not None
+            else None
+        )
         self._model = model
         self._tokenizer = tokenizer
-        self._batch_size = batch_size
-        self._trusted_checkpoint = trusted_checkpoint
 
     @classmethod
     def load(
@@ -123,6 +127,8 @@ class RemoteCLIPBackend(ModelBackend):
         entry: ModelEntry,
         manifest: Manifest,
         device: str | None = None,
+        *,
+        paths: config.WhirldPaths | None = None,
     ) -> RemoteCLIPBackend:
         """Build the backend and load the real RemoteCLIP weights.
 
@@ -144,7 +150,9 @@ class RemoteCLIPBackend(ModelBackend):
                 f"Registry entry '{entry.name}' must declare model_name "
                 f"(the open_clip architecture)."
             )
-        ckpt = config.get_paths().model_file(entry.name, manifest.weights_file)
+        ckpt = (paths or config.get_paths()).model_file(
+            entry.name, manifest.weights_file
+        )
         if not ckpt.exists():
             raise ModelNotInstalledError(
                 f"Checkpoint for '{entry.name}' is missing at {ckpt}.\n"
@@ -167,6 +175,9 @@ class RemoteCLIPBackend(ModelBackend):
         Returns:
             A tuple ``(model, tokenizer)`` ready for inference.
         """
+        # Validate again at dispatch so direct callers or edited runtime objects
+        # cannot route open_clip around the owned checkpoint/source boundary.
+        ModelEntry.validate_remoteclip_architecture(self.arch)
         if self._model is not None and self._tokenizer is not None:
             return self._model, self._tokenizer
 
@@ -175,8 +186,12 @@ class RemoteCLIPBackend(ModelBackend):
         _log.info(
             "Loading RemoteCLIP (%s) weights on device '%s'.", self.arch, self.device
         )
-        model, _, _ = open_clip.create_model_and_transforms(self.arch)
-        state_dict = load_checkpoint(self._ckpt_path, trusted=self._trusted_checkpoint)
+        model, _, _ = open_clip.create_model_and_transforms(
+            self.arch, pretrained=None, pretrained_hf=False
+        )
+        if self._checkpoint is None:
+            raise WhirldError("A checkpoint path is required to load RemoteCLIP.")
+        state_dict = self._checkpoint.read_state_dict()
         missing, unexpected = model.load_state_dict(state_dict, strict=False)
         _log.info(
             "RemoteCLIP weights: %d missing, %d unexpected.",
@@ -252,8 +267,8 @@ class RemoteCLIPBackend(ModelBackend):
             scale = model.logit_scale.exp()
             text_features = model.encode_text(tokens)
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-            for start in range(0, chips.shape[0], self._batch_size):
-                batch = chips[start : start + self._batch_size]
+            for selection in self.batches(chips.shape[0], context):
+                batch = chips[selection]
                 pixels = (
                     torch.from_numpy(np.ascontiguousarray(batch))
                     .float()

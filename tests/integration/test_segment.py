@@ -44,7 +44,7 @@ def _fake_manifest(name, paths=None):  # type: ignore[no-untyped-def]
     )
 
 
-def _fake_backend(entry, manifest, device=None):  # type: ignore[no-untyped-def]
+def _fake_backend(entry, manifest, device=None, **kwargs):  # type: ignore[no-untyped-def]
     return PrithviBackend(
         name=entry.name,
         version=manifest.version,
@@ -57,7 +57,10 @@ def _fake_backend(entry, manifest, device=None):  # type: ignore[no-untyped-def]
 @pytest.fixture
 def fake_prithvi(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch the api load path to use the fake Prithvi backend."""
-    monkeypatch.setattr("whirld.api.load_manifest", _fake_manifest)
+    monkeypatch.setattr(
+        "whirld.core.fetch.ModelStore.load_manifest",
+        lambda self, name: _fake_manifest(name),
+    )
     monkeypatch.setattr("whirld.api.load_backend", _fake_backend)
 
 
@@ -164,7 +167,10 @@ def test_segment_rest(whirld_home: Path, hls_tif: Path, monkeypatch) -> None:
     from whirld.server.app import create_app
 
     # The server session resolves the backend through core.session, not api.
-    monkeypatch.setattr("whirld.core.session.load_manifest", _fake_manifest)
+    monkeypatch.setattr(
+        "whirld.core.fetch.ModelStore.load_manifest",
+        lambda self, name: _fake_manifest(name),
+    )
     monkeypatch.setattr("whirld.core.session.load_backend", _fake_backend)
 
     app = create_app(device="cpu", preload=["prithvi-burn-scar"])
@@ -207,7 +213,10 @@ def test_segment_preserves_input_validity(
 
         from whirld.server.app import create_app
 
-        monkeypatch.setattr("whirld.core.session.load_manifest", _fake_manifest)
+        monkeypatch.setattr(
+            "whirld.core.fetch.ModelStore.load_manifest",
+            lambda self, name: _fake_manifest(name),
+        )
         monkeypatch.setattr("whirld.core.session.load_backend", _fake_backend)
         with TestClient(create_app(device="cpu")) as client:
             response = client.post(

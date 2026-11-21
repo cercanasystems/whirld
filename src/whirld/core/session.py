@@ -5,7 +5,7 @@ startup and keeps every loaded model warm across requests. :class:`ModelSession`
 provides that cache: it resolves a model's registry entry and local manifest,
 instantiates its backend once, and returns the cached instance on subsequent
 calls. It reuses the existing building blocks — :class:`~whirld.core.registry.Registry`,
-:func:`~whirld.core.fetch.load_manifest`, and
+:class:`~whirld.core.fetch.ModelStore`, and
 :func:`~whirld.models.loader.load_backend` — so there is one loading path.
 
 The same cache is the natural foundation for a future public ``whirld.Session``
@@ -17,10 +17,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from threading import RLock
 
+from ..errors import InvalidInputError
 from ..logging_setup import get_logger
 from ..models.base import ModelBackend, detect_device
 from ..models.loader import load_backend
-from .fetch import Manifest, load_manifest
+from .fetch import Manifest, ModelStore
 from .registry import ModelEntry, Registry
 
 _log = get_logger("core.session")
@@ -47,17 +48,35 @@ class ModelSession:
     Args:
         device: Default device for loads; ``None`` resolves via auto-detection.
         registry: Registry instance; defaults to a freshly seeded one.
+        store: Explicit installation store; otherwise constructed from registry
+            or the environment once, when the session is created.
     """
 
     def __init__(
         self,
         device: str | None = None,
         registry: Registry | None = None,
+        *,
+        store: ModelStore | None = None,
     ) -> None:
+        """Bind one store and device; reject a conflicting registry dependency."""
+        if (
+            store is not None
+            and registry is not None
+            and registry is not store.registry
+        ):
+            raise InvalidInputError(
+                "Session registry must belong to the supplied store."
+            )
         self._device = detect_device(device)
-        self._registry = registry or Registry()
+        self._store = store or ModelStore(registry=registry)
         self._cache: dict[tuple[str, str], LoadedModel] = {}
         self._lock = RLock()
+
+    @property
+    def store(self) -> ModelStore:
+        """The installation/registry dependency bound for this session's lifetime."""
+        return self._store
 
     @property
     def device(self) -> str:
@@ -94,9 +113,9 @@ class ModelSession:
             _log.info(
                 "Loading model '%s' on device '%s' into session.", model, resolved
             )
-            entry = self._registry.get(model)
-            manifest = load_manifest(model)
-            backend = load_backend(entry, manifest, resolved)
+            entry = self._store.registry.get(model)
+            manifest = self._store.load_manifest(model)
+            backend = load_backend(entry, manifest, resolved, store=self._store)
             loaded = LoadedModel(entry=entry, manifest=manifest, backend=backend)
             # Publish a new dictionary so health readers never wait on a model
             # load or iterate a dictionary being mutated by another thread.

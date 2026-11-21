@@ -170,7 +170,7 @@ def test_cli_invalid_domains_use_documented_exit(
 def test_warm_batch_override_does_not_leak_to_next_request(
     whirld_home: Path, s2_tif: Path, monkeypatch: pytest.MonkeyPatch, fail: bool
 ) -> None:
-    """A temporary request option is restored on both success and model failure."""
+    """Each request carries its own batch policy on success and model failure."""
     from whirld.core.session import ModelSession
     from whirld.errors import WhirldError
     from whirld.io.raster import read_raster
@@ -178,13 +178,14 @@ def test_warm_batch_override_does_not_leak_to_next_request(
     api.pull("clay-v1")
     session = ModelSession(device="cpu")
     backend = session.get("clay-v1").backend
-    backend._batch_size = 8
     original = backend.embed
+    observed: list[int | None] = []
 
     def capture(chips: np.ndarray, context: InferenceContext | None) -> np.ndarray:
         """Check the request's active batch size at the model boundary."""
-        assert backend._batch_size == 2
-        if fail:
+        assert context is not None
+        observed.append(context.options.batch_size)
+        if fail and len(observed) == 1:
             raise WhirldError("simulated model failure")
         return original(chips, context)
 
@@ -198,4 +199,5 @@ def test_warm_batch_override_does_not_leak_to_next_request(
         api.embed_raster(
             read_raster(s2_tif), model="clay-v1", session=session, batch_size=2
         )
-    assert backend._batch_size == 8
+    api.embed_raster(read_raster(s2_tif), model="clay-v1", session=session)
+    assert observed == [2, None]

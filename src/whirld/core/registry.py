@@ -16,10 +16,11 @@ This module exposes:
 
 from __future__ import annotations
 
+import hashlib
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -27,6 +28,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from .. import config
 from ..errors import ModelNotFoundError, RegistryError
 from ..logging_setup import get_logger
+
+if TYPE_CHECKING:
+    from jsonschema import Draft7Validator
 
 _log = get_logger("core.registry")
 
@@ -283,6 +287,8 @@ class ModelEntry(BaseModel):
             raise ValueError(
                 "Hugging Face sources require repo, pinned revision, and files"
             )
+        if self.backend == "remoteclip":
+            self.validate_remoteclip_architecture(self.model_name)
         if self.backend == "prithvi":
             if self.trust != "first-party":
                 raise ValueError(
@@ -298,31 +304,89 @@ class ModelEntry(BaseModel):
                 )
         return self
 
+    @staticmethod
+    def validate_remoteclip_architecture(value: str | None) -> str:
+        """Allow supported local RemoteCLIP definitions, never source selectors.
+
+        open_clip accepts HF/local-directory selectors and other architectures
+        with external text/tokenizer dependencies. Whirld supports these three
+        self-contained definitions; its verified checkpoint is the weights source.
+        """
+        from ..errors import SecurityError
+
+        if value is None or value not in {"RN50", "ViT-B-32", "ViT-L-14"}:
+            raise SecurityError(
+                "RemoteCLIP model_name must be a supported local architecture: "
+                "RN50, ViT-B-32, or ViT-L-14. External source selectors and "
+                "architectures with external tokenizer/model dependencies "
+                "are not allowed."
+            )
+        return value
+
     def supported_sensors(self) -> list[str]:
         """Return the sorted list of sensor identifiers this model supports."""
         return sorted(self.band_contract.sensors)
 
+    def fingerprint(self) -> str:
+        """Return canonical configuration provenance independent of YAML order."""
+        document = json.dumps(
+            self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+        )
+        return hashlib.sha256(document.encode()).hexdigest()
 
-@lru_cache(maxsize=1)
-def _schema_validator() -> Any:
-    """Load the packaged schema, never an editable cached replacement."""
-    from jsonschema import Draft7Validator
+    @classmethod
+    @lru_cache(maxsize=1)
+    def _schema_validator(cls) -> Draft7Validator:
+        """Cache this model's packaged document schema, never a cached override."""
+        from jsonschema import Draft7Validator
 
-    path = config.bundled_registry_dir() / "schema" / "model.schema.json"
-    return Draft7Validator(json.loads(path.read_text(encoding="utf-8")))
+        path = config.bundled_registry_dir() / "schema" / "model.schema.json"
+        return Draft7Validator(json.loads(path.read_text(encoding="utf-8")))
 
+    @classmethod
+    def from_registry_data(cls, document: object) -> ModelEntry:
+        """Construct an entry from external data using all registry constraints.
 
-def validate_registry_entry(raw: Any) -> ModelEntry:
-    """Enforce the shipped JSON Schema plus semantic backend/path constraints.
+        Args:
+            document: Decoded YAML/JSON at the external-data boundary.
 
-    Raises:
-        RegistryError: The input fails schema or semantic validation.
-    """
-    try:
-        _schema_validator().validate(raw)
-        return ModelEntry.model_validate(raw)
-    except Exception as exc:
-        raise RegistryError(f"Registry entry failed validation: {exc}") from exc
+        Returns:
+            An entry satisfying the packaged schema and model invariants.
+
+        Raises:
+            RegistryError: Schema, path, or backend compatibility checks fail.
+        """
+        from jsonschema.exceptions import ValidationError as SchemaValidationError
+        from pydantic import ValidationError
+
+        from ..errors import SecurityError
+
+        try:
+            cls._schema_validator().validate(document)
+            return cls.model_validate(document)
+        except (SchemaValidationError, ValidationError, SecurityError) as exc:
+            raise RegistryError(f"Registry entry failed validation: {exc}") from exc
+
+    @classmethod
+    def from_registry_file(cls, path: Path) -> ModelEntry:
+        """Load a registry YAML through the model's validated document constructor.
+
+        Args:
+            path: Input YAML file; the document name need not match its filename.
+
+        Returns:
+            A fully validated model entry, without leaking raw mappings to callers.
+
+        Raises:
+            RegistryError: The file cannot be read, parsed, or validated.
+        """
+        try:
+            document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise RegistryError(
+                f"Cannot read registry file '{path.name}': {exc}"
+            ) from exc
+        return cls.from_registry_data(document)
 
 
 class Registry:
@@ -338,6 +402,11 @@ class Registry:
     def __init__(self, paths: config.WhirldPaths | None = None) -> None:
         self._paths = paths or config.get_paths()
         self._seed_if_missing()
+
+    @property
+    def paths(self) -> config.WhirldPaths:
+        """Expose the immutable path configuration to collaborating cache objects."""
+        return self._paths
 
     @property
     def models_dir(self) -> Path:
@@ -444,25 +513,11 @@ class Registry:
             RegistryError: On YAML or schema validation failure.
         """
         try:
-            raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except yaml.YAMLError as exc:
-            raise RegistryError(
-                f"Registry file '{path.name}' is not valid YAML.\n"
-                f"       {exc}\n"
-                "       Remove this override to restore "
-                "its bundled copy on the next run."
-            ) from exc
-        if not isinstance(raw, dict):
-            raise RegistryError(
-                f"Registry file '{path.name}' must be a YAML mapping, "
-                f"got {type(raw).__name__}."
-            )
-        try:
-            entry = validate_registry_entry(raw)
+            entry = ModelEntry.from_registry_file(path)
             if entry.name != path.stem:
                 raise RegistryError("Registry name must match its filename")
             return entry
-        except Exception as exc:  # pydantic.ValidationError and friends
+        except RegistryError as exc:
             raise RegistryError(
                 f"Registry entry '{path.stem}' failed validation:\n"
                 f"       {exc}\n"

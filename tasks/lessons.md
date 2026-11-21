@@ -8,6 +8,20 @@ Reviewed at the start of each session.
 - When asked for a deep project review, cover the whole codebase and its operating
   assumptions. Do not narrow the review to recent changes unless explicitly asked.
 
+## Preserve encapsulation during remediation
+
+- Treat AGENTS.md's object-orientation requirement as an implementation
+  constraint, including when changing existing call sites. Replacing a class's
+  validation entry point with a standalone orchestration function shifts
+  responsibility even if that function eventually constructs the same class.
+  Extend the owning class or introduce a cohesive validator object instead.
+- Security and correctness fixes must preserve the project's object-oriented
+  design. Give stateful responsibilities (cache transactions, resource lifetimes,
+  inference concurrency) explicit owners instead of adding module globals,
+  signature-inspecting decorators, or mutation of another object's private state.
+  Keep pure transformations as functions where appropriate; review ownership and
+  dependency boundaries alongside regression tests before declaring work complete.
+
 ## TODO presentation
 
 - Keep completed tasks checked and strike through their full descriptions in

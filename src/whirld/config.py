@@ -96,6 +96,15 @@ class WhirldPaths:
 
     home: Path
 
+    def __post_init__(self) -> None:
+        """Bind the selected root once, independent of later working directories.
+
+        A symlink used to select the trusted root is resolved at construction,
+        matching environment-based configuration. Symlinks below that root remain
+        subject to cache_path containment checks on every access.
+        """
+        object.__setattr__(self, "home", self.home.expanduser().resolve())
+
     @property
     def registry_dir(self) -> Path:
         """Directory holding the synced registry (models + schema)."""

@@ -13,11 +13,13 @@ implements :meth:`ModelBackend.embed`; ``segment`` and ``classify`` raise
 from __future__ import annotations
 
 import abc
-from dataclasses import dataclass
+from collections.abc import Iterator
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
 
+from ..core.options import InferenceOptions
 from ..logging_setup import get_logger
 
 _log = get_logger("models.base")
@@ -40,6 +42,8 @@ class InferenceContext:
         latlons: Per-chip ``(lat, lon)`` centroids in degrees (EPSG:4326), aligned
             to the chip order, or ``None`` if unavailable.
         acquisition_datetime: Scene acquisition time (UTC), or ``None`` if unknown.
+        options: Immutable per-call execution policy; omitted settings inherit
+            the backend's defaults without mutating the resident model.
     """
 
     sensor: str
@@ -47,6 +51,7 @@ class InferenceContext:
     wavelengths: list[float] | None = None
     latlons: list[tuple[float, float]] | None = None
     acquisition_datetime: datetime | None = None
+    options: InferenceOptions = field(default_factory=InferenceOptions)
 
 
 def detect_device(requested: str | None = None) -> str:
@@ -85,10 +90,24 @@ class ModelBackend(abc.ABC):
         device: Resolved inference device string.
     """
 
-    def __init__(self, name: str, version: str, device: str) -> None:
+    def __init__(
+        self, name: str, version: str, device: str, *, batch_size: int | None = None
+    ) -> None:
         self.name = name
         self.version = version
         self.device = device
+        self._default_options = InferenceOptions.from_arguments(batch_size=batch_size)
+
+    def batches(
+        self, count: int, context: InferenceContext | None = None
+    ) -> Iterator[slice]:
+        """Partition chips under this call's policy and the backend defaults.
+
+        The backend owns its defaults; request overrides remain in the context
+        and cannot leak into another call, including concurrent or failed calls.
+        """
+        options = context.options if context is not None else self._default_options
+        return options.batches(count, fallback=self._default_options)
 
     @abc.abstractmethod
     def embed(

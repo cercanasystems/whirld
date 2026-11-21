@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
@@ -38,6 +37,7 @@ from pydantic import ValidationError
 from ..errors import InvalidInputError, NetworkError, UnsupportedSensorError
 from ..logging_setup import get_logger
 from .radiometry import BandRadiometry, StacBand
+from .stac_auth import StacAccessPolicy, http_origin
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from ..core.registry import ModelEntry
@@ -63,22 +63,6 @@ _LARGE_READ_WARN_BYTES = 1_500_000_000
 _HTTP_TIMEOUT_S = 30
 
 
-def _origin(url: str) -> tuple[str, str, int] | None:
-    """Return the normalized HTTP origin, or None for a non-HTTP location."""
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        return None
-    try:
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
-    except ValueError as exc:
-        raise InvalidInputError("Invalid port in STAC URL.") from exc
-    if not parsed.hostname or parsed.username or parsed.password:
-        raise InvalidInputError(
-            "STAC HTTP URLs require a host and no user information."
-        )
-    return parsed.scheme, parsed.hostname.lower(), port
-
-
 class _OriginRedirectHandler(HTTPRedirectHandler):
     """Preserve bearer authorization only across same-origin item redirects."""
 
@@ -87,7 +71,7 @@ class _OriginRedirectHandler(HTTPRedirectHandler):
     ) -> Request | None:
         """Remove credentials before urllib follows a cross-origin redirect."""
         redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
-        if redirected is not None and _origin(req.full_url) != _origin(newurl):
+        if redirected is not None and http_origin(req.full_url) != http_origin(newurl):
             redirected.remove_header("Authorization")
         return redirected
 
@@ -127,21 +111,8 @@ def read_stac_item(
     """
     import numpy as np
 
-    if token and not re.fullmatch(r"[A-Za-z0-9._~+/-]+=*", token):
-        raise InvalidInputError("STAC token must be a valid bearer token.")
-    authorized = {_origin(url)}
-    for origin in token_origins:
-        parsed = urlparse(origin)
-        if (
-            _origin(origin) is None
-            or parsed.path not in ("", "/")
-            or parsed.query
-            or parsed.fragment
-        ):
-            raise InvalidInputError("token_origins must contain HTTP(S) origins only.")
-        authorized.add(_origin(origin))
-    authorized.discard(None)
-    item = _fetch_item(url, token)
+    access = StacAccessPolicy(url, token, token_origins)
+    item = _fetch_item(url, access.token_for(url))
     resolved_sensor = _resolve_sensor(item, entry, sensor)
     contract = entry.band_contract.sensors[resolved_sensor]
     target_res = float(entry.band_contract.target_resolution_m)
@@ -160,7 +131,7 @@ def read_stac_item(
 
     import rasterio
 
-    with _gdal_env(token if _origin(selected[0].href) in authorized else None):
+    with access.asset_environment(selected[0].href):
         first_path = _gdal_path(selected[0].href)
         with rasterio.open(first_path, driver="GTiff") as ref:
             out_crs = ref.crs.to_string() if ref.crs is not None else crs
@@ -174,7 +145,7 @@ def read_stac_item(
     _warn_if_large(grid, len(selected))
     bands = []
     for band in selected:
-        with _gdal_env(token if _origin(band.href) in authorized else None):
+        with access.asset_environment(band.href):
             bands.append(_read_band(band, grid))
 
     data = np.stack(bands, axis=0)
@@ -199,7 +170,7 @@ def _fetch_item(url: str, token: str | None) -> dict[str, Any]:
             with open(local, encoding="utf-8") as handle:
                 raw = handle.read()
         elif parsed.scheme in ("http", "https"):
-            _origin(url)
+            http_origin(url)
             headers = {"Accept": "application/json"}
             if token:
                 headers["Authorization"] = f"Bearer {token}"
@@ -539,30 +510,6 @@ def _build_source(
         nodata=float("nan"),
         band_radiometry=[band.radiometry for band in selected],
     )
-
-
-@contextmanager
-def _gdal_env(token: str | None) -> Iterator[None]:
-    """Scope asset credentials and forbid forwarding them on any redirect."""
-    import rasterio
-
-    options: dict[str, Any] = {
-        # Don't list the bucket/dir on open — slow and often 403 on object stores.
-        "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
-        "VSI_CACHE": True,
-        "GDAL_HTTP_HEADERS": "",
-        "GDAL_HTTP_HEADER_FILE": "",
-        "CPL_VSIL_CURL_AUTHORIZATION_HEADER_ALLOWED_IF_REDIRECT": "NO",
-    }
-    if token:
-        if tuple(int(part) for part in rasterio.__gdal_version__.split(".")[:2]) < (
-            3,
-            10,
-        ):
-            raise InvalidInputError("Authenticated STAC assets require GDAL >=3.10.")
-        options["GDAL_HTTP_HEADERS"] = f"Authorization: Bearer {token}"
-    with rasterio.Env(**options):
-        yield
 
 
 def _gdal_path(href: str) -> str:

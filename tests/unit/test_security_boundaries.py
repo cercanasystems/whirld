@@ -13,7 +13,7 @@ import yaml
 
 from whirld import config
 from whirld.core import fetch
-from whirld.core.registry import Registry, validate_registry_entry
+from whirld.core.registry import ModelEntry, Registry
 from whirld.errors import RegistryError, SecurityError
 from whirld.models.checkpoints import load_checkpoint
 
@@ -198,7 +198,7 @@ def test_schema_rejections_apply_to_runtime_and_checker(
         target = target[part]
     target[parts[-1]] = value
     with pytest.raises(RegistryError):
-        validate_registry_entry(raw)
+        ModelEntry.from_registry_data(raw)
     path = registry.models_dir / "clay-v1.5.yaml"
     path.write_text(yaml.safe_dump(raw))
     with pytest.raises(RegistryError):
@@ -218,4 +218,4 @@ def test_valid_community_safetensors_passes_schema(whirld_home: Path) -> None:
     raw = yaml.safe_load((Registry().models_dir / "clay-v1.5.yaml").read_text())
     raw["trust"] = "community"
     raw["source"]["files"] = ["weights.safetensors"]
-    assert validate_registry_entry(raw).trust == "community"
+    assert ModelEntry.from_registry_data(raw).trust == "community"

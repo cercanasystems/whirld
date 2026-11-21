@@ -271,13 +271,14 @@ src/whirld/
   registry_data/      bundled registry: model YAMLs + JSON schema
   core/
     registry.py       typed (Pydantic) registry loading + validation
-    fetch.py          pull: acquire → sha256 → manifest
+    fetch.py          ModelStore: acquisition, manifests, transactions + leases
     sensor.py         sensor detection precedence
     contract.py       band-contract translation pipeline
     chips.py          tiling + georeferenced chip metadata
     session.py        ModelSession — warm-loaded backend cache (serve)
   models/
-    base.py           ModelBackend ABC + device detection + InferenceContext
+    base.py           ModelBackend ABC + per-call InferenceContext/options
+    checkpoints.py    CheckpointReader: format dispatch + artifact trust
     clay.py           Clay offline reference backend (clay-v1)
     clay_torch.py     real Clay v1.5 torch backend (clay-v1.5)
     remoteclip.py     real RemoteCLIP classification backend (remoteclip)
@@ -286,10 +287,25 @@ src/whirld/
     _vendor/clay_v15/ vendored Clay encoder (Apache-2.0; see PROVENANCE.md)
   io/
     raster.py         rasterio reader (path + in-memory bytes)
+    stac_auth.py      StacAccessPolicy: per-read credentials + GDAL scope
     output.py         npy + meta sidecar; GeoJSON; mask GeoTIFF writers
   server/             FastAPI app + routes (health, models, embed, classify, segment)
   cli/                Typer app + commands
 ```
+
+Stateful operations have explicit owners. `ModelEntry.from_registry_file()` owns
+schema and domain validation for both runtime loading and the registry checker.
+`ModelStore` binds a cache home and registry, coordinates installation transactions,
+and leases artifacts through backend loading. `ModelSession` retains that store
+alongside its warm backends. Existing module-level cache functions delegate to a
+store for compatibility.
+
+Each server app owns an `InferenceService`, which manages its session lifecycle
+and inference admission; routes obtain it through a FastAPI dependency. Immutable
+`InferenceOptions` travel with each call, so batch overrides never mutate resident
+backend defaults. `CheckpointReader`, `PrithviDeployment`, and `StacAccessPolicy`
+own checkpoint trust, offline deployment resources, and scoped credentials,
+respectively. Pure transformations and serialization remain functions.
 
 The cache lives at `~/.whirld` (override with `WHIRLD_HOME`):
 
@@ -371,6 +387,10 @@ what may be pulled, executed, and auto-merged:
   Prithvi's executable configuration is restricted to first-party entries.
 - **Backend dispatch is a closed allowlist** — `load_backend` maps an allowlisted id to
   a hardcoded branch and **never imports a module path from YAML** (test-locked).
+- **RemoteCLIP architecture selection** accepts `RN50`, `ViT-B-32`, or `ViT-L-14`.
+  External source selectors and architectures requiring additional external
+  models/tokenizers are rejected before loading; weights come from the registered
+  artifact.
 - **License.** A model's `license` is required and surfaced before download
   (`whirld pull`) and in `whirld info`. Only an OSS allowlist may auto-merge;
   use-restricted licenses (e.g. the OlmoEarth Artifact License) get a terms warning and

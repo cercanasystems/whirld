@@ -1,3 +1,58 @@
+## OOP alignment pass — PR #20
+
+Keep the 18 verified fixes while assigning behavior and mutable state to cohesive
+objects, as required by AGENTS.md. Preserve public Python/CLI/REST behavior and
+lazy imports; retain simple pure functions where no state or domain owner exists.
+
+- [x] ~~Restore registry validation ownership to `ModelEntry`; make the registry
+      checker consume its document constructor instead of a free validation
+      function, preserving schema checks and governance verdicts.~~
+- [x] ~~Introduce a model store owning paths, registry dependencies, installation
+      transactions, recovery, and artifact leases. Remove module-global mutable
+      locking state and signature-inspecting decorators; retain thin compatibility
+      functions for existing public cache operations.~~
+- [x] ~~Introduce an application-owned inference service with explicit session and
+      concurrency dependencies; keep HTTP routes as typed transport adapters.~~
+- [x] ~~Move per-call batch configuration behind the backend interface, eliminating
+      orchestration access to private backend state and preserving isolation.~~
+- [x] ~~Close ownership-review gaps: bind relative cache homes once, compare exact
+      STAC origins, and prevent RemoteCLIP architecture selectors from bypassing
+      the registered artifact source with additional downloads.~~
+- [x] ~~Review the remediation diff for remaining misplaced domain behavior, run
+      regression/coverage and static checks, and update development documentation.~~
+
+Acceptance: state and policies have explicit owners, dependencies are injectable,
+existing regression coverage passes, and no extra inheritance hierarchy or facade
+is introduced without a concrete responsibility. Work stays on
+`fix/holistic-review-remediation`.
+
+### OOP pass review
+
+`ModelEntry` owns file/schema validation and fingerprints; `ModelStore` owns cache
+transactions and binds registry/path identity through session and backend loading.
+`InferenceService` owns application lifecycle and admission, with FastAPI dependency
+injection. Immutable `InferenceOptions` carry batch policy without touching private
+backend fields. `CheckpointReader`, `PrithviDeployment`, and `StacAccessPolicy` own
+artifact trust, temporary deployment resources, and credential scope.
+
+`CacheLock` retains only class-owned thread/PID-local lease bookkeeping for
+same-thread reentrancy across independent stores; OS locks serialize the same home
+across threads/processes. Different homes proceed independently. Pure transforms
+and serializers remain functions; existing public cache helpers delegate to stores.
+Review also fixed relative-root drift, explicit-port origin comparison, malformed
+origin errors, and RemoteCLIP source-selector bypasses. RemoteCLIP now accepts only
+the local `RN50`, `ViT-B-32`, and `ViT-L-14` definitions.
+
+Validation on Python 3.13.7: **400 passed / 7 skipped, 92.46% coverage**. Black/Ruff,
+mypy (53 source files), all bundled registry entries, dependency consistency, and
+diff checks passed. The rebuilt base-only install passed lazy import, pull, local
+GeoTIFF embedding, and local STAC embedding smoke tests. Separately, **2 live public
+COG radiometry tests passed**. Regression tests cover cache isolation/locking,
+service injection/lifecycle, batch isolation after failures and concurrent calls,
+credential restoration, and architecture dispatch rejection. Large real-checkpoint
+and GPU tests were not run. This pass is locally verified and included in PR #20;
+hosted CI results below refer to the previous revision.
+
 ## Remediation roadmap — implemented and verified on branch
 
 ### PR #20 — CI follow-up
