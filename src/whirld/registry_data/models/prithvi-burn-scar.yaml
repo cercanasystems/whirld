@@ -50,6 +50,7 @@ band_contract:
       bands: [B02, B03, B04, B8A, B11, B12]
       aliases: [blue, green, red, nir_narrow, swir1, swir2]
       native_resolution_m: 30
+      canonical_reflectance_scale: 0.0001
   target_resolution_m: 30
   chip_size_px: 512
   patch_size: 16

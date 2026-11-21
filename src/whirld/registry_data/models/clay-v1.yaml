@@ -44,14 +44,17 @@ band_contract:
       bands: [B02, B03, B04, B08, B11, B12]
       aliases: [blue, green, red, nir, swir16, swir22]
       native_resolution_m: 10
+      canonical_reflectance_scale: 0.0001
     landsat-8-l2:
       bands: [SR_B2, SR_B3, SR_B4, SR_B5, SR_B6, SR_B7]
       aliases: [blue, green, red, nir, swir16, swir22]
       native_resolution_m: 30
+      canonical_reflectance_scale: 0.0001
     landsat-9-l2:
       bands: [SR_B2, SR_B3, SR_B4, SR_B5, SR_B6, SR_B7]
       aliases: [blue, green, red, nir, swir16, swir22]
       native_resolution_m: 30
+      canonical_reflectance_scale: 0.0001
     # NOTE: NAIP (4-band RGBN) is a Clay sensor per the PRD but is omitted here:
     # the 4-band contract needs a 4-value normalization, whereas this entry's
     # normalization has 6 values. Re-add with a NAIP-specific normalization block

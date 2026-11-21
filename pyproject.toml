@@ -36,7 +36,7 @@ hf = ["huggingface_hub>=0.23", "torch>=2.2,<3.0", "einops>=0.8"]
 # RemoteCLIP zero-shot classification backend.
 remoteclip = ["open_clip_torch>=2.24", "huggingface_hub>=0.23"]
 # Prithvi EO 2.0 segmentation backend (TerraTorch).
-prithvi = ["terratorch>=1.2", "huggingface_hub>=0.23"]
+prithvi = ["terratorch>=1.2", "torchgeo<0.10", "huggingface_hub>=0.23"]
 # REST API server (`whirld serve`).
 serve = ["fastapi>=0.111", "uvicorn>=0.30", "python-multipart>=0.0.9"]
 # STAC item-URL input works in the base install (stdlib fetch + rasterio /vsicurl/

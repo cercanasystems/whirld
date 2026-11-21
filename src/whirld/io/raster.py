@@ -18,6 +18,7 @@ from rasterio.errors import RasterioError
 
 from ..errors import InvalidInputError
 from ..logging_setup import get_logger
+from .radiometry import BandRadiometry
 
 _log = get_logger("io.raster")
 
@@ -33,6 +34,8 @@ class RasterSource:
         band_descriptions: Per-band description strings (``None`` where absent).
         tags: Dataset-level TIFF tags (e.g. ``TIFFTAG_IMAGEDESCRIPTION``).
         nodata: Source nodata value, or ``None``.
+        band_radiometry: STAC metadata in data-band order; ``None`` for the legacy
+            local-file path. STAC missing pixels are represented by NaN in data.
     """
 
     data: np.ndarray
@@ -41,6 +44,7 @@ class RasterSource:
     band_descriptions: list[str | None]
     tags: dict[str, str] = field(default_factory=dict)
     nodata: float | None = None
+    band_radiometry: list[BandRadiometry] | None = None
 
     @property
     def band_count(self) -> int:

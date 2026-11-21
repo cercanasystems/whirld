@@ -28,9 +28,13 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+from xml.etree.ElementTree import Element, SubElement, tostring
+
+from pydantic import ValidationError
 
 from ..errors import InvalidInputError, NetworkError, UnsupportedSensorError
 from ..logging_setup import get_logger
+from .radiometry import BandRadiometry, StacBand
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from ..core.registry import ModelEntry
@@ -100,7 +104,7 @@ def read_stac_item(
             f"       Whirld needs band assets to read."
         )
 
-    hrefs = [
+    selected = [
         _match_asset(assets, band, alias, item)
         for band, alias in zip(contract.bands, contract.aliases, strict=True)
     ]
@@ -108,18 +112,18 @@ def read_stac_item(
     with _gdal_env(token):
         import rasterio
 
-        first_path = _gdal_path(hrefs[0])
+        first_path = _gdal_path(selected[0].href)
         with rasterio.open(first_path) as ref:
             out_crs = ref.crs.to_string() if ref.crs is not None else crs
             if out_crs is None:
                 raise InvalidInputError(
-                    f"STAC asset '{hrefs[0]}' has no CRS and none was supplied.\n"
+                    f"STAC asset '{selected[0].href}' has no CRS.\n"
                     f"       Pass --crs to assign one."
                 )
             grid = _output_grid(ref, out_crs, target_res, bbox)
 
-        _warn_if_large(grid, len(hrefs))
-        bands = [_read_band(_gdal_path(h), grid) for h in hrefs]
+        _warn_if_large(grid, len(selected))
+        bands = [_read_band(band, grid) for band in selected]
 
     data = np.stack(bands, axis=0)
     _log.info(
@@ -131,7 +135,7 @@ def read_stac_item(
         target_res,
         resolved_sensor,
     )
-    return _build_source(data, grid, contract.bands, resolved_sensor, item)
+    return _build_source(data, grid, contract.bands, resolved_sensor, item, selected)
 
 
 def _fetch_item(url: str, token: str | None) -> dict[str, Any]:
@@ -198,37 +202,123 @@ def _resolve_sensor(
 
 def _match_asset(
     assets: dict[str, Any], band: str, alias: str, item: dict[str, Any]
-) -> str:
-    """Resolve a contract band to an asset href (native id -> eo:bands -> alias)."""
+) -> StacBand:
+    """Resolve a native band/alias to an asset, band index, and typed radiometry.
+
+    Native asset keys take precedence, then band names, then spectral aliases.
+    Multiband assets require a matching band name/common name to avoid silently
+    reading band one. Malformed selected metadata raises InvalidInputError.
+    """
     band_l, alias_l = band.lower(), alias.lower()
 
     # Tier 1: asset key equals the native band id (e.g. "B04").
     for key, asset in assets.items():
         if key.lower() == band_l and asset.get("href"):
-            return str(asset["href"])
+            descriptions = _band_descriptions(asset)
+            for index, eo in enumerate(descriptions):
+                if str(eo.get("name", "")).lower() == band_l:
+                    return _asset_band(asset, index)
+            if len(descriptions) > 1:
+                raise InvalidInputError(f"Ambiguous multiband asset for '{band}'.")
+            return _asset_band(asset, 0)
 
     # Tier 2: an asset whose eo:bands names the native band id.
     # Tier 3: asset key or eo:bands common_name equals the spectral alias (e.g. "red").
-    alias_match: str | None = None
+    alias_match: tuple[dict[str, Any], int] | None = None
     for key, asset in assets.items():
         href = asset.get("href")
         if not href:
             continue
-        for eo in asset.get("eo:bands", []) or []:
+        descriptions = _band_descriptions(asset)
+        for index, eo in enumerate(descriptions):
             if str(eo.get("name", "")).lower() == band_l:
-                return str(href)
-            if str(eo.get("common_name", "")).lower() == alias_l:
-                alias_match = alias_match or str(href)
-        if key.lower() == alias_l:
-            alias_match = alias_match or str(href)
+                return _asset_band(asset, index)
+            common = eo.get("common_name", eo.get("eo:common_name", ""))
+            if str(common).lower() == alias_l:
+                alias_match = alias_match or (asset, index)
+        if key.lower() == alias_l and len(descriptions) <= 1:
+            alias_match = alias_match or (asset, 0)
     if alias_match:
-        return alias_match
+        return _asset_band(*alias_match)
 
     available = ", ".join(sorted(assets)) or "(none)"
     raise UnsupportedSensorError(
         f"STAC item '{_item_id(item)}' has no asset for band '{band}' "
         f"(alias '{alias}').\n       Available assets: {available}"
     )
+
+
+def _band_descriptions(asset: dict[str, Any]) -> list[dict[str, Any]]:
+    """Read STAC 1.0 EO bands or STAC 1.1 common bands, validating array shape."""
+    key = "bands" if "bands" in asset else "eo:bands"
+    if key not in asset:
+        return []
+    bands = asset[key]
+    if (
+        not isinstance(bands, list)
+        or not bands
+        or not all(isinstance(band, dict) for band in bands)
+    ):
+        raise InvalidInputError(f"Asset '{key}' must be a nonempty array of objects.")
+    return bands
+
+
+def _asset_band(asset: dict[str, Any], index: int) -> StacBand:
+    """Validate the selected band's radiometry without guessing missing units.
+
+    Supports raster v1 ``raster:bands`` and v2 ``bands`` with namespaced scale/
+    offset. Both forms together are rejected as ambiguous. Missing transform
+    fields retain legacy DN behavior; explicit invalid values raise a domain error.
+    """
+    metadata: dict[str, Any] = {}
+    descriptions = _band_descriptions(asset)
+    if "raster:bands" in asset:
+        bands = asset["raster:bands"]
+        if (
+            not isinstance(bands, list)
+            or not bands
+            or not all(isinstance(band, dict) for band in bands)
+            or index >= len(bands)
+            or (descriptions and len(bands) != len(descriptions))
+            or (not descriptions and len(bands) != 1)
+        ):
+            raise InvalidInputError("Asset raster:bands must align with named bands.")
+        if "bands" in asset:
+            raise InvalidInputError("Use either raster:bands or bands radiometry.")
+        metadata = bands[index]
+    elif "bands" in asset:
+        band = descriptions[index]
+        for source, target in (
+            ("raster:scale", "scale"),
+            ("raster:offset", "offset"),
+            ("nodata", "nodata"),
+        ):
+            if source in band:
+                metadata[target] = band[source]
+            elif source in asset:
+                metadata[target] = asset[source]
+    else:
+        # Raster v2 permits asset-level defaults even for unnamed single bands.
+        for source, target in (
+            ("raster:scale", "scale"),
+            ("raster:offset", "offset"),
+            ("nodata", "nodata"),
+        ):
+            if source in asset:
+                metadata[target] = asset[source]
+    try:
+        return StacBand(
+            href=asset["href"],
+            index=index + 1,
+            radiometry=BandRadiometry.model_validate(metadata),
+        )
+    except ValidationError as exc:
+        # Avoid echoing the whole asset (which could contain signed URLs).
+        raise InvalidInputError(
+            f"Invalid STAC radiometry for asset band {index + 1}: "
+            "scale/offset must be finite numbers; nodata must be numeric "
+            "or 'nan', 'inf', '-inf'."
+        ) from exc
 
 
 class _Grid:
@@ -262,26 +352,46 @@ def _output_grid(
     return _Grid(crs=out_crs, transform=transform, width=width, height=height)
 
 
-def _read_band(gdal_path: str, grid: _Grid) -> Any:
-    """Read one asset onto the common grid via a WarpedVRT (range-request reads)."""
+def _read_band(band: StacBand, grid: _Grid) -> Any:
+    """Read stored values onto the common grid, excluding nodata from interpolation.
+
+    STAC nodata overrides the TIFF sentinel when supplied. Otherwise TIFF nodata
+    and masks apply. Destination gaps use NaN, retaining missing observations
+    until the model contract fills them after normalization.
+    """
     import numpy as np
     import rasterio
     from rasterio.enums import Resampling
     from rasterio.vrt import WarpedVRT
 
+    gdal_path = _gdal_path(band.href)
+    options: dict[str, Any] = {}
+    if band.radiometry.nodata is not None:
+        options["src_nodata"] = band.radiometry.nodata_value
     try:
-        with (
-            rasterio.open(gdal_path) as src,
-            WarpedVRT(
-                src,
-                crs=grid.crs,
-                transform=grid.transform,
-                width=grid.width,
-                height=grid.height,
-                resampling=Resampling.bilinear,
-            ) as vrt,
-        ):
-            return vrt.read(1).astype(np.float32)
+        with rasterio.open(gdal_path) as src:
+            if band.index > src.count:
+                raise InvalidInputError(
+                    f"STAC band index {band.index} exceeds asset band count "
+                    f"{src.count}."
+                )
+            with (
+                _band_source(src, band) as (source, index),
+                WarpedVRT(
+                    source,
+                    crs=grid.crs,
+                    transform=grid.transform,
+                    width=grid.width,
+                    height=grid.height,
+                    resampling=Resampling.bilinear,
+                    dtype="float32",
+                    nodata=float("nan"),
+                    **options,
+                ) as vrt,
+            ):
+                values = vrt.read(index, masked=True).filled(np.nan).astype(np.float32)
+                values[~np.isfinite(values)] = np.nan
+                return values
     except rasterio.errors.RasterioError as exc:
         raise InvalidInputError(
             f"Could not read STAC asset '{gdal_path}'.\n"
@@ -290,8 +400,64 @@ def _read_band(gdal_path: str, grid: _Grid) -> Any:
         ) from exc
 
 
+@contextmanager
+def _band_source(source: Any, band: StacBand) -> Iterator[tuple[Any, int]]:
+    """Isolate the selected band and combine its explicit mask with nodata.
+
+    GDAL otherwise ignores per-dataset masks when a source nodata value is set.
+    Multiband warps can also treat selected-band nodata as valid when another
+    band is valid, so those sources must be reduced to a single band first.
+    This tiny VRT references the original pixels/mask lazily, retaining COG range
+    reads. Generated nodata masks are deliberately excluded: STAC may override
+    the TIFF sentinel. XML escaping protects paths including signed URL queries.
+
+    Args:
+        source: Open rasterio source dataset.
+        band: Selected source band and its optional STAC nodata override.
+
+    Yields:
+        An open dataset and data band index, valid for the context's lifetime.
+    """
+    from rasterio.enums import MaskFlags
+    from rasterio.io import MemoryFile
+
+    flags = source.mask_flag_enums[band.index - 1]
+    nodata = band.radiometry.nodata_value
+    if nodata is None:
+        nodata = source.nodatavals[band.index - 1]
+    explicit_mask = bool({MaskFlags.per_dataset, MaskFlags.alpha}.intersection(flags))
+    if source.count == 1 and not explicit_mask:
+        yield source, band.index
+        return
+    if nodata is None:
+        nodata = float("nan")
+
+    root = Element(
+        "VRTDataset", rasterXSize=str(source.width), rasterYSize=str(source.height)
+    )
+    if source.crs:
+        SubElement(root, "SRS").text = source.crs.to_wkt()
+    SubElement(root, "GeoTransform").text = ",".join(
+        str(value) for value in source.transform.to_gdal()
+    )
+    target = SubElement(root, "VRTRasterBand", dataType="Float32", band="1")
+    SubElement(target, "NoDataValue").text = str(nodata)
+    reference = SubElement(target, "ComplexSource" if explicit_mask else "SimpleSource")
+    SubElement(reference, "SourceFilename", relativeToVRT="0").text = source.name
+    SubElement(reference, "SourceBand").text = str(band.index)
+    if explicit_mask:
+        SubElement(reference, "UseMaskBand").text = "true"
+    with MemoryFile(tostring(root)) as memory, memory.open() as dataset:
+        yield dataset, 1
+
+
 def _build_source(
-    data: Any, grid: _Grid, bands: list[str], sensor: str, item: dict[str, Any]
+    data: Any,
+    grid: _Grid,
+    bands: list[str],
+    sensor: str,
+    item: dict[str, Any],
+    selected: list[StacBand],
 ) -> RasterSource:
     """Wrap the stacked array + metadata in a :class:`RasterSource`."""
     from .raster import RasterSource
@@ -307,7 +473,8 @@ def _build_source(
         transform=grid.transform,
         band_descriptions=list(bands),
         tags=tags,
-        nodata=None,
+        nodata=float("nan"),
+        band_radiometry=[band.radiometry for band in selected],
     )
 
 

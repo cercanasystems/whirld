@@ -18,7 +18,57 @@ Scope chosen with the user: **offline reference backend** + **minimal walking sk
 Full plan: `~/.claude/plans/melodic-popping-map.md`.
 Per-pass details and remaining PRD work: `dev_progress.md`.
 
-## Pass 10 — Bounded-memory COG inference (next)
+## Pass 10 — STAC asset scale/offset handling (done)
+
+Scope: honor per-band STAC asset radiometric metadata while preserving the units
+expected by each model's normalization contract.
+
+Implementation plan (branch `feat/stac-asset-offsets`): retain typed asset-band
+metadata and band indices; convert `stored * scale + offset` to canonical DN
+using an explicit sensor reflectance scale before existing model normalization.
+Keep legacy behavior when no transform is declared, and compatibility defaults
+only for existing sensor keys in older registry caches. Exclude nodata during
+resampling and fill invalid pixels after normalization. Verify synthetic encoding
+equivalence, a pinned live Sentinel-2 sample, the full suite with >=80% coverage,
+format/lint checks, and static typing of the changed modules.
+
+- [x] ~~Retain each selected asset band's scale, offset, and nodata metadata in
+      the input pipeline; define defaults and validation for missing/invalid values.~~
+- [x] ~~Define the conversion from stored pixel values to model input units,
+      accounting for asset scale/offset and model normalization exactly once.
+      Preserve Clay's expected DN convention and reflectance-based contracts;
+      do not blindly apply asset scaling followed by the existing model scaling.~~
+- [x] ~~Preserve nodata masks through conversion and resampling so offset values
+      do not turn missing pixels into valid observations.~~
+- [x] ~~Test nonzero offsets, differing per-band values, absent metadata, already
+      corrected assets, and equivalent imagery encoded with different scale/offset
+      values; verify expected normalized inputs and unchanged legacy behavior.~~
+- [x] ~~Validate a pinned real Sentinel-2 STAC sample against independently computed
+      expected values and document the supported metadata/unit conventions.~~
+
+**Acceptance:** equivalent physical observations produce equivalent model inputs
+within documented numerical tolerances, with scale/offset applied exactly once
+and nodata preserved.
+
+### Review
+
+Implemented typed per-band metadata for Raster extension v1/v2, explicit canonical
+DN conventions, legacy-cache compatibility, and nodata-aware conversion/resampling.
+A lazy single-band VRT preserves internal masks and prevents other bands from
+making a selected band's nodata appear valid during interpolation.
+
+Verification on Python 3.13.7: **218 passed / 7 skipped, 89.04% coverage** (>=80%
+gate); 48 new unit cases. The two opt-in live Sentinel-2 tests also pass without
+model checkpoints: stored blue pixel 4636 -> reflectance 0.3636 -> Clay DN 3636.
+Black/Ruff pass, mypy passes for all five changed source modules, and the installed
+dependency set is consistent. Large-checkpoint tests remain opt-in.
+
+Fresh-environment fixes: Typer 0.25.1 satisfies the pinned Hugging Face dependency;
+Rasterio 1.5.2 satisfies rioxarray; TorchGeo 0.9.0 retains the trainers API required
+by TerraTorch (the Prithvi extra now caps TorchGeo below 0.10). Added pinned mypy
+and PyYAML typing stubs. README documents units, precedence, and supported metadata.
+
+## Pass 11 — Bounded-memory COG inference (next)
 
 Scope: embeddings first, using COG assets referenced by STAC items. Extend the
 existing remote range reads through preprocessing, inference, and output so a

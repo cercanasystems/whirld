@@ -23,7 +23,7 @@ import rasterio
 from rasterio.enums import Resampling
 from rasterio.warp import reproject
 
-from ..errors import UnsupportedSensorError
+from ..errors import InvalidInputError, UnsupportedSensorError
 from ..io.raster import RasterSource
 from ..logging_setup import get_logger
 from .registry import ModelEntry
@@ -80,13 +80,38 @@ def translate(
         )
 
     sensor_contract = contract.sensors[sensor]
-    selected = _select_bands_by_alias(raster, sensor_contract.bands)
+    indices = _select_band_indices(raster, sensor_contract.bands)
+    selected = raster.data[indices].astype(np.float32, copy=True)
+    if raster.band_radiometry is not None:
+        if len(raster.band_radiometry) != raster.band_count:
+            raise InvalidInputError("STAC radiometry must align with raster bands.")
+        for position, index in enumerate(indices):
+            radiometry = raster.band_radiometry[index]
+            if radiometry.has_transform:
+                canonical_scale = sensor_contract.resolve_reflectance_scale(sensor)
+                # STAC describes physical reflectance, whereas the existing
+                # normalization contract starts with canonical DN (even Clay).
+                valid = np.isfinite(selected[position])
+                with np.errstate(over="ignore", invalid="ignore"):
+                    converted = (
+                        (
+                            selected[position].astype(np.float64) * radiometry.scale
+                            + radiometry.offset
+                        )
+                        / canonical_scale
+                    ).astype(np.float32)
+                if not np.isfinite(converted[valid]).all():
+                    raise InvalidInputError(
+                        "STAC radiometry overflows canonical float32 input values."
+                    )
+                selected[position] = converted
     resampled, transform = _resample(
         selected,
         raster.transform,
         raster.crs,
         raster.resolution_m[0],
         contract.target_resolution_m,
+        nodata=np.nan if raster.band_radiometry is not None else None,
     )
 
     out = resampled.astype(np.float32, copy=True)
@@ -101,7 +126,17 @@ def translate(
             f"Band contract for '{entry.name}' has {mean.shape[0]} normalization "
             f"values but sensor '{sensor}' resolves to {out.shape[0]} bands."
         )
-    out = (out - mean) / std
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+        out = (out - mean) / std
+    if raster.band_radiometry is not None:
+        # Missing observations stay missing throughout conversion/interpolation;
+        # only now replace them with the model's normalized padding value.
+        valid = np.isfinite(resampled)
+        if not np.isfinite(out[valid]).all():
+            raise InvalidInputError(
+                "STAC model normalization produced nonfinite values."
+            )
+        out[~valid] = contract.nodata_fill
 
     _log.debug(
         "Translated to %d bands at %.1f m, shape %s",
@@ -119,7 +154,7 @@ def translate(
     )
 
 
-def _select_bands_by_alias(raster: RasterSource, native_bands: list[str]) -> np.ndarray:
+def _select_band_indices(raster: RasterSource, native_bands: list[str]) -> list[int]:
     """Reorder/select raster bands to match the sensor's declared band order.
 
     Bands are matched by description string when available (selection by name,
@@ -131,7 +166,7 @@ def _select_bands_by_alias(raster: RasterSource, native_bands: list[str]) -> np.
         native_bands: Native band identifiers in the contract's canonical order.
 
     Returns:
-        Array of shape ``(len(native_bands), height, width)``.
+        Zero-based indices aligning data and per-band metadata to the contract.
     """
     desc_to_index: dict[str, int] = {}
     for idx, desc in enumerate(raster.band_descriptions):
@@ -142,20 +177,20 @@ def _select_bands_by_alias(raster: RasterSource, native_bands: list[str]) -> np.
     for position, band_name in enumerate(native_bands):
         key = band_name.strip().lower()
         if key in desc_to_index:
-            selected.append(raster.data[desc_to_index[key]])
+            selected.append(desc_to_index[key])
         elif position < raster.band_count:
             _log.debug(
                 "Band '%s' not found by description; using positional index %d.",
                 band_name,
                 position,
             )
-            selected.append(raster.data[position])
+            selected.append(position)
         else:
             raise UnsupportedSensorError(
                 f"Required band '{band_name}' is not present in the input "
                 f"(only {raster.band_count} bands available)."
             )
-    return np.stack(selected, axis=0)
+    return selected
 
 
 def _resample(
@@ -164,6 +199,7 @@ def _resample(
     crs: str,
     source_res_m: float,
     target_res_m: float,
+    nodata: float | None = None,
 ) -> tuple[np.ndarray, rasterio.Affine]:
     """Resample a band stack to the target resolution (bilinear).
 
@@ -173,6 +209,7 @@ def _resample(
         crs: Coordinate reference system string.
         source_res_m: Source pixel size in meters.
         target_res_m: Desired pixel size in meters.
+        nodata: Missing-value sentinel excluded from interpolation for STAC inputs.
 
     Returns:
         A tuple of the resampled array and its new affine transform. When source
@@ -193,7 +230,11 @@ def _resample(
         -target_res_m,
         transform.f,
     )
-    destination = np.zeros((bands, dst_height, dst_width), dtype=np.float32)
+    destination = np.full(
+        (bands, dst_height, dst_width),
+        nodata if nodata is not None else 0.0,
+        dtype=np.float32,
+    )
     reproject(
         source=data.astype(np.float32),
         destination=destination,
@@ -202,6 +243,8 @@ def _resample(
         dst_transform=dst_transform,
         dst_crs=crs,
         resampling=Resampling.bilinear,
+        src_nodata=nodata,
+        dst_nodata=nodata,
     )
     _log.debug(
         "Resampled %.1f m -> %.1f m: %dx%d -> %dx%d",

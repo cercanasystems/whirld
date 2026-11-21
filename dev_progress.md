@@ -6,6 +6,37 @@ remains.
 
 ---
 
+## 2026-11-21 — Pass 10: STAC asset scale/offset handling
+
+Implemented on `feat/stac-asset-offsets`. The STAC reader retains typed scale,
+offset, nodata, and selected band indices. Raster extension v1 and v2 metadata
+are supported. Conversion uses physical reflectance and the sensor's explicit
+canonical DN convention before model normalization, preserving both real Clay's
+DN-based means and the other bundled models' reflectance-based means. Existing
+sensor entries cached before this change retain compatible unit defaults.
+
+Missing pixels stay excluded during interpolation and receive normalized padding
+only afterward. Regression tests caught two GDAL behaviors: explicit nodata can
+override internal masks, and multiband warps can consider nodata valid because
+another band is valid. A lazy single-band VRT combines the selected sentinel and
+explicit mask before warping, preserving remote range reads.
+
+Validation: **218 passed / 7 skipped, 89.04% coverage** on Python 3.13.7; 48 new
+unit cases, plus two passing opt-in tests against a pinned public Sentinel-2 item.
+The live checks compare independently read pixels and arithmetic for both Clay
+normalization conventions without downloading checkpoints. Black/Ruff, targeted
+mypy, and dependency compatibility checks pass.
+
+Fresh installation exposed incompatible dependency versions. Updated Typer and
+Rasterio pins, pinned TorchGeo 0.9.0, capped the Prithvi extra at TorchGeo <0.10,
+and added development type-checking dependencies. No model checkpoints downloaded.
+
+Next: Pass 11, bounded-memory COG embedding inference. STAC radiometry currently
+assumes reflectance; item/collection inheritance and local TIFF scale/offset tags
+are not interpreted.
+
+---
+
 ## 2026-06-29T10:12:04Z — Clean-room install testing (Linux x86 + macOS ARM, PRD §17.3)
 
 Stood up the **clean-machine "five-minute test"** the PRD's acceptance gate (§17.3)

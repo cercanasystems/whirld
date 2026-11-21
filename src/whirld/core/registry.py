@@ -28,6 +28,16 @@ from ..logging_setup import get_logger
 
 _log = get_logger("core.registry")
 
+# Older cached YAMLs predate the explicit canonical DN convention. Restrict the
+# compatibility default to sensors supported by those entries; never guess units
+# for a newly added sensor.
+_LEGACY_REFLECTANCE_SCALES = {
+    "sentinel-2-l2a": 0.0001,
+    "landsat-8-l2": 0.0001,
+    "landsat-9-l2": 0.0001,
+    "hls": 0.0001,
+}
+
 
 class SensorContract(BaseModel):
     """Band mapping for a single sensor within a model's band contract.
@@ -37,6 +47,8 @@ class SensorContract(BaseModel):
         aliases: Spectral aliases (blue, green, red, nir, ...) aligned 1:1 with
             ``bands``. Selection is by alias, never by band index (PRD section 7.2).
         native_resolution_m: Native ground sample distance in meters.
+        canonical_reflectance_scale: Reflectance per canonical DN before model
+            normalization; required for new sensors with STAC asset radiometry.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -45,6 +57,30 @@ class SensorContract(BaseModel):
     aliases: list[str] = Field(min_length=1)
     native_resolution_m: float = Field(gt=0)
     wavelengths: list[float] | None = None
+    canonical_reflectance_scale: float | None = Field(
+        default=None, gt=0, allow_inf_nan=False
+    )
+
+    def resolve_reflectance_scale(self, sensor: str) -> float:
+        """Return reflectance per canonical DN for STAC radiometric conversion.
+
+        Args:
+            sensor: Registry sensor key, used only for legacy cache compatibility.
+
+        Returns:
+            The explicit positive scale or the known legacy sensor convention.
+
+        Raises:
+            RegistryError: A new sensor has no declared canonical unit convention.
+        """
+        if self.canonical_reflectance_scale is not None:
+            return self.canonical_reflectance_scale
+        if sensor in _LEGACY_REFLECTANCE_SCALES:
+            return _LEGACY_REFLECTANCE_SCALES[sensor]
+        raise RegistryError(
+            f"Sensor '{sensor}' must declare canonical_reflectance_scale "
+            "to interpret STAC asset scale/offset metadata."
+        )
 
     @field_validator("aliases")
     @classmethod
