@@ -3,6 +3,11 @@
 Patterns captured from user corrections, so the same mistake is not repeated.
 Reviewed at the start of each session.
 
+## Review scope
+
+- When asked for a deep project review, cover the whole codebase and its operating
+  assumptions. Do not narrow the review to recent changes unless explicitly asked.
+
 ## TODO presentation
 
 - Keep completed tasks checked and strike through their full descriptions in

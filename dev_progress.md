@@ -8,12 +8,20 @@ remains.
 
 ## 2026-11-21 — Pass 10: STAC asset scale/offset handling
 
-Implemented on `feat/stac-asset-offsets`. The STAC reader retains typed scale,
+Merged in [PR #1 — Apply STAC asset radiometry before model normalization](https://github.com/cercanasystems/whirld/pull/1)
+on 2026-11-21 at 11:31:55 UTC (`85894cf`, branch `feat/stac-asset-offsets`).
+
+The STAC reader retains typed scale,
 offset, nodata, and selected band indices. Raster extension v1 and v2 metadata
 are supported. Conversion uses physical reflectance and the sensor's explicit
 canonical DN convention before model normalization, preserving both real Clay's
 DN-based means and the other bundled models' reflectance-based means. Existing
 sensor entries cached before this change retain compatible unit defaults.
+
+For example, a stored pixel value of 3000 with scale 0.0001 and offset -0.1
+becomes reflectance 0.2, or canonical DN 2000 for real Clay, before normalization.
+Absent transform metadata preserves the legacy DN interpretation. Multiband
+assets retain the selected band's index and corresponding radiometric metadata.
 
 Missing pixels stay excluded during interpolation and receive normalized padding
 only afterward. Regression tests caught two GDAL behaviors: explicit nodata can
@@ -25,15 +33,23 @@ Validation: **218 passed / 7 skipped, 89.04% coverage** on Python 3.13.7; 48 new
 unit cases, plus two passing opt-in tests against a pinned public Sentinel-2 item.
 The live checks compare independently read pixels and arithmetic for both Clay
 normalization conventions without downloading checkpoints. Black/Ruff, targeted
-mypy, and dependency compatibility checks pass.
+mypy for all five changed source modules, and dependency compatibility checks
+passed during PR validation. These results do not establish whole-package typing
+or real-checkpoint inference coverage.
 
 Fresh installation exposed incompatible dependency versions. Updated Typer and
 Rasterio pins, pinned TorchGeo 0.9.0, capped the Prithvi extra at TorchGeo <0.10,
 and added development type-checking dependencies. No model checkpoints downloaded.
 
-Next: Pass 11, bounded-memory COG embedding inference. STAC radiometry currently
-assumes reflectance; item/collection inheritance and local TIFF scale/offset tags
-are not interpreted.
+Scope limits: STAC radiometry assumes reflectance; item/collection inheritance and
+local TIFF scale/offset tags are not interpreted. Remote range reads are preserved,
+but inference still materializes the requested region in memory.
+
+Next: complete the post-merge holistic review's 18 findings, tracked in GitHub
+issues #2–#19 and linked individually in the [remediation roadmap](tasks/todo.md).
+The R1–R5 security, correctness, offline/cache, API, and verification work now takes
+priority. Pass 11 (bounded-memory COG embedding inference) is deferred until that
+gate passes; the remediation findings are not fixes delivered by this PR.
 
 ---
 
@@ -811,6 +827,9 @@ changes.
 
 Ordered roughly by the PRD. "Extension point in place" means the interface/seam
 already exists and the feature slots in without reworking existing code.
+Feature work below is deferred until the [R1–R5 remediation gate](tasks/todo.md)
+passes; historical completion entries describe delivered functionality, not an
+assertion that the subsequently reviewed defects are resolved.
 
 ### Models (PRD §4)
 - [x] **Real Clay v1.5 weights** *(Pass 3)* — `clay-v1.5` runs the genuine encoder
@@ -879,6 +898,10 @@ already exists and the feature slots in without reworking existing code.
 
 ### Input handling (PRD §9)
 - [x] Local GeoTIFF (incl. COG).
+- [x] ~~**STAC asset radiometry** *(Pass 10, [PR #1](https://github.com/cercanasystems/whirld/pull/1))* —
+      per-band scale/offset/nodata and band-index metadata, conversion to model
+      units before normalization, and mask-aware resampling; Raster extension
+      v1/v2 supported, with legacy behavior when transforms are absent.~~
 - [x] **STAC item URL** input *(Pass 9)* — fetch the item JSON, select only the
       required band assets (alias-matched), read them with COG **range requests**
       (`/vsicurl/` + WarpedVRT) onto one grid, assemble a `RasterSource`. Optional
@@ -887,6 +910,9 @@ already exists and the feature slots in without reworking existing code.
 - [x] **`--stac-token` / `WHIRLD_STAC_TOKEN`** bearer auth *(Pass 9)* — sent on the
       item fetch and the `/vsicurl/` asset reads (via `GDAL_HTTP_HEADERS`).
       Planetary-Computer URL *signing* remains a documented follow-up.
+- [ ] **Bounded-memory COG embedding inference** *(Pass 11, deferred until R1–R5)* —
+      windowed batches and incremental output; current range reads alone do not
+      bound memory independently of the requested scene area.
 
 ### Output handling (PRD §10)
 - [x] Embeddings `.npy` + meta sidecar; optional inline JSON.
