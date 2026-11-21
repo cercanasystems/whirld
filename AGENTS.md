@@ -8,6 +8,7 @@
 
 ### 2. Subagent Strategy
 - Use subagents liberally to keep main context window clean
+- Ensure there is at least one subagent dedicated to managing ongoing compliance with this document
 - Offload research, exploration, and parallel analysis to subagents
 - For complex problems, throw more compute at it via subagents
 - One task per subagent for focused execution

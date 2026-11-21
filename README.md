@@ -54,8 +54,9 @@ download + sha256-verify genuine checkpoints and run the real networks.
   models.
 - **Clean-room install test** on fresh Linux x86 (Docker) — base deps only, no system
   GDAL, validated end to end — plus a parallel macOS ARM (Tart VM) harness.
-- Unit + integration tests with synthetic fixtures; **218 passing, 89 % coverage**,
-  plus opt-in checks against real model weights and public COGs.
+- Unit + integration tests enforce **at least 80% coverage**, with opt-in checks
+  against real model weights and public COGs. Current results are recorded in
+  [development progress](dev_progress.md).
 
 ### Models
 
@@ -139,7 +140,8 @@ COG **range requests** (`/vsicurl/`). Pass `--bbox MIN_LON,MIN_LAT,MAX_LON,MAX_L
 Bearer credentials are scoped to the original item's HTTP origin (scheme, host,
 and port). Cross-origin item redirects lose authorization, and asset redirects
 never forward it. Direct assets on another origin receive no token unless that
-origin is explicitly supplied to `read_stac_item(token_origins=(... ,))`.
+origin is explicitly supplied to `read_stac_item(token_origins=(... ,))` or
+`embed_to_disk(token_origins=(... ,))`.
 Authenticated asset reads require GDAL >=3.10; older builds fail with an error.
 
 Inputs must use a north-up projected grid in meters. Reproject geographic,
@@ -260,6 +262,25 @@ fc.feature_collection   # GeoJSON FeatureCollection of per-chip scores
 
 ---
 
+## Bounded-memory STAC embeddings
+
+Stream STAC windows through one loaded backend and write NPY rows and JSON chip
+metadata incrementally:
+
+```bash
+whirld embed item.json --model clay-v1 --stream --batch-size 8 --output scene.npy
+```
+
+```python
+result = whirld.embed_to_disk("item.json", model="clay-v1", output="scene.npy")
+```
+
+The Python result contains output paths and counts; ordinary `embed()` still
+returns in-memory arrays. Streaming currently requires same-CRS, north-up metric
+assets and supports embedding models with NPY output. See the
+[streaming guide](docs/streaming.md) for options, memory measurements, numerical
+behavior, output guarantees, and deferred reprojection support.
+
 ## Architecture
 
 ```
@@ -276,6 +297,8 @@ src/whirld/
     contract.py       band-contract translation pipeline
     chips.py          tiling + georeferenced chip metadata
     session.py        ModelSession — warm-loaded backend cache (serve)
+    embedding_stream.py EmbeddingStream — bounded batch execution + disk summary
+    inference_metadata.py shared UTC/location metadata and runtime estimates
   models/
     base.py           ModelBackend ABC + per-call InferenceContext/options
     checkpoints.py    CheckpointReader: format dispatch + artifact trust
@@ -288,6 +311,8 @@ src/whirld/
   io/
     raster.py         rasterio reader (path + in-memory bytes)
     stac_auth.py      StacAccessPolicy: per-read credentials + GDAL scope
+    stac_stream.py    StacWindowReader: resource lifetime + normalized chip batches
+    embedding_stream.py EmbeddingStreamWriter: staged incremental NPY/JSON output
     output.py         npy + meta sidecar; GeoJSON; mask GeoTIFF writers
   server/             FastAPI app + routes (health, models, embed, classify, segment)
   cli/                Typer app + commands

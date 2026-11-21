@@ -1,26 +1,76 @@
+## Pass 11 conformance cleanup
+
+- [x] ~~Replace cross-layer acquisition tag dictionaries with immutable Pydantic
+      metadata while preserving datetime precedence, parsing and UTC behavior.~~
+- [x] ~~Replace the untyped VRT handle with an explicit optional Rasterio handle and
+      an unopened/closed-state guard; retain adapter dictionaries only at GDAL APIs.~~
+- [x] ~~Complete parameter/result/error documentation for new nontrivial methods,
+      and add a focused streaming guide under `docs/` linked from the README.~~
+- [x] ~~Move new feature tests into source-mirroring core/io/CLI/API locations and
+      verify collection, regression coverage, formatting and whole-package typing.~~
+- [x] ~~Record final conformance evidence and remaining inherited exceptions before
+      declaring this pass ready for PR review.~~
+
+Scope: the new Pass 11 implementation and its tests/documentation. Keep the
+existing API and numerical behavior; avoid repository-wide schema migrations.
+The written plan is reviewed before implementation; execution remains in the
+session's developer-selected Default mode.
+
+### Conformance cleanup review
+
+The new reader/coordinator boundary now uses frozen Pydantic `AcquisitionMetadata`.
+Its resolve method owns timestamp precedence and UTC normalization; the legacy
+raw-tag helper delegates to it for eager API compatibility. A small `_WarpedRaster`
+protocol describes the Rasterio read operation, with explicit unopened/closed
+handle errors. Nontrivial reader/coordinator/writer/benchmark methods document
+arguments, results and failure conditions. The detailed guide lives at
+[docs/streaming.md](../docs/streaming.md), linked from the README.
+
+New tests now mirror `core/`, `io/`, and `cli/commands/`; public API tests remain at
+the corresponding root. Added regression coverage verifies immutable metadata,
+malformed-date fallback, override precedence/UTC, and handle lifetime guards.
+Verification: **472 passed / 7 skipped, 93.09% coverage**. Black/Ruff, mypy across
+57 source files, annotation/docstring inspection, collection, and diff checks pass.
+Independent and dedicated compliance reviews found no new blockers. The latter
+also caught and corrected stale README test counts. The new AGENTS.md compliance
+reviewer requirement was adopted when it appeared; its user edit is preserved.
+Earlier live COG and base-install
+verification is recorded in the implementation review below; it was not repeated
+for this metadata/docstring/layout cleanup.
+
+Scoped exceptions remain: legacy eager schemas and older flat test files were not
+migrated; GDAL keyword dictionaries remain inside external adapters, and Rasterio
+still lacks full upstream type stubs. This is a scoped conformance improvement,
+not a claim that every legacy repository convention now meets AGENTS.md. No new
+dependencies or feature work on deferred issue #21. The implementation and
+conformance cleanup are ready for publication together on the feature branch.
+
 ## Pass 11 implementation plan — 2026-11-21
 
 - [x] ~~Re-read AGENTS.md and lessons; branch from merged main and reconcile the
       remediation status before starting feature work.~~
-- [ ] Implement a resource-owning `StacWindowReader` on one common output grid.
+- [x] ~~Implement a resource-owning `StacWindowReader` on one common output grid.
       Read clipped windows, reuse band/mask/radiometry rules, normalize before
-      padding, yield bounded batches, and explicitly limit GDAL/VSI/warp caches.
-- [ ] Implement an `EmbeddingStreamWriter` owning staged output files. Write the
+      padding, yield bounded batches, and explicitly limit GDAL/VSI/warp caches.~~
+- [x] ~~Implement an `EmbeddingStreamWriter` owning staged output files. Write the
       known-shape NPY header and batch bytes sequentially; stream chip metadata
-      into the existing JSON sidecar layout; clean up incomplete results.
-- [ ] Implement an `EmbeddingStream` coordinator with explicit store/backend,
+      into the existing JSON sidecar layout; clean up incomplete results.~~
+- [x] ~~Implement an `EmbeddingStream` coordinator with explicit store/backend,
       reader, and writer ownership. Expose `embed_to_disk()` plus CLI `--stream`;
       return a typed disk-result summary without resident embeddings/chip lists.
-      Keep ordinary `embed()` behavior unchanged. Streaming supports STAC item
-      input and NPY output only; invalid combinations fail before processing.
-- [ ] Verify equivalence of pixels/embeddings and metadata for reordered/multiband
+      Keep ordinary `embed()` return behavior unchanged. Streaming supports STAC item
+      input and NPY output only; invalid combinations fail before processing.~~
+- [x] ~~Verify equivalence of pixels/embeddings and metadata for reordered/multiband
       assets, radiometry, masks/nodata, resampling, overlap, bbox and partial edges.
-      Verify batch-local location/time metadata and a single backend load.
-- [ ] Verify real HTTP range traffic, bounded read requests and process peak RSS
+      Verify batch-local location/time metadata and a single backend load.~~
+- [x] ~~Investigate live COG resampling differences between full and small-window
+      reads, reproduce them hermetically, and fix deterministic sampling without
+      whole-scene buffers or relaxed tolerances before completing verification.~~
+- [x] ~~Verify real HTTP range traffic, bounded read requests and process peak RSS
       across increasing scene sizes at fixed chip/batch size. Run regression,
-      coverage, formatting, lint, typing, packaged install and live COG checks.
-- [ ] Update README and dev_progress.md with usage, measured memory/tolerances,
-      validation results and remaining limits; record final review here.
+      coverage, formatting, lint, typing, packaged install and live COG checks.~~
+- [x] ~~Update README and dev_progress.md with usage, measured memory/tolerances,
+      validation results and remaining limits; record final review here.~~
 
 Design contract: preserve the full-scene target affine grid, row-major chip order,
 padded footprints, and existing NPY/JSON schemas. Memory may depend on model size,
@@ -29,6 +79,42 @@ scene pixels, embeddings or metadata. New data contracts use typed Pydantic mode
 resource management and inference orchestration have explicit object owners.
 Checkpoint/GPU integration remains opt-in. No REST streaming, direct remote TIFF,
 classification or segmentation streaming in this pass.
+
+### Pass 11 implementation review
+
+Implemented and locally verified on `feat/bounded-memory-cog-inference` after
+re-reading AGENTS.md and committing the documentation/plan first (`c2e0288`).
+`StacWindowReader` owns source/VRT/cache lifetimes and lazy chip layout;
+`EmbeddingStream` owns one model load and bounded execution; `EmbeddingStreamWriter`
+owns staged sequential NPY and JSON sidecar output. New contracts are Pydantic
+models. Pure UTC/location transforms are shared with the existing eager pipeline.
+The public additions are `embed_to_disk()` / `DiskEmbedResult` and CLI `--stream`.
+
+Live validation caught GDAL's per-chunk bilinear-scale estimation changing pixels
+for fractional interior windows. Shared `StacWarpPolicy` supplies physical
+source/target pixel ratios. Independent four-neighbor interpolation tests with
+nonlinear 10/15/20 m sources verify the correction; eager and streaming outputs
+match without relaxing tolerances. Aligned eager results can change where the
+previous chunk-dependent kernel was incorrect. Streaming explicitly requires
+same-CRS north-up assets; eager general reprojection is retained.
+
+Final verification: **463 passed / 7 skipped, 93.07% coverage** on Python 3.13.7;
+Black/Ruff, mypy over 57 source files, all bundled registry entries, dependency
+consistency, and diff checks passed. Rebuilt base-only installation passed lazy
+import, offline pull, GeoTIFF/STAC embedding and streaming CLI equivalence. The
+2 live public COG tests passed separately for both Clay input conventions. Real
+HTTP tests verify range/subset transfers and credential scope on lazy reads.
+Failure/interrupt tests verify output preservation, cleanup, and usage reporting.
+
+Measured reference-encoder peak RSS at chip 128/batch 4 for 2048², 4096², and 8192²
+scenes: **146.9 / 147.6 / 151.9 MiB** for 256 / 1,024 / 4,096 chips. The benchmark
+builds COGs before fresh measured processes; output grows while memory plateaus.
+Source block dimensions, model/framework buffers, and a bounded multiple of GDAL
+cache budgets remain memory factors. Output publication rolls back ordinary
+failures but is not crash-atomic across two files; concurrent writers require
+distinct destinations. Large real-checkpoint/GPU inference was not run. The
+implementation and subsequent conformance cleanup are prepared for PR review;
+hosted CI results remain separate from this local verification record.
 
 ## OOP alignment pass — PR #20
 
@@ -104,8 +190,8 @@ format/lint/schema checks and the fresh base-install smoke test all passed.
 
 Address all 18 confirmed findings from the holistic review below before starting
 new feature work. Work through R1–R5 in order, with regression tests accompanying
-each fix. Pass 11 (bounded-memory COG inference) is deferred until the remediation
-gate passes. All 18 findings are implemented and locally verified on
+each fix. The remediation gate has passed. All 18 findings are implemented and
+verified on
 `fix/holistic-review-remediation` and merged into main in PR #20 (`f85153e`).
 GitHub issues #2–#19 are closed. Pass 11 is now unblocked.
 
@@ -423,7 +509,7 @@ Rasterio 1.5.2 satisfies rioxarray; TorchGeo 0.9.0 retains the trainers API requ
 by TerraTorch (the Prithvi extra now caps TorchGeo below 0.10). Added pinned mypy
 and PyYAML typing stubs. README documents units, precedence, and supported metadata.
 
-## Pass 11 — Bounded-memory COG inference (in progress)
+## Pass 11 — Bounded-memory COG inference (implemented; locally verified)
 
 **Prerequisite complete:** PR #20 merged; all four PR checks passed and the
 remediation issues are closed. Branch: `feat/bounded-memory-cog-inference`.
@@ -432,22 +518,22 @@ Scope: embeddings first, using COG assets referenced by STAC items. Extend the
 existing remote range reads through preprocessing, inference, and output so a
 large scene does not require loading the full region or all chips into RAM.
 
-- [ ] Add a windowed reader yielding configurable chip batches on the model's
-      common output grid, with optional bbox and existing asset authentication.
-- [ ] Preserve band selection/order, resampling, normalization, overlap, edge
-      padding, chip order/bounding boxes, and location/acquisition-time metadata.
-- [ ] Reuse one loaded backend across batches and release each batch's pixel
-      arrays after inference; bound GDAL caches as well as application buffers.
-- [ ] Write embeddings and chip metadata incrementally, preserving the existing
-      `.npy` and metadata sidecar formats without accumulating all results in RAM.
-- [ ] Expose streaming explicitly for disk output in the CLI/Python API while
+- [x] ~~Add a windowed reader yielding configurable chip batches on the model's
+      common output grid, with optional bbox and existing asset authentication.~~
+- [x] ~~Preserve band selection/order, resampling, normalization, overlap, edge
+      padding, chip order/bounding boxes, and location/acquisition-time metadata.~~
+- [x] ~~Reuse one loaded backend across batches and release each batch's pixel
+      arrays after inference; bound GDAL caches as well as application buffers.~~
+- [x] ~~Write embeddings and chip metadata incrementally, preserving the existing
+      `.npy` and metadata sidecar formats without accumulating all results in RAM.~~
+- [x] ~~Expose streaming explicitly for disk output in the CLI/Python API while
       preserving existing in-memory Python return behavior; document usage and
-      memory expectations in the README.
-- [ ] Verify streaming against the existing pipeline: equivalent embeddings
+      memory expectations in the README.~~
+- [x] ~~Verify streaming against the existing pipeline: equivalent embeddings
       within documented numerical tolerances, matching chip order/coordinates,
-      bbox reads, overlap, resampling, and partial edge tiles.
-- [ ] Verify HTTP range reads with a controlled COG fixture and measure peak
-      memory across increasing scene sizes at a fixed chip/batch size.
+      bbox reads, overlap, resampling, and partial edge tiles.~~
+- [x] ~~Verify HTTP range reads with a controlled COG fixture and measure peak
+      memory across increasing scene sizes at a fixed chip/batch size.~~
 
 **Acceptance:** larger scenes take longer and produce more output, but working
 memory stays within a documented bound determined by model size, chip/batch size,
@@ -456,9 +542,17 @@ and bounded I/O caches rather than total scene area or chip count.
 **Follow-up:** direct remote `.tif` URL input; extend streaming to classification
 and segmentation after the embedding path is verified.
 
+- [ ] **Low priority — deferred, no near-term implementation:** optional
+      reprojection for cross-CRS or rotated STAC assets. Consider an opt-in,
+      disk-backed normalization stage with an explicit target grid; retain
+      numerical reproducibility and bounded memory. Outside Pass 11, with no
+      scheduled milestone. Tracked in
+      [#21](https://github.com/cercanasystems/whirld/issues/21).
+
 ### Review
 
-Implementation and verification are in progress on the Pass 11 branch.
+Implemented and verified; see the Pass 11 implementation review at the top of
+this file for architecture, numerical correction, measurements and limits.
 
 ## Pass 9 — STAC item URL input (done)
 

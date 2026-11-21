@@ -25,10 +25,12 @@ from ._version import __version__
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .api import (
         ClassifyResult,
+        DiskEmbedResult,
         EmbedResult,
         SegmentResult,
         classify,
         embed,
+        embed_to_disk,
         pull,
         segment,
     )
@@ -37,9 +39,11 @@ __all__ = [
     "__version__",
     "pull",
     "embed",
+    "embed_to_disk",
     "classify",
     "segment",
     "EmbedResult",
+    "DiskEmbedResult",
     "ClassifyResult",
     "SegmentResult",
 ]
@@ -47,9 +51,11 @@ __all__ = [
 _PUBLIC = {
     "pull",
     "embed",
+    "embed_to_disk",
     "classify",
     "segment",
     "EmbedResult",
+    "DiskEmbedResult",
     "ClassifyResult",
     "SegmentResult",
 }

@@ -104,6 +104,14 @@ class EmbeddingOptions(SpatialOptions):
         return self
 
 
+class StreamingEmbeddingOptions(EmbeddingOptions):
+    """Bounded STAC embedding options; the output is always a disk NPY array."""
+
+    batch_size: int = Field(default=8, gt=0, strict=True)
+    cache_mb: int = Field(default=32, gt=0, strict=True)
+    fmt: Literal["npy"] = "npy"
+
+
 class ClassificationOptions(SpatialOptions):
     """Probability threshold and positive number of returned chip scores."""
 

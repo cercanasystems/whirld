@@ -10,7 +10,8 @@ new user hits in their first five minutes:
 3. ``whirld embed <geotiff>`` produces embeddings from a local raster.
 4. ``whirld embed <stac item.json>`` produces embeddings from a STAC item via the
    ``/vsicurl/`` reader (here against ``file://`` assets, so it is hermetic).
-5. Optionally, if ``WHIRLD_TEST_STAC_URL`` is set, the same against a *real* remote
+5. Stream the same STAC item into compatible output using bounded batches.
+6. Optionally, if ``WHIRLD_TEST_STAC_URL`` is set, the same against a *real* remote
    STAC item — proving live HTTP range reads on a clean Linux install.
 
 The fixtures are generated inline with rasterio (a base dependency), so this script
@@ -188,6 +189,28 @@ def main() -> int:
         _step("embed STAC item (file:// assets, /vsicurl/ reader)")
         _run_cli(["embed", "--model", "clay-v1", "--output", str(emb_stac), str(item)])
         _assert_embeddings(emb_stac, "STAC item")
+
+        import numpy as np
+
+        emb_stream = work / "stream_embeddings.npy"
+        _step("stream STAC item in bounded batches")
+        _run_cli(
+            [
+                "embed",
+                "--model",
+                "clay-v1",
+                "--stream",
+                "--batch-size",
+                "1",
+                "--output",
+                str(emb_stream),
+                str(item),
+            ]
+        )
+        _assert_embeddings(emb_stream, "streamed STAC item")
+        np.testing.assert_allclose(
+            np.load(emb_stream), np.load(emb_stac), rtol=1e-5, atol=1e-6
+        )
 
         real_url = os.environ.get("WHIRLD_TEST_STAC_URL")
         if real_url:
