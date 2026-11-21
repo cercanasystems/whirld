@@ -16,6 +16,11 @@ Reviewed at the start of each session.
 
 ## Environment
 
+- When CI pins an exact Python patch release, verify the setup-python manifest
+  supports the selected OS and architecture and pin the runner accordingly.
+  A moving `ubuntu-latest` can select an OS newer than that Python build supports;
+  local validation does not establish hosted-runner compatibility.
+
 - **Use Python 3.13 even if the default `python3` is older.** This machine's default
   `python3` is 3.9.6; the project standard (CLAUDE.md) is 3.13. The 3.13 interpreter
   lives at `/opt/homebrew/bin/python3.13`. Always build `.venv` from it.

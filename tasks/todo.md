@@ -1,5 +1,16 @@
 ## Remediation roadmap — implemented and verified on branch
 
+### PR #20 — CI follow-up
+
+- [x] ~~Read all four failed checks and identify their shared setup failure.~~
+- [x] ~~Pin a runner with a published Python 3.13.7 build and verify workflow syntax.~~
+- [ ] Push the correction, resolve any subsequent failures, and verify remote checks.
+
+Review: both jobs ran for push and pull-request events. All four failed before
+dependency installation because `ubuntu-latest` selected Ubuntu 26.04, which has
+no Python 3.13.7 build in the setup-python manifest. Both jobs now pin Ubuntu 24.04,
+verified against the published x64 builds. Remote verification is pending.
+
 Address all 18 confirmed findings from the holistic review below before starting
 new feature work. Work through R1–R5 in order, with regression tests accompanying
 each fix. Pass 11 (bounded-memory COG inference) is deferred until the remediation

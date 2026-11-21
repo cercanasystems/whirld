@@ -6,6 +6,16 @@ remains.
 
 ---
 
+## 2026-11-21 — PR #20 hosted CI compatibility
+
+Both CI jobs failed at Python setup for both push and pull-request runs:
+`ubuntu-latest` selected Ubuntu 26.04, but setup-python has no Python 3.13.7 x64
+build for that OS. Pinned both jobs to `ubuntu-24.04`, verified against the
+published Python build manifest. Workflow structure and diff checks pass;
+hosted execution is pending. The project Python version remains 3.13.7.
+
+---
+
 ## 2026-11-21 — Holistic review remediation (implemented; awaiting integration)
 
 Branch: `fix/holistic-review-remediation`. Implemented all 18 findings in the R1–R5

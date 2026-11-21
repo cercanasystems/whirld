@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # Python 3.13.7 has setup-python builds for 24.04, not newer runner images.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -33,7 +34,7 @@ jobs:
       - name: Regression suite and coverage
         run: .venv/bin/python -m pytest --cov=whirld --cov-fail-under=80
   base-install:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
