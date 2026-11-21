@@ -22,6 +22,17 @@ Reviewed at the start of each session.
   Keep pure transformations as functions where appropriate; review ownership and
   dependency boundaries alongside regression tests before declaring work complete.
 
+## Conformance before PR readiness
+
+- Passing functional tests is not sufficient to claim AGENTS.md compliance. Check
+  new layer boundaries for typed schemas, docstrings for argument/result/error
+  detail, test paths against source layout, and the required documentation layout.
+- Distinguish inherited conventions from requirements: new code should follow the
+  requirement even when older code does not. Report any remaining exceptions
+  explicitly before saying a change is ready for review.
+- Assign a dedicated compliance subagent at the start of nontrivial work, as
+  required by AGENTS.md, and keep it involved as implementation and scope evolve.
+
 ## TODO presentation
 
 - Keep completed tasks checked and strike through their full descriptions in

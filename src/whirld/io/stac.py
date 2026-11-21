@@ -361,6 +361,59 @@ class _Grid:
         self.height = height
 
 
+class StacWarpPolicy:
+    """Own reproducible resampling scales for co-registered affine STAC assets.
+
+    GDAL otherwise estimates XSCALE/YSCALE separately for each warp chunk. Even
+    same-resolution fractional windows can then use different bilinear kernels
+    depending on read size. North-up sources in the target CRS have exact,
+    constant scale ratios; fixing those ratios makes full and windowed reads
+    equivalent. Other reprojections retain GDAL's existing eager behavior and
+    are explicitly rejected by the streaming reader.
+    """
+
+    def __init__(
+        self, source: Any, grid: _Grid, crs_override: str | None = None
+    ) -> None:
+        """Derive physical source/target scale ratios without reading pixels."""
+        from rasterio.crs import CRS
+
+        crs = source.crs or crs_override
+        transform = source.transform
+        aligned = (
+            crs is not None
+            and CRS.from_user_input(crs) == CRS.from_user_input(grid.crs)
+            and all(math.isfinite(value) for value in transform)
+            and transform.b == 0
+            and transform.d == 0
+            and transform.a > 0
+            and transform.e < 0
+        )
+        self._scales = (
+            (transform.a / grid.transform.a, transform.e / grid.transform.e)
+            if aligned
+            else None
+        )
+
+    def options(self, *, require_stable: bool = False) -> dict[str, float]:
+        """Return GDAL warp options, rejecting unsupported streaming geometry.
+
+        Args:
+            require_stable: Require same-CRS, north-up affine assets for streaming.
+
+        Raises:
+            InvalidInputError: Streaming would require a general reprojection.
+        """
+        if self._scales is None:
+            if require_stable:
+                raise InvalidInputError(
+                    "Streaming requires all STAC assets to use the same CRS and "
+                    "north-up, unrotated grids. Reproject assets before streaming."
+                )
+            return {}
+        return {"XSCALE": self._scales[0], "YSCALE": self._scales[1]}
+
+
 def _output_grid(
     ref: Any,
     out_crs: str,
@@ -409,6 +462,7 @@ def _read_band(band: StacBand, grid: _Grid) -> Any:
                     f"STAC band index {band.index} exceeds asset band count "
                     f"{src.count}."
                 )
+            options.update(StacWarpPolicy(src, grid).options())
             with (
                 _band_source(src, band) as (source, index),
                 WarpedVRT(

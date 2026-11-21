@@ -21,9 +21,11 @@ from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
 from rasterio.windows import Window
 
+from whirld.core.chips import chip_raster
 from whirld.core.contract import translate
 from whirld.core.registry import Registry
 from whirld.io.stac import read_stac_item
+from whirld.io.stac_stream import StacWindowReader
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("WHIRLD_TEST_STAC_RADIOMETRY") != "1",
@@ -56,7 +58,29 @@ def test_pinned_stac_radiometry(whirld_home: Path, model: str) -> None:
         sensor=sample["sensor"],
         bbox=tuple(sample["bbox"]),
     )
-    actual = translate(source, entry, sample["sensor"]).data
+    translated = translate(source, entry, sample["sensor"])
+    actual = translated.data
+    expected_chips, layout = chip_raster(
+        translated, 2, overlap=1, nodata_fill=entry.band_contract.nodata_fill
+    )
+    with StacWindowReader(
+        sample["item_url"],
+        entry=entry,
+        sensor=sample["sensor"],
+        bbox=tuple(sample["bbox"]),
+        chip_size=2,
+        overlap=1,
+        batch_size=2,
+    ) as reader:
+        position = 0
+        for batch in reader.batches():
+            stop = position + len(batch.chips)
+            np.testing.assert_allclose(
+                batch.pixels, expected_chips[position:stop], rtol=2e-5, atol=2e-5
+            )
+            assert batch.chips == layout.chips[position:stop]
+            position = stop
+        assert position == len(layout.chips)
     norm = entry.band_contract.normalization
     sensor = entry.band_contract.sensors[sample["sensor"]]
 
@@ -89,6 +113,11 @@ def test_pinned_stac_radiometry(whirld_home: Path, model: str) -> None:
                     src_nodata=metadata["nodata"],
                     nodata=float("nan"),
                     dtype="float32",
+                    # Fixed physical ratios prevent GDAL from changing its
+                    # bilinear kernel according to the requested warp chunk.
+                    # Compute independently from the two affine transforms.
+                    XSCALE=dataset.transform.a / source.transform.a,
+                    YSCALE=dataset.transform.e / source.transform.e,
                 ) as vrt:
                     raw = vrt.read(1, masked=True).astype(np.float64)
 

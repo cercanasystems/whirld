@@ -4,11 +4,11 @@ This module wires the building blocks (registry -> manifest -> raster -> sensor
 detection -> band-contract translation -> chipping -> backend inference -> output)
 into the single-call operations the CLI, the Python API, and the REST server share.
 
-There is exactly one pipeline. :func:`embed` resolves a backend per call (one-shot
-CLI/library use), while :func:`embed_raster` pulls a **warm** backend from a
-:class:`~whirld.core.session.ModelSession` (server use). Both feed the same
-private orchestrator, so behavior — including the ``usage.jsonl`` record on success
-and failure — is identical regardless of entry point.
+The in-memory pipeline serves :func:`embed` (one-shot CLI/library use) and
+:func:`embed_raster` (a warm ModelSession for server use). :func:`embed_to_disk`
+uses an owned streaming coordinator with bounded STAC windows and incremental
+outputs. Both paths share band translation, chip geometry, model interfaces,
+acquisition metadata rules, and usage-record conventions.
 
 Keeping the orchestration here (rather than in ``__init__``) preserves the lazy
 top-level import promise: ``import whirld`` does not import numpy, rasterio, or
@@ -21,7 +21,6 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -31,12 +30,23 @@ import numpy as np
 from .core import contract as contract_mod
 from .core import sensor as sensor_mod
 from .core.chips import ChipMeta, chip_raster, reassemble_mask
+from .core.embedding_stream import DiskEmbedResult, EmbeddingStream
 from .core.fetch import Manifest, ModelStore
+from .core.inference_metadata import (
+    chip_latlons as _chip_latlons,
+)
+from .core.inference_metadata import (
+    resolve_datetime as _resolve_datetime,
+)
+from .core.inference_metadata import (
+    warn_cpu as _maybe_warn_cpu,
+)
 from .core.options import (
     ClassificationOptions,
     EmbeddingOptions,
     InferenceOptions,
     SegmentationOptions,
+    StreamingEmbeddingOptions,
 )
 from .core.registry import ModelEntry
 from .errors import InvalidInputError, WhirldError
@@ -239,6 +249,78 @@ def embed(
         no_warnings=no_warnings,
         input_type="stac" if _is_stac_input(input) else "geotiff",
         inference_options=InferenceOptions(batch_size=batch_size),
+    )
+
+
+def embed_to_disk(
+    input: str | Path,
+    *,
+    model: str,
+    output: str | Path | None = None,
+    fmt: str = "npy",
+    chip_size: int | None = None,
+    overlap: int = 0,
+    batch_size: int = 8,
+    cache_mb: int = 32,
+    device: str | None = None,
+    sensor: str | None = None,
+    crs: str | None = None,
+    bbox: tuple[float, float, float, float] | None = None,
+    stac_token: str | None = None,
+    token_origins: tuple[str, ...] = (),
+    datetime: str | None = None,
+    no_warnings: bool = False,
+) -> DiskEmbedResult:
+    """Stream a STAC item's embeddings to disk with bounded working memory.
+
+    Args:
+        input: HTTP(S) STAC item URL, file URL, or local item JSON path.
+        model: Installed embedding model identifier.
+        output: NPY destination; defaults to the existing input-based filename.
+        fmt: Must be ``npy``; metadata is streamed to the usual JSON sidecar.
+        chip_size: Model chip size override in pixels.
+        overlap: Overlap between adjacent chips, in pixels.
+        batch_size: Maximum chips read and inferred together (default eight).
+        cache_mb: GDAL block cache budget in MiB; other I/O caches are bounded.
+        device: Inference device override, or automatic selection.
+        sensor: Explicit sensor override; otherwise inferred from the item.
+        crs: CRS to assign to an asset when absent.
+        bbox: Optional longitude/latitude bounds in EPSG:4326.
+        stac_token: Bearer token scoped to the item's origin.
+        token_origins: Additional asset origins authorized to receive that token.
+        datetime: Acquisition datetime override, interpreted as UTC when naive.
+        no_warnings: Suppress the real-model CPU runtime estimate.
+
+    Returns:
+        Paths and counts only. Use ``numpy.load(result.output_path, mmap_mode='r')``
+        for subsequent bounded reads. Ordinary ``embed()`` still returns arrays.
+
+    Raises:
+        InvalidInputError: Unsupported input/output or invalid execution options.
+        WhirldError: Registry, model, source, inference, or disk processing fails.
+    """
+    options = StreamingEmbeddingOptions.from_arguments(
+        chip_size=chip_size,
+        overlap=overlap,
+        batch_size=batch_size,
+        cache_mb=cache_mb,
+        bbox=bbox,
+        fmt=fmt,
+    )
+    if not _is_stac_input(input):
+        raise InvalidInputError("Streaming currently requires a STAC item input.")
+    target = Path(output) if output is not None else _default_output_path(input)
+    return EmbeddingStream(ModelStore(), device).run(
+        str(input),
+        model=model,
+        output=target,
+        options=options,
+        sensor=sensor,
+        crs=crs,
+        token=stac_token,
+        token_origins=token_origins,
+        acquisition_datetime=datetime,
+        no_warnings=no_warnings,
     )
 
 
@@ -934,102 +1016,3 @@ def _read_input(
             token=stac_token,
         )
     return read_raster(value, crs=crs)
-
-
-# Rough per-chip CPU wall-clock estimate (seconds) for the runtime warning. A
-# conservative order-of-magnitude figure — labeled an estimate, never a guarantee.
-_CPU_SECONDS_PER_CHIP = 1.0
-
-
-def _maybe_warn_cpu(
-    model: str,
-    manifest: Manifest,
-    device: str,
-    chip_count: int,
-    no_warnings: bool,
-) -> None:
-    """Warn when running a real full-precision model on CPU (PRD section 12.2).
-
-    Fires only for real (Hugging Face) full-precision weights on CPU. The numpy
-    reference backend and quantized variants are silent, as is ``--no-warnings``.
-
-    Args:
-        model: Model identifier.
-        manifest: The model's local manifest.
-        device: Resolved inference device.
-        chip_count: Number of chips to process (drives the estimate).
-        no_warnings: Suppress the warning entirely.
-    """
-    if no_warnings or device != "cpu":
-        return
-    if manifest.source_type != "huggingface" or manifest.quantized:
-        return
-    est_s = chip_count * _CPU_SECONDS_PER_CHIP
-    est = f"~{est_s:.0f}s" if est_s < 90 else f"~{est_s / 60:.0f} min"
-    _log.warning(
-        "Running '%s' full-precision on CPU (%d chips); this may be slow "
-        "(estimate %s). Pass --device mps/cuda to speed it up if available. "
-        "(int8 quantization is not yet available.) Suppress with --no-warnings.",
-        model,
-        chip_count,
-        est,
-    )
-
-
-def _chip_latlons(chipset: Any, crs: str) -> list[tuple[float, float]] | None:
-    """Reproject each chip's bbox centroid to ``(lat, lon)`` in EPSG:4326.
-
-    Args:
-        chipset: The chip set whose chips carry source-CRS bounding boxes.
-        crs: The source CRS string.
-
-    Returns:
-        Per-chip ``(lat, lon)`` aligned to ``chipset.chips``, or ``None`` if the
-        reprojection fails (e.g. an unusable CRS) — callers fall back to zeros.
-    """
-    try:
-        from rasterio.warp import transform as warp_transform  # noqa: PLC0415
-
-        xs = [(c.bbox[0] + c.bbox[2]) / 2.0 for c in chipset.chips]
-        ys = [(c.bbox[1] + c.bbox[3]) / 2.0 for c in chipset.chips]
-        if not xs:
-            return []
-        lons, lats = warp_transform(crs, "EPSG:4326", xs, ys)
-        return [(float(lat), float(lon)) for lat, lon in zip(lats, lons, strict=True)]
-    except Exception as exc:  # unusable CRS, projection error, etc.
-        _log.debug("Could not derive chip lat/lon (crs=%s): %s", crs, exc)
-        return None
-
-
-def _resolve_datetime(override: str | None, tags: dict[str, str]) -> datetime | None:
-    """Resolve a scene acquisition datetime from an override or TIFF tag.
-
-    Precedence: explicit ISO-8601 ``override`` › ``TIFFTAG_DATETIME`` (TIFF or
-    STAC ISO format) › ``None``. Naive values are treated as UTC; offsets are
-    normalized to UTC before model metadata is encoded.
-
-    Args:
-        override: Optional ISO-8601 datetime string.
-        tags: Dataset tags (may contain ``TIFFTAG_DATETIME``).
-
-    Returns:
-        A parsed :class:`datetime.datetime`, or ``None`` if neither source parses.
-    """
-    for value in (override, tags.get("TIFFTAG_DATETIME")):
-        if not value:
-            continue
-        try:
-            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError:
-            try:
-                parsed = datetime.strptime(value, "%Y:%m:%d %H:%M:%S")
-            except ValueError:
-                _log.debug("Could not parse acquisition datetime; ignoring.")
-                continue
-        # TIFF timestamps carry no zone; consistently interpret them as UTC.
-        return (
-            parsed.replace(tzinfo=timezone.utc)
-            if parsed.tzinfo is None
-            else parsed.astimezone(timezone.utc)
-        )
-    return None

@@ -6,7 +6,97 @@ remains.
 
 ---
 
-## 2026-11-21 — PR #20 OOP alignment (locally verified; awaiting integration)
+## 2026-11-21 — Pass 11 AGENTS.md conformance cleanup
+
+Addressed the scoped audit findings before PR creation. The I/O-to-coordinator
+acquisition boundary now carries an immutable Pydantic `AcquisitionMetadata` model,
+which owns timestamp parsing, override/fallback rules and UTC normalization. The
+existing eager tag-dictionary helper delegates to that model for compatibility.
+Replaced the untyped warped handle with a minimal Rasterio read protocol and
+explicit lifetime checks. Completed nontrivial method docstrings, moved new tests
+into source-mirroring core/io/CLI folders, and added the detailed
+[streaming guide](docs/streaming.md), retaining concise README examples.
+
+**Verification:** **472 passed / 7 skipped, 93.09% coverage**; Black/Ruff, mypy over
+57 source files, annotation/docstring inspection and diff checks passed. New tests
+exercise timestamp fallback/override/UTC behavior, metadata immutability, and
+unopened/closed VRT reads. Independent review found no new blocker. The earlier
+live COG and base-install results remain recorded below; this cleanup reran the
+full hermetic suite rather than repeating unaffected live-data checks.
+
+Updated TODO and lessons to require a conformance audit before declaring PR
+readiness. Legacy eager data containers, older flat tests, and GDAL adapter option
+maps remain documented scope exceptions. Work followed a written plan in the
+session's Default mode. This cleanup is included with the feature implementation
+on `feat/bounded-memory-cog-inference` for PR review; no dependencies changed.
+
+---
+
+## 2026-11-21 — Pass 11: bounded-memory STAC COG embeddings
+
+Branch: `feat/bounded-memory-cog-inference`, based on merged PR #20. Re-read
+AGENTS.md and lessons, then committed the remediation status and implementation
+plan first (`c2e0288`). Feature implementation and final documentation are prepared
+for PR review together with the conformance cleanup recorded above. Hosted CI
+results are tracked separately from the local verification below.
+
+**Implementation:** `StacWindowReader` owns item selection, common-grid warped
+assets, per-origin credentials, bounded I/O caches, and lazy chip layout. It reads
+clipped windows, reuses band/radiometry normalization, then pads chips.
+`EmbeddingStream` binds a `ModelStore`, loads one backend per run, passes batch-local
+location and UTC acquisition metadata, and releases batches after writing.
+`EmbeddingStreamWriter` writes NPY rows and JSON chip records sequentially into
+staged files, validates completeness, and publishes with ordinary-error rollback.
+Pydantic models define execution options, batches, metadata headers and disk results.
+
+**Public surface:** `whirld.embed_to_disk(...)` returns `DiskEmbedResult` paths and
+counts; `whirld embed --stream --batch-size 8` exposes the same disk workflow.
+Existing `embed()` behavior and NPY/sidecar schemas remain available. Streaming is
+STAC-item input, embedding models, NPY output; it accepts bbox, overlap, sensor,
+CRS assignment, credentials and datetime overrides. Assets must share one CRS and
+be north-up/unrotated, although resolutions and origins may differ. Ordinary
+secondary-asset reprojection remains available in the eager reader.
+
+**Numerical correction discovered by live testing:** GDAL's automatic bilinear
+scale estimates varied with requested chunk dimensions. A fractional interior
+window produced different pixels when split into small reads. Shared
+`StacWarpPolicy` now supplies physical source/target pixel-size ratios for aligned
+assets. Independent four-neighbor interpolation tests for 10/15/20 m sources verify
+the correction; synthetic and live comparisons pass at their original tolerances.
+This also corrects affected eager outputs, so some previous fractional-bbox results
+can change. Cross-CRS/rotated secondary assets are rejected explicitly by streaming
+until deterministic general reprojection is implemented.
+
+**Verification:** **463 passed / 7 skipped, 93.07% coverage** on Python 3.13.7.
+Black/Ruff, whole-package mypy (57 source files), four bundled registry entries,
+dependency consistency and diff checks pass. Rebuilt base-only package passes lazy
+import, offline pull, local GeoTIFF/STAC embedding and streamed-output equivalence;
+the clean-room script now tests `--stream`. Two live public Sentinel-2 tests pass
+for both Clay normalization contracts. Tests cover mixed resolutions, radiometry,
+mask/nodata interactions, bbox, overlapping/partial chips, exact metadata/order,
+UTC propagation, backend reuse, HTTP range bytes and origin-scoped lazy reads,
+failure/interrupt cleanup, incomplete writes and publication rollback.
+
+**Memory evidence:** `scripts/benchmark_streaming.py --sizes 2048 4096 8192` on this
+macOS host with bundled GDAL 3.12.2, offline CPU reference encoder, chip 128/batch 4:
+
+| Scene | Chips | Output bytes | Peak RSS |
+|---|---:|---:|---:|
+| 2048² | 256 | 544,398 | 146.9 MiB |
+| 4096² | 1,024 | 2,177,638 | 147.6 MiB |
+| 8192² | 4,096 | 8,714,214 | 151.9 MiB |
+
+Fixtures are generated outside fresh measured subprocesses. Regression tests
+verify cache warmup and the subsequent memory plateau. Memory still depends on
+model/framework buffers, chip/batch/band sizes, source decoder blocks and bounded
+cache budgets; tiled COGs are recommended. Publication of the two output files is
+not crash-atomic or safe for concurrent writes to the same destination. Real
+checkpoint/GPU inference remains opt-in and was not run. Direct remote TIFF,
+classification/segmentation streaming and REST streaming remain follow-ups.
+
+---
+
+## 2026-11-21 — PR #20 OOP alignment (merged)
 
 Revisited the remediation implementation against AGENTS.md's OOP requirement on
 `fix/holistic-review-remediation`, retaining the 18 fixes and public Python/CLI/REST
@@ -48,7 +138,7 @@ external RemoteCLIP sources. Large real-checkpoint/GPU tests were not run.
 
 The TODO has completed, struck-through items and a review record; lessons capture
 the requirement to preserve ownership when implementing security/correctness fixes.
-This pass is included in PR #20; hosted CI verification follows the branch push.
+Merged in PR #20 (`f85153e`); all four PR CI checks passed on `79fc69a`.
 
 ---
 
@@ -69,11 +159,11 @@ were needed for these CI failures.
 
 ---
 
-## 2026-11-21 — Holistic review remediation (implemented; awaiting integration)
+## 2026-11-21 — Holistic review remediation (merged)
 
 Branch: `fix/holistic-review-remediation`. Implemented all 18 findings in the R1–R5
 sequence in [tasks/todo.md](tasks/todo.md), where each task links to its GitHub issue
-(#2–#19). Changes are locally verified and await PR review and merge.
+(#2–#19). Changes are verified and merged in PR #20. Issues #2–#19 are closed.
 
 **R1 — Security boundaries:** actual safetensors parsing with no pickle fallback;
 explicit trust at executable checkpoint loading; cache/model/artifact path
@@ -127,9 +217,9 @@ blocking status reads, and races between manifest validation and weight loading.
 pass. Linux CI subsequently passed after the runner fix logged above. Real-model
 tests remain opt-in. Prithvi's ordinary offline
 test inspects deployment behavior with a stand-in; its gated real-checkpoint test
-now blocks network access with an empty external cache. GitHub issues remain open
-pending integration, and Pass 11
-COG streaming remains deferred while this remediation branch is reviewed.
+now blocks network access with an empty external cache. GitHub issues #2–#19 are
+closed after PR #20 merged. Pass 11 is implemented on its subsequent feature
+branch; see the latest entry above.
 
 ---
 
@@ -954,9 +1044,8 @@ changes.
 
 Ordered roughly by the PRD. "Extension point in place" means the interface/seam
 already exists and the feature slots in without reworking existing code.
-Feature work below is deferred until the [R1–R5 remediation gate](tasks/todo.md)
-passes; historical completion entries describe delivered functionality, not an
-assertion that the subsequently reviewed defects are resolved.
+The [R1–R5 remediation gate](tasks/todo.md) passed and PR #20 is merged.
+Historical entries retain the evidence and limits recorded for each pass.
 
 ### Models (PRD §4)
 - [x] **Real Clay v1.5 weights** *(Pass 3)* — `clay-v1.5` runs the genuine encoder
@@ -1037,9 +1126,9 @@ assertion that the subsequently reviewed defects are resolved.
 - [x] **`--stac-token` / `WHIRLD_STAC_TOKEN`** bearer auth *(Pass 9)* — sent on the
       item fetch and the `/vsicurl/` asset reads (via `GDAL_HTTP_HEADERS`).
       Planetary-Computer URL *signing* remains a documented follow-up.
-- [ ] **Bounded-memory COG embedding inference** *(Pass 11, deferred until R1–R5)* —
-      windowed batches and incremental output; current range reads alone do not
-      bound memory independently of the requested scene area.
+- [x] ~~**Bounded-memory COG embedding inference** *(Pass 11)* — windowed chip
+      batches, incremental NPY/JSON output, explicit Python/CLI streaming and
+      verified memory plateau. See the current entry for supported grids and limits.~~
 
 ### Output handling (PRD §10)
 - [x] Embeddings `.npy` + meta sidecar; optional inline JSON.
@@ -1072,5 +1161,7 @@ assertion that the subsequently reviewed defects are resolved.
 - [ ] Nothing outstanding for MVP scope; revisit opt-in telemetry post-launch (§19).
 
 ### Explicitly out of scope for MVP (PRD §2.2)
-Fine-tuning/training, dataset management, GUI, cloud/managed inference, streaming
-tiles, multi-model comparison, eval/benchmarking, auth/multi-user, Windows.
+Fine-tuning/training, dataset management, GUI, cloud/managed inference,
+multi-model comparison, eval/benchmarking, auth/multi-user, Windows.
+The original MVP also excluded streamed tiles; Pass 11 now adds bounded-memory
+STAC embedding output, with other streaming modes still deferred.

@@ -54,6 +54,11 @@ def embed_command(
     stac_token: str | None = typer.Option(
         None, "--stac-token", help="Bearer token for gated STAC endpoints."
     ),
+    stream: bool = typer.Option(
+        False,
+        "--stream",
+        help="Stream STAC embeddings to NPY with bounded memory (default batch: 8).",
+    ),
 ) -> None:
     """Embed a GeoTIFF or STAC item and write a ``.npy`` array plus a sidecar.
 
@@ -72,7 +77,34 @@ def embed_command(
         no_warnings: Suppress the CPU full-precision runtime warning.
         bbox: STAC read window (EPSG:4326); ignored for local files.
         stac_token: Bearer token for gated STAC endpoints.
+        stream: Bound STAC read/inference batches and write results incrementally.
     """
+    if stream:
+        disk_result = api.embed_to_disk(
+            input,
+            model=model,
+            output=output,
+            fmt=fmt,
+            chip_size=chip_size,
+            overlap=overlap,
+            device=device,
+            sensor=sensor,
+            crs=crs,
+            batch_size=batch_size if batch_size is not None else 8,
+            datetime=datetime,
+            no_warnings=no_warnings,
+            bbox=parse_bbox(bbox),
+            stac_token=resolve_stac_token(stac_token),
+        )
+        console.print(
+            f"[green]✓[/green] Streamed {disk_result.chip_count} chips "
+            f"({disk_result.embed_dim}-dim) — "
+            f"sensor [bold]{disk_result.sensor}[/bold], "
+            f"device {disk_result.device}"
+        )
+        console.print(f"  Embeddings: {disk_result.output_path.name}")
+        console.print(f"  Metadata:   {disk_result.meta_path.name}")
+        return
     result = api.embed(
         input,
         model=model,
