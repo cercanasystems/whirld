@@ -6,7 +6,7 @@ remains.
 
 ---
 
-## 2026-11-21 — PR #20 OOP alignment (locally verified; awaiting integration)
+## 2026-11-21 — PR #20 OOP alignment (merged)
 
 Revisited the remediation implementation against AGENTS.md's OOP requirement on
 `fix/holistic-review-remediation`, retaining the 18 fixes and public Python/CLI/REST
@@ -48,7 +48,7 @@ external RemoteCLIP sources. Large real-checkpoint/GPU tests were not run.
 
 The TODO has completed, struck-through items and a review record; lessons capture
 the requirement to preserve ownership when implementing security/correctness fixes.
-This pass is included in PR #20; hosted CI verification follows the branch push.
+Merged in PR #20 (`f85153e`); all four PR CI checks passed on `79fc69a`.
 
 ---
 
@@ -69,11 +69,11 @@ were needed for these CI failures.
 
 ---
 
-## 2026-11-21 — Holistic review remediation (implemented; awaiting integration)
+## 2026-11-21 — Holistic review remediation (merged)
 
 Branch: `fix/holistic-review-remediation`. Implemented all 18 findings in the R1–R5
 sequence in [tasks/todo.md](tasks/todo.md), where each task links to its GitHub issue
-(#2–#19). Changes are locally verified and await PR review and merge.
+(#2–#19). Changes are verified and merged in PR #20. Issues #2–#19 are closed.
 
 **R1 — Security boundaries:** actual safetensors parsing with no pickle fallback;
 explicit trust at executable checkpoint loading; cache/model/artifact path

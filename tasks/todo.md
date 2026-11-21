@@ -1,3 +1,35 @@
+## Pass 11 implementation plan — 2026-11-21
+
+- [x] ~~Re-read AGENTS.md and lessons; branch from merged main and reconcile the
+      remediation status before starting feature work.~~
+- [ ] Implement a resource-owning `StacWindowReader` on one common output grid.
+      Read clipped windows, reuse band/mask/radiometry rules, normalize before
+      padding, yield bounded batches, and explicitly limit GDAL/VSI/warp caches.
+- [ ] Implement an `EmbeddingStreamWriter` owning staged output files. Write the
+      known-shape NPY header and batch bytes sequentially; stream chip metadata
+      into the existing JSON sidecar layout; clean up incomplete results.
+- [ ] Implement an `EmbeddingStream` coordinator with explicit store/backend,
+      reader, and writer ownership. Expose `embed_to_disk()` plus CLI `--stream`;
+      return a typed disk-result summary without resident embeddings/chip lists.
+      Keep ordinary `embed()` behavior unchanged. Streaming supports STAC item
+      input and NPY output only; invalid combinations fail before processing.
+- [ ] Verify equivalence of pixels/embeddings and metadata for reordered/multiband
+      assets, radiometry, masks/nodata, resampling, overlap, bbox and partial edges.
+      Verify batch-local location/time metadata and a single backend load.
+- [ ] Verify real HTTP range traffic, bounded read requests and process peak RSS
+      across increasing scene sizes at fixed chip/batch size. Run regression,
+      coverage, formatting, lint, typing, packaged install and live COG checks.
+- [ ] Update README and dev_progress.md with usage, measured memory/tolerances,
+      validation results and remaining limits; record final review here.
+
+Design contract: preserve the full-scene target affine grid, row-major chip order,
+padded footprints, and existing NPY/JSON schemas. Memory may depend on model size,
+source block size, band count, chip/batch size and bounded caches, never accumulated
+scene pixels, embeddings or metadata. New data contracts use typed Pydantic models;
+resource management and inference orchestration have explicit object owners.
+Checkpoint/GPU integration remains opt-in. No REST streaming, direct remote TIFF,
+classification or segmentation streaming in this pass.
+
 ## OOP alignment pass — PR #20
 
 Keep the 18 verified fixes while assigning behavior and mutable state to cohesive
@@ -53,7 +85,7 @@ credential restoration, and architecture dispatch rejection. Large real-checkpoi
 and GPU tests were not run. This pass is locally verified and included in PR #20;
 hosted CI results below refer to the previous revision.
 
-## Remediation roadmap — implemented and verified on branch
+## Remediation roadmap — merged in PR #20
 
 ### PR #20 — CI follow-up
 
@@ -74,8 +106,8 @@ Address all 18 confirmed findings from the holistic review below before starting
 new feature work. Work through R1–R5 in order, with regression tests accompanying
 each fix. Pass 11 (bounded-memory COG inference) is deferred until the remediation
 gate passes. All 18 findings are implemented and locally verified on
-`fix/holistic-review-remediation`. Changes await PR review and merge;
-GitHub issues remain open until integration. New feature work has not started.
+`fix/holistic-review-remediation` and merged into main in PR #20 (`f85153e`).
+GitHub issues #2–#19 are closed. Pass 11 is now unblocked.
 
 ### R1 — Trust, filesystem, and credential boundaries
 
@@ -249,9 +281,8 @@ unverified. The historical review evidence below is retained unchanged.
 - [x] ~~Create one issue per finding F01–F18 with evidence and acceptance criteria.~~
 - [x] ~~Link each remediation task to its issue and verify the complete mapping.~~
 
-Tracking review: GitHub issues #2–#19 are open, one per finding. Read-back
-verification confirmed all 18 titles, bodies, and task links match. The remediation
-tasks above now record locally verified fixes; issues remain open pending merge.
+Tracking review: GitHub issues #2–#19 are closed after PR #20 merged. Read-back
+verification confirmed all 18 titles, bodies, and task links match.
 
 ## Holistic code review — 2026-11-21
 
@@ -392,10 +423,10 @@ Rasterio 1.5.2 satisfies rioxarray; TorchGeo 0.9.0 retains the trainers API requ
 by TerraTorch (the Prithvi extra now caps TorchGeo below 0.10). Added pinned mypy
 and PyYAML typing stubs. README documents units, precedence, and supported metadata.
 
-## Pass 11 — Bounded-memory COG inference (deferred)
+## Pass 11 — Bounded-memory COG inference (in progress)
 
-**Prerequisite:** integrate the verified remediation R1–R5 above before starting
-this feature. No COG streaming implementation is included in the remediation branch.
+**Prerequisite complete:** PR #20 merged; all four PR checks passed and the
+remediation issues are closed. Branch: `feat/bounded-memory-cog-inference`.
 
 Scope: embeddings first, using COG assets referenced by STAC items. Extend the
 existing remote range reads through preprocessing, inference, and output so a
@@ -427,7 +458,7 @@ and segmentation after the embedding path is verified.
 
 ### Review
 
-Planned only. Implementation and runtime verification remain unchecked above.
+Implementation and verification are in progress on the Pass 11 branch.
 
 ## Pass 9 — STAC item URL input (done)
 
