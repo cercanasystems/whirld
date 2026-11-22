@@ -19,8 +19,8 @@ manually merges; no tag, publication, release or PyPI action in this pass.
       plus existing/new streaming smoke workflows outside the checkout.~~
 - [x] ~~Run full coverage, Black/Ruff/mypy/registry checks and dedicated compliance
       review; document actual verification and remaining limits in TODO/progress.~~
-- [ ] Commit/push the preparation branch and open a PR for manual merge, then stop.
-      Tagging and release publication require separate explicit approval afterward.
+- [x] ~~Commit/push the preparation branch and open a PR for manual merge, then stop.
+      Tagging and release publication require separate explicit approval afterward.~~
 
 Acceptance: runtime/metadata/distribution agree on 0.3.0, all advertised examples
 execute with real inputs/weights and valid outputs, candidate archives install
@@ -41,8 +41,9 @@ actual-model checks pass separately. Black (171 files), Ruff, mypy (71 files),
 seven-entry registry and diff checks pass. Independent wheel/source base-only
 Python 3.13.7 installs pass version/metadata/resources/licenses and local/STAC/new
 HTTP streaming workflows. Rebuilt payload includes the policy correction and
-preserves inference behavior. Final compliance review is clear. Preparing the
-manual-review PR; no automatic merge, tag or publication.
+preserves inference behavior. Final compliance review is clear. Prepared [PR #29](https://github.com/cercanasystems/whirld/pull/29) on the matching
+upstream branch. Hosted CI is tracked separately; no automatic merge, tag or
+publication.
 
 ## Pass 16 — Flood support, segmentation streaming and model variants
 

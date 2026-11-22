@@ -67,8 +67,10 @@ limits, class/nodata semantics and source metadata policies remain unchanged.
 Saved example and model evidence is outside tracked source.
 
 Dedicated release review is clear; final archives are rebuilt after documentation
-and policy changes and checked against the tested package payload. PR preparation
-stops for manual merge; no tag or release action. No new dependencies or model
+and policy changes and checked against the tested package payload. Prepared
+[PR #29](https://github.com/cercanasystems/whirld/pull/29) on the matching upstream
+branch; hosted CI is tracked separately. Stop for manual merge; no tag or release
+action. No new dependencies or model
 versions; CPU execution and pipeline contracts are verified, not predictive
 accuracy or GPU performance.
 
