@@ -22,13 +22,19 @@ and produces georeferenced results plus a self-contained browser preview.
 
 ---
 
-## Status: 0.2.0 — classification streaming
+## Status: development after 0.2.0
+
+The source tree additionally includes Prithvi flood support, bounded-memory
+segmentation, and selected RemoteCLIP variants. These additions await review and
+an explicitly approved release. See [flood support](docs/flood-model.md),
+[segmentation streaming](docs/segmentation-streaming.md), and
+[model variants](docs/model-variants.md).
 
 This repository implements the Whirld MVP (see
 [`whirld-prd-mvp.md`](whirld-prd-mvp.md)): **three model paradigms** (embed / classify /
-segment) across four bundled models, a CLI, a REST API, local-file, **STAC and direct remote COG** input,
+segment) across seven bundled models, a CLI, a REST API, local-file, **STAC and direct remote COG** input,
 and a contributor-facing registry with a security + license **governance gate**. The
-offline `clay-v1` reference model runs with **no network**; the three real models
+offline `clay-v1` reference model runs with **no network**; the trained models
 download + sha256-verify genuine checkpoints and run the real networks.
 
 ### What is real and tested here
@@ -70,6 +76,9 @@ download + sha256-verify genuine checkpoints and run the real networks.
 | `clay-v1.5` | embeddings | **real Clay encoder** (torch) | 5.16 GB | 1024-dim `.npy` |
 | `remoteclip` | classification | **real RemoteCLIP** (open_clip) | 605 MB | GeoJSON scores |
 | `prithvi-burn-scar` | segmentation | **real Prithvi** (TerraTorch) | 1.30 GB | mask GeoTIFF |
+| `prithvi-flood` | segmentation | **real Prithvi TL** (TerraTorch) | 1.28 GB | mask GeoTIFF |
+| `remoteclip-rn50` | classification | **real RemoteCLIP RN50** | 408 MB | GeoJSON scores |
+| `remoteclip-vit-l14` | classification | **real RemoteCLIP ViT-L/14** | 1.71 GB | GeoJSON scores |
 | `clay-v1` | embeddings | deterministic reference (numpy) | none | 512-dim `.npy` |
 
 All sit behind the same `ModelBackend` interface, so the translation pipeline,
@@ -97,12 +106,12 @@ The real Clay encoder is vendored (Apache-2.0, attributed) under
 **`prithvi-burn-scar` caveats:** single-image binary segmentation (the PRD's
 before/after temporal stacking does not match the published heads); the two task
 heads are separate checkpoints, so Whirld exposes `prithvi-burn-scar` /
-`prithvi-flood` (the latter is a follow-up), with `prithvi-eo-2 --head <h>` accepted
+`prithvi-flood` (with its distinct L1C input contract), with `prithvi-eo-2 --head <h>` accepted
 as an alias. Needs the `prithvi` extra (`pip install 'whirld[prithvi]'`).
 
 ### Deferred (extension points left in place)
 
-Prithvi `flood` head, STAC input over the **REST** bodies (the CLI/library STAC path
+STAC input over the **REST** bodies (the CLI/library STAC path
 is implemented) and STAC multi-item *search*, remote registry sync (`update`), and
 quantized variants.
 

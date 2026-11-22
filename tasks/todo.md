@@ -1,3 +1,79 @@
+## Pass 16 — Flood support, segmentation streaming and model variants
+
+Branch: `feat/flood-streaming-models`, from main `d4cb5f8` (v0.2.0).
+Re-read AGENTS.md and lessons and verified branch before implementation. Preserve
+and include the manual merge/release preference already recorded in lessons.
+Dedicated compliance reviewer assigned. Execute the recommended sequence below.
+The user merges PRs manually; stop at the reviewable PR. No release/tag action.
+
+### 1. Prithvi flood
+
+- [x] ~~Verify the official EO 2.0 300M TL Sen1Floods11 checkpoint, config, input
+      band/unit/normalization/metadata contract and public example. Pin revision,
+      artifact hashes and sizes; add a separate prithvi-flood registry entry.~~
+- [x] ~~Adapt the existing trusted offline Prithvi deployment only where the actual
+      checkpoint requires it; retain burn-scar compatibility. Explicitly support
+      the documented Sentinel-2 L1C contract instead of treating L2A/HLS as equal.~~
+- [x] ~~Verify registry/pull/API/CLI behavior and real flood model inference against
+      the official reference/sample; record class/nodata/grid semantics and limits.~~
+
+### 2. Bounded-memory segmentation
+
+- [x] ~~Extend shared window batches with opt-in validity masks and public source
+      dimensions/transform, preserving existing embedding/classification behavior.~~
+- [x] ~~Add typed segment_to_disk result/options, resource-owning segmentation
+      coordinator and staged windowed GeoTIFF writer. Use native chip size, zero
+      overlap and current threshold/class semantics; pad edges and crop on write.
+      Preserve all-band source validity and nodata 255, including valid class 0.~~
+- [x] ~~Expose segment_to_disk and segment --stream with batch/cache/output controls,
+      STAC/direct COG routing and scoped auth; eager/REST remain compatible.
+      Publish a single complete mask atomically; failures preserve old outputs.~~
+- [x] ~~Verify exact eager/stream masks, dimensions, CRS/affine and validity for
+      flood/burn-scar, thresholds, non-square edges, bbox/resampling and masks;
+      validate backend batch bounds and output schemas/failures/interrupt cleanup.
+      Prove process RSS bounds as actual HTTP scenes/output sizes grow.~~
+- [x] ~~Compare real flood and burn-scar eager/stream runs at multiple batch sizes
+      and document results; no accuracy claims from execution-only checks.~~
+
+### 3. Selected model variants
+
+- [x] ~~Add RemoteCLIP RN50 and ViT-L/14 as separate pinned registry entries, keeping
+      existing ViT-B/32 identity unchanged. Verify upstream architecture, weights,
+      preprocessing, licenses and source provenance before claiming support.~~
+- [x] ~~Execute real variant inference with public imagery and verify probability,
+      geometry and eager/stream contracts. Keep unrelated new sensor/model-family
+      expansion outside this pass unless required by the selected models.~~
+
+### Verification and review
+
+- [x] ~~Keep TODO and dev_progress updated, add exact setup/usage/examples and
+      limits, run full coverage/Black/Ruff/mypy/registry/fresh package checks,
+      and complete dedicated final compliance review.~~
+- [ ] Commit/push to a matching new upstream and prepare a reviewable PR with
+      validation evidence. Pause for the user's manual merge; release separately.
+
+Acceptance: new capabilities work with real public artifacts, explicit model
+contracts and existing trust/integrity rules. Streaming memory depends on model,
+chip/batch/band/cache buffers rather than scene/output pixels. No full-scene
+arrays, mask assembly or metadata lists. Source grid/crop semantics and final
+mask bytes match eager within predeclared model tolerances. Keep reprojection #21,
+segmentation overlap blending, REST/local raster streaming and new model families
+deferred. No version/tag/release changes without explicit later approval.
+
+### Review
+
+All three phases implemented and executed with actual pinned weights and public
+imagery. Existing Prithvi deployment loads flood without a runtime adaptation;
+the metadata-free policy, padding and output encoding are explicit. Flood and
+burn-scar eager/stream masks and grids match exactly at batches 1/2. RN50/L14
+loads cover every learned parameter with zero missing/unexpected keys; streamed
+scores preserve ranking/geometry within 6.3e-6 maximum absolute error. Controlled
+HTTP scene and writer-only growth tests pass. Fresh base-only wheel/source
+installs pass existing workflows and both mask tasks. Final coverage: **799 passed / 12 skipped, 91.95%** across package and examples;
+Black (170 files), Ruff, mypy (71 files), seven-entry registry and diff checks pass.
+Final dedicated review is clear after the source-layout correction. Preparing the
+reviewable PR; the user manually merges. No version/tag/release action.
+
 ## Pass 15 — Bounded-memory classification and release 0.2.0
 
 Branch: `feat/bounded-classification`, from released main `b66ee8f` (v0.1.0).

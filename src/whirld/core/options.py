@@ -209,3 +209,17 @@ class SegmentationOptions(SpatialOptions):
     """Finite probability threshold for binary segmentation."""
 
     threshold: float = Field(default=0.5, ge=0.0, le=1.0, allow_inf_nan=False)
+
+
+class StreamingSegmentationOptions(SegmentationOptions):
+    """Immutable native-tile segmentation limits for disk GeoTIFF output.
+
+    Batch/cache bounds must be positive; threshold and bbox retain eager domains.
+    Native model chip size and zero overlap preserve existing mask semantics.
+    Invalid values raise Pydantic ValidationError, mapped by from_arguments to
+    InvalidInputError before source/model I/O at public entry points.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+    batch_size: int = Field(default=4, gt=0, strict=True)
+    cache_mb: int = Field(default=32, gt=0, strict=True)

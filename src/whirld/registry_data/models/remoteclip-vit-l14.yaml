@@ -1,0 +1,75 @@
+# Curated RemoteCLIP variant using the existing local OpenCLIP backend.
+# Upstream checkpoints: https://huggingface.co/chendelong/RemoteCLIP
+# Native224 RGB preprocessing uses the same CLIP mean/std as ViT-B/32.
+# Sentinel-2 DN-to-RGB scaling remains approximate; scores are prompt-relative,
+# not calibrated land-cover confidence. Weights are pinned and SHA-256 checked.
+
+authors:
+- Fan Liu
+- Delong Chen
+backend: remoteclip
+band_contract:
+  chip_size_px: 224
+  nodata_fill: 0.0
+  normalization:
+    mean:
+    - 0.48145466
+    - 0.4578275
+    - 0.40821073
+    scale: 0.0001
+    std:
+    - 0.26862954
+    - 0.26130258
+    - 0.27577711
+    type: per_band_zscore
+  sensors:
+    sentinel-2-l2a:
+      aliases:
+      - red
+      - green
+      - blue
+      bands:
+      - B04
+      - B03
+      - B02
+      canonical_reflectance_scale: 0.0001
+      native_resolution_m: 10
+  target_resolution_m: 10
+category: classification
+citation: 'Liu et al. (2024). RemoteCLIP: A Vision Language Foundation Model for Remote
+  Sensing. IEEE TGRS. https://github.com/ChenDelong1999/RemoteCLIP
+
+  '
+description: RemoteCLIP ViT-L-14 zero-shot RGB remote-sensing classifier. Returns
+  prompt-relative probabilities per image chip.
+display_name: RemoteCLIP (ViT-L-14)
+distribution:
+  sha256: fcc2a7e21e171f4ffcb7a9c0206b8b74ac0c9eb83c67b576958b7a4ed6c8cecb
+  size_bytes: 1710613765
+hardware:
+  min_ram_gb: 8
+  recommended_vram_gb: 8
+license: Apache-2.0
+license_url: https://github.com/ChenDelong1999/RemoteCLIP/blob/main/LICENSE
+model_name: ViT-L-14
+name: remoteclip-vit-l14
+output:
+  format: geojson
+  type: scores
+source:
+  files:
+  - RemoteCLIP-ViT-L-14.pt
+  repo: chendelong/RemoteCLIP
+  revision: bf1d8a3ccf2ddbf7c875705e46373bfe542bce38
+  type: huggingface
+source_url: https://github.com/ChenDelong1999/RemoteCLIP
+tags:
+- classification
+- zero-shot
+- clip
+- rgb
+- remote-sensing
+- vit-l-14
+trust: first-party
+version: 1.0.0
+whirld_min_version: 0.2.0

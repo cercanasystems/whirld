@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Add Prithvi EO 2.0 flood segmentation with an explicit Sentinel-2 L1C
+  contract, pinned official checkpoint/config and documented metadata/padding
+  policy. Predicted water/flood is class 1; valid background is 0, nodata is 255.
+- Add `segment_to_disk()` and `segment --stream` for native-tile bounded-memory
+  mask GeoTIFF output, retaining source validity and exact target grid/extent.
+- Add pinned RemoteCLIP RN50 and ViT-L/14 registry entries alongside existing
+  ViT-B/32, with actual preprocessing/checkpoint and eager/stream validation.
+- Require explicit L1C selection or unambiguous processing-level metadata for
+  flood detection; shared Sentinel-2 band names cannot distinguish L1C from L2A.
+
+No release/tag is created by these changes. PRs are manually merged by the user,
+and release publication requires separate explicit approval.
+
 ## 0.2.0 — 2026-11-22
 
 - Add `classify_to_disk()` and CLI `classify --stream` for bounded STAC/direct

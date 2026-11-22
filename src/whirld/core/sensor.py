@@ -17,6 +17,7 @@ contract, so "supported by this model" and "detectable" are the same set.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 
 from ..errors import UnsupportedSensorError
@@ -81,6 +82,18 @@ def detect_sensor(
             )
         _log.info("Sensor '%s' set explicitly via override.", override)
         return override
+
+    if "sentinel-2-l1c" in candidates:
+        # Band names/resolution cannot distinguish TOA from surface reflectance.
+        # Require an explicit level for models that introduce the L1C contract.
+        text = " ".join(str(value) for value in raster.tags.values()).lower()
+        has_l1c = bool(re.search(r"(?:sentinel[-_ ]?2.*?l1c|msil1c)", text))
+        has_l2a = bool(re.search(r"(?:sentinel[-_ ]?2.*?l2a|msil2a)", text))
+        if has_l2a or not has_l1c:
+            raise UnsupportedSensorError(
+                "Sentinel-2 L1C input requires explicit processing-level metadata "
+                "or --sensor sentinel-2-l1c; L2A and L1C are not interchangeable."
+            )
 
     detected = (
         _detect_from_tags(raster, candidates)

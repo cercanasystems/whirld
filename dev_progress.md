@@ -6,6 +6,83 @@ remains.
 
 ---
 
+## 2026-11-22 — Pass 16: flood, streamed segmentation and model variants
+
+Branch: `feat/flood-streaming-models`, from main `d4cb5f8` (v0.2.0). Re-read
+AGENTS.md and lessons, created/verified the feature branch before implementation,
+recorded the plan, and assigned dedicated compliance/model/writer reviews. The
+user manually merges PRs and separately approves releases. This pass does not
+change the version, create a tag, merge a PR or publish a release.
+
+**Flood:** added the official Prithvi EO 2.0 300M TL Sen1Floods11 checkpoint as
+`prithvi-flood`, with pinned revision/hash/config and an explicit six-band
+Sentinel-2 L1C contract. Existing trusted offline deployment loads it with the
+pinned TerraTorch environment; no model-loading adaptation was needed. Local
+sensor detection rejects ambiguous/shared-family or L2A hints for this new L1C
+contract unless the user explicitly selects L1C. Tests verify raw DN normalization,
+band order, validity and processing-level boundaries.
+
+The supported TL policy is metadata-free, matching the fine-tuning datamodule's
+`use_metadata:false`. The upstream demo optionally supplies scene coordinates,
+uses reflect padding, and writes visualization-scaled classes with nodata 0.
+Whirld uses normalized-zero padding, raw class 0/1 and source-invalid 255; these
+policies are explicitly documented rather than claiming unchanged-demo equality.
+On the official India sample explicitly projected to UTM 10 m, independent raw
+normalization and no-coordinate model argmax match the backend exactly with
+network denied after installation. Output is 461 pixels wide by 513 high, with
+233029 valid and 109762 water/flood predictions. Optional scene coordinates materially
+change predictions, so no coordinate-conditioning equivalence is claimed.
+
+**Segmentation streaming:** added `segment_to_disk()` / `DiskSegmentResult` and
+`segment --stream`, with required output and configurable batch/cache bounds.
+The shared reader now exposes its target grid and opt-in validity arrays derived
+before normalized missing-value fill; default embedding/classification callers
+avoid that allocation. `SegmentationStream` owns one backend run; a typed,
+resource-owning writer clips native non-overlapping chips into a staged tiled LZW
+GeoTIFF, using a bounded output cache and atomic final replacement. Valid class 0
+survives, invalid pixels become 255, padded edges are cropped, and pixel counts
+exclude nodata. Exceptions/interrupts before publication preserve prior output.
+
+Controlled HTTP tests compare eager/stream mask bytes, CRS/affine/extent/validity
+for both heads across thresholds, masks, non-square edges and fractional bbox
+crops. Tests cover CLI aliases, options, backend/context bounds, failures and
+interrupt cleanup. Fresh actual-COG workers scale 512²→2048²→4096² at native 512,
+batch 2/cache 8 MiB with bounded RSS warmup and growth. Separate writer workers scale
+2048²→4096²→8192² at native 256/batch 4: output 0.65/2.59/10.34 MB, peak RSS
+72,761,344/72,728,576/73,596,928 bytes (about 69–70 MiB), with no full-scene mask array.
+
+Actual flood and burn-scar CPU eager/stream comparisons at batches 1/2 produce
+exactly equal masks, grids and validity. Flood's two-chip stream runs take 3.32/3.21 s;
+burn-scar's official 512-square reflectance sample takes 3.03/2.11 s and retains
+262144 valid/208989 burn predictions. These are cached-weight CPU execution checks,
+not downstream accuracy or GPU performance claims.
+
+**Variants:** added pinned `remoteclip-rn50` (408 MB) and `remoteclip-vit-l14`
+(1.71 GB); existing ViT-B/32 identity/backend is unchanged. Actual checkpoint loads
+have zero missing/unexpected keys and cover every learned parameter. Independent
+OpenCLIP preprocessing checks match the RGB contract. On the pinned public
+four-chip crop, stream batches 1/3 preserve ranking/WGS84 geometry. Maximum score
+errors are 4.95e-6/6.26e-6 for RN50 and 1.91e-6/1.91e-6 for ViT-L/14, within the
+predeclared rtol=1e-4 / atol=1e-5. Calls take 1.39/1.29 s and 2.69/2.43 s respectively.
+The Sentinel-2-to-RGB tone-mapping caveat remains explicit; no accuracy gain is
+claimed from model size or these execution checks.
+
+**Verification:** 799 passed / 12 skipped, **91.95% package+example coverage**.
+Three new opt-in actual-model checks passed separately; ordinary skips also
+retain previous public-data/large-weight gates. Black over 170 files, Ruff, mypy
+on 71 source/example files, seven-entry registry and diff checks pass. Independent
+fresh wheel/source base-only Python 3.13.7 installs pass dependency/lazy-import,
+local/STAC/streamed-STAC and actual HTTP eager/stream mask/grid/validity checks
+for both heads, without torch/pytest/FastAPI installed. Dedicated final review
+found no blockers after moving the new sensor tests under their source layout.
+No dependencies added. README, Unreleased changelog and dedicated flood,
+segmentation-streaming and variant guides record setup, contracts and limits.
+Package builds here are verification artifacts, not release assets. Stop at a
+reviewable PR; overlap blending, REST/local raster streaming and reprojection #21
+remain deferred.
+
+---
+
 ## 2026-11-22 — Pass 15: bounded-memory classification / 0.2.0
 
 Branch: `feat/bounded-classification`, from released main `b66ee8f` (v0.1.0).

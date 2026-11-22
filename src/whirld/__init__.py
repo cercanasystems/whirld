@@ -27,6 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
         ClassifyResult,
         DiskClassifyResult,
         DiskEmbedResult,
+        DiskSegmentResult,
         EmbedResult,
         SegmentResult,
         classify,
@@ -35,6 +36,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
         embed_to_disk,
         pull,
         segment,
+        segment_to_disk,
     )
     from .core.options import CogOptions
 
@@ -47,11 +49,13 @@ __all__ = [
     "classify",
     "classify_to_disk",
     "segment",
+    "segment_to_disk",
     "EmbedResult",
     "DiskEmbedResult",
     "ClassifyResult",
     "DiskClassifyResult",
     "SegmentResult",
+    "DiskSegmentResult",
 ]
 
 _PUBLIC = {
@@ -61,11 +65,13 @@ _PUBLIC = {
     "classify",
     "classify_to_disk",
     "segment",
+    "segment_to_disk",
     "EmbedResult",
     "DiskEmbedResult",
     "ClassifyResult",
     "DiskClassifyResult",
     "SegmentResult",
+    "DiskSegmentResult",
 }
 
 

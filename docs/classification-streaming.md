@@ -80,7 +80,8 @@ a promised transaction.
 STAC JSON may be local, a file URL or HTTP(S). Direct rasters must be HTTP(S),
 with an explicit sensor and complete band names. All direct COG options, bbox
 windows and origin-scoped token rules apply; see [direct COG input](direct-cog.md).
-Local raster streaming, REST streaming and segmentation streaming remain deferred.
+Local raster and REST streaming remain deferred. [Segmentation streaming](segmentation-streaming.md)
+is available in the development tree through its separate mask GeoTIFF workflow.
 Inputs require north-up projected grids in meters; streamed STAC assets must share
 a CRS. Reprojection remains deferred in issue #21.
 
