@@ -280,6 +280,8 @@ returns in-memory arrays. Streaming currently requires same-CRS, north-up metric
 assets and supports embedding models with NPY output. See the
 [streaming guide](docs/streaming.md) for options, memory measurements, numerical
 behavior, output guarantees, and deferred reprojection support.
+For actual Clay weights and public Sentinel-2 imagery, use the reproducible
+[real-model validation workflow](docs/real-model-streaming.md).
 
 ## Architecture
 

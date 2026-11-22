@@ -97,6 +97,10 @@ reference embeddings use `rtol=1e-5, atol=1e-6`. The live public COG test retain
 calculation covers fractional grid alignment. Large real-checkpoint/GPU inference
 remains opt-in.
 
+The [real-model validation workflow](real-model-streaming.md) compares actual
+Clay v1.5 embeddings across batch sizes and records CPU resource costs in fresh
+processes. It complements the reference-model scaling measurements above.
+
 The focused regression suites mirror the source responsibilities under
 `tests/unit/io/`, `tests/unit/core/`, and `tests/integration/`. The opt-in public
 COG check runs without model weights:
