@@ -6,4 +6,4 @@ imports (numpy, rasterio, etc.) — see ``whirld.__init__`` for the lazy public 
 
 from __future__ import annotations
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

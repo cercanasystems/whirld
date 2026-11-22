@@ -22,11 +22,12 @@ and produces georeferenced results plus a self-contained browser preview.
 
 ---
 
-## Status: development after 0.2.0
+## Status: 0.3.0 release candidate
 
-The source tree additionally includes Prithvi flood support, bounded-memory
-segmentation, and selected RemoteCLIP variants. These additions await review and
-an explicitly approved release. See [flood support](docs/flood-model.md),
+The 0.3.0 candidate includes Prithvi flood support, bounded-memory segmentation,
+and RemoteCLIP RN50/ViT-L/14 variants. The implementation is merged; release
+preparation awaits manual PR review and separate publication approval. No 0.3.0
+release assets are published yet. See [flood support](docs/flood-model.md),
 [segmentation streaming](docs/segmentation-streaming.md), and
 [model variants](docs/model-variants.md).
 
@@ -42,8 +43,8 @@ download + sha256-verify genuine checkpoints and run the real networks.
 - **Band-contract translation** (Whirld's core contribution): alias-based band
   selection, resampling, scale + per-band z-score normalization, chipping with
   edge padding, and georeferenced chip bounding boxes.
-- **Sensor detection** with the full precedence chain (TIFF tags → band
-  descriptions → resolution → `--sensor` override).
+- **Sensor detection** with the full precedence chain (`--sensor` override → TIFF
+  tags → band descriptions → resolution).
 - **Three paradigms behind one pipeline**: `embed` (vectors), `classify` (zero-shot
   text query → GeoJSON scores), `segment` (per-pixel mask GeoTIFF).
 - **Input**: local GeoTIFF/COG, **a STAC item URL or a direct remote COG URL** — band assets read with COG
@@ -117,24 +118,26 @@ quantized variants.
 
 ---
 
-## Install 0.2.0
+## Install the 0.3.0 candidate
 
-Download `whirld-0.2.0-py3-none-any.whl` from the
-[GitHub release](https://github.com/cercanasystems/whirld/releases/tag/v0.2.0),
-then install it in a Python 3.13.7 virtual environment:
+Use a checkout of the release preparation branch with Python 3.13.7. Until the
+release is approved and published, install the candidate from source:
 
 ```bash
 python3.13 -m venv .venv
-.venv/bin/python -m pip install ./whirld-0.2.0-py3-none-any.whl
+.venv/bin/python -m pip install -r requirements.txt .
 .venv/bin/whirld --help
 .venv/bin/whirld pull clay-v1
 ```
 
-For real models or the server, install the downloaded wheel with an extra, for
-example `.venv/bin/python -m pip install './whirld-0.2.0-py3-none-any.whl[hf]'`.
-Other extras are `remoteclip`, `prithvi` and `serve`. Model weights download
-separately. This release is distributed through GitHub; PyPI publication is separate.
-See [release notes](CHANGELOG.md) and the [release guide](docs/releases.md).
+For real models or the server, install the needed extra from the checkout, for
+example `.venv/bin/python -m pip install '.[hf]'`. Other extras are `remoteclip`,
+`prithvi` and `serve`; model weights download separately. The examples use the
+fully pinned development environment described below.
+
+The latest published release remains [0.2.0](https://github.com/cercanasystems/whirld/releases/tag/v0.2.0).
+See [release notes](CHANGELOG.md) and the [release guide](docs/releases.md) for
+candidate wheel/source installation and publication steps. PyPI publication is separate.
 
 ## Install (development)
 

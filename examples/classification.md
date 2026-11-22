@@ -61,7 +61,7 @@ RemoteCLIP was trained on RGB imagery; Sentinel-2 reflectance is an approximate
 input mapping. A winning "forest" prompt is a demonstration of model output, not
 a verified forest inventory or a pixel-level map.
 
-## Recorded run
+## Historical run (0.1.0)
 
 Verified on 2026-11-22 with Python 3.13.7, Torch 2.12.1, macOS ARM64 and
 CPU/two threads. The pinned real checkpoint produced **16 chip features × four
@@ -103,3 +103,27 @@ Run from the repository checkout after the setup above. This pinned crop produce
 16 matches. Enlarge or remove the bbox for a larger scene. Global ranking uses
 temporary disk space; [classification streaming](../docs/classification-streaming.md)
 explains the memory and publication contract.
+
+## 0.3.0 candidate revalidation
+
+Re-executed the documented entry point on 2026-11-22 using the pinned checkpoint,
+public scene and CPU/two-thread setup above. All **16 features × four scores**
+remain finite probabilities, with unique chip IDs, inclusive score bounds and
+per-chip sums within 1e-5 of one. Independent checks found exact agreement with
+the earlier saved feature collection apart from its updated **0.3.0** version
+field. Winners remain 14 urban, one farmland and one water. WGS84 footprints,
+embedded PNG bytes and all 16 SVG overlay/label positions were checked; the
+imagery PNG was visually inspected.
+
+The fresh run measured **11.43 seconds / 1,594.5 MiB peak process RSS** under the
+same timing boundaries. It completed with no blank GDAL `Cannot read` diagnostics
+after the scoped header-file policy correction. These are repeated execution
+checks, not new accuracy or GPU-performance evidence.
+
+The documented `classify_to_disk` snippet was also executed on the candidate with
+`top_k=None` and batch size 4. It retained all 16 chips and its complete GeoJSON
+matched the fresh eager example exactly, including scores, ranking, geometry and
+version metadata. The API call took 17.66 seconds with two CPU threads; unlike the
+full example timings, that call excludes preview rendering and the example's
+separate checkpoint preflight. It is an execution check, not a performance
+comparison. The final-policy log contained no blank `Cannot read` diagnostics.

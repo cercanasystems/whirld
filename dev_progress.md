@@ -6,6 +6,76 @@ remains.
 
 ---
 
+## 2026-11-22 — Release 0.3.0 preparation and example revalidation
+
+Branch: `release/0.3.0`, from manually merged PR #28/main `afdbb6a`.
+Re-read AGENTS.md and lessons, verified the branch, recorded the plan and assigned
+independent example, artifact and compliance reviewers. The user authorized a
+release-preparation PR, not publication. Stop at the PR for manual merge; tagging
+and GitHub/PyPI publication require separate approval.
+
+Set the single version source to 0.3.0, prepared pending release notes, updated
+candidate/source installation instructions and model/streaming guides, and made
+the release procedure explicitly separate preparation, user merge and publication
+approval. Historical 0.1/0.2 notes remain intact. Candidate docs do not claim that
+0.3.0 assets are already published. Corrected README sensor-precedence wording to
+match the existing explicit-override-first behavior.
+
+Actual example entry points run in fresh output directories with the pinned
+weights and public imagery on Python 3.13.7, CPU/two threads. Default Clay produces
+finite float32 (16,1024) embeddings, bitwise identical to earlier successful output,
+with reference 0 ranking 5/2/4/9/8 and valid WGS84 footprints. Measured 105.65 s /
+2573.7 MiB peak RSS reflects slower public IO on this run. RemoteCLIP retains 16
+features/four probability scores, exact prior geometry/scores apart from the
+0.3.0 version field, and 14 urban/one farmland/one water winners (11.43 s /1594.5 MiB).
+Prithvi burn-scar retains its source SHA/reflectance arithmetic and exact 512² grid,
+262144 valid/208989 burn predictions, class 0/1 and nodata 255 (7.27 s /2697.1 MiB).
+Previews and independent spatial/numerical checks passed. The documented
+reference-5 Clay invocation then ran with the final header policy: all 16 rows
+remain bitwise-identical to fresh default/historical embeddings, ranking
+0/2/9/10/1 while excluding reference 5 (158.90 s /2575.0 MiB). The classification
+streaming snippet retained all 16 matches and exactly matched the fresh eager
+GeoJSON (17.66 s). Final-policy runs have no blank read warnings. The four example
+guides preserve historical data and distinguish candidate timings and actual
+PNG/SVG inspection. No example script changed; all 33 example tests pass.
+
+The fresh Clay run exposed spurious GDAL `Cannot read` warnings. A focused probe
+returned the same real B02 value 357 with/without the setting and isolated the
+cause: `GDAL_HTTP_HEADER_FILE=''` asks GDAL to open an empty filename. The existing
+resource-owning credential policy now uses `os.devnull` as an actual readable empty
+header source. It still clears inherited header files and restores the caller's
+configuration on success/failure. A real HTTP regression first proves a supplied
+auth file would be forwarded, then proves the scoped reader blocks it on every
+request without the warning. Auth/range/redirect tests pass (19 cases). No example
+script or model inference math was changed.
+
+Post-fix full suite: **800 passed / 12 skipped, 91.95% package+example coverage**.
+Black over 171 files, Ruff, mypy over 71 source/example files, seven-entry registry and
+diff checks pass. Independent source→wheel builds and fresh Python 3.13.7 base-only
+installs pass metadata/version/lazy-import/resource/license/dependency checks,
+local/STAC/streamed-STAC clean-room workflows, controlled HTTP eager/stream masks
+for both heads, and six classification equivalence cases. Final rebuilt candidates
+include the policy correction, block inherited auth and preserve the tested source
+payload. No optional model packages are installed in these base environments.
+Candidates are verification artifacts outside tracked source, not published assets.
+
+New-model checks also pass on the candidate: flood and burn-scar masks, grid,
+counts and validity exactly match eager at batches 1/2. The actual flood
+normalization/offline reference and RN50/ViT-L14 preprocessing/state-coverage/
+public eager-stream checks pass separately (3 tests, 28.93 s). Numerical score
+limits, class/nodata semantics and source metadata policies remain unchanged.
+Saved example and model evidence is outside tracked source.
+
+Dedicated release review is clear; final archives are rebuilt after documentation
+and policy changes and checked against the tested package payload. Prepared
+[PR #29](https://github.com/cercanasystems/whirld/pull/29) on the matching upstream
+branch; hosted CI is tracked separately. Stop for manual merge; no tag or release
+action. No new dependencies or model
+versions; CPU execution and pipeline contracts are verified, not predictive
+accuracy or GPU performance.
+
+---
+
 ## 2026-11-22 — Pass 16: flood, streamed segmentation and model variants
 
 Branch: `feat/flood-streaming-models`, from main `d4cb5f8` (v0.2.0). Re-read

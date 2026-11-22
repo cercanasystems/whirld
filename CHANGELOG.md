@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — pending release
 
 - Add Prithvi EO 2.0 flood segmentation with an explicit Sentinel-2 L1C
   contract, pinned official checkpoint/config and documented metadata/padding
@@ -11,9 +11,23 @@
   ViT-B/32, with actual preprocessing/checkpoint and eager/stream validation.
 - Require explicit L1C selection or unambiguous processing-level metadata for
   flood detection; shared Sentinel-2 band names cannot distinguish L1C from L2A.
+- Clear inherited GDAL header files using a readable empty source, eliminating
+  spurious empty-filename warnings during remote example/raster reads while
+  preserving credential isolation and caller configuration restoration.
 
-No release/tag is created by these changes. PRs are manually merged by the user,
-and release publication requires separate explicit approval.
+Candidate verification: **800 passed / 12 skipped, 91.95% package/example
+coverage**, plus three opt-in actual-model checks. All three default real-world
+examples, the alternate Clay reference and the classification-streaming snippet
+execute with actual pinned weights/public imagery and independently validated
+outputs/previews. Existing arrays/masks match prior output; model/geometry/version
+contracts hold. Independent fresh source/wheel base-only installs pass existing
+and new HTTP streaming workflows. Recorded details are in the example guides and
+development log. Public IO/cache conditions affect timings.
+
+Release preparation is pending manual merge and separate publication approval.
+No 0.3.0 tag or release exists yet. The new model/input policies and streaming
+limits are documented in the linked guides; existing eager APIs remain compatible.
+Python support remains >=3.13.7, verified with 3.13.7; no new dependencies.
 
 ## 0.2.0 — 2026-11-22
 

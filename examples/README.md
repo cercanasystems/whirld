@@ -90,7 +90,7 @@ Real runs use Python 3.13.7 on macOS ARM64, Torch 2.12.1, NumPy 2.5.0, Rasterio
 pins are in `requirements.txt` and `requirements-dev.txt`. CPU execution is
 verified; CUDA/MPS is not part of these example measurements.
 
-Recorded on 2026-11-22, with actual pinned weights:
+Historical 0.1.0 runs recorded on 2026-11-22, with actual pinned weights:
 
 | Example | Output | Elapsed | Peak process RSS |
 |---|---|---:|---:|
@@ -100,3 +100,35 @@ Recorded on 2026-11-22, with actual pinned weights:
 
 These are single-host observations under the timing boundaries above. All previews
 were visually inspected and spatial/numerical outputs independently checked.
+
+## 0.3.0 candidate revalidation
+
+All three documented module entry points were re-executed on 2026-11-22 with
+actual pinned checkpoints and public source imagery in fresh output directories.
+Independent checks verified model/Python/Torch/thread provenance, embeddings and
+cosine ranks, finite probability vectors, WGS84 geometry, source checksums and
+reflectance handling, mask classes/validity/grid, embedded PNG bytes and SVG
+footprint/label positions. The imagery and prediction PNGs were visually inspected.
+Version 0.3.0 was verified in the runtime and in embedding/GeoJSON metadata where
+those output schemas carry it; `model.json` retains its existing provenance schema.
+
+| Repeated workflow | Output | Elapsed | Peak process RSS |
+|---|---|---:|---:|
+| Clay, reference 0 before diagnostic correction | 16 × 1024 embeddings; ranks 5/2/4/9/8 | 105.65 s | 2,573.7 MiB |
+| Clay, reference 5 with final policy | Same full embeddings; ranks 0/2/9/10/1 | 158.90 s | 2,575.0 MiB |
+| RemoteCLIP, final policy | 16 features × four scores | 11.43 s | 1,594.5 MiB |
+| Prithvi, final policy | 512 × 512; 208989 burned / 262144 valid pixels | 7.27 s | 2,697.1 MiB |
+
+The first Clay run exposed blank GDAL diagnostics from an empty header-file
+configuration. The final-policy reference-5 run validates the corrected scoped
+configuration: all 16 embeddings remain bitwise-identical to both the fresh
+default output and the earlier saved result, with no blank read warnings. The
+classification feature collection matches its earlier saved output apart from
+the updated version field, and the burn-scar mask is bitwise-identical.
+
+The classification guide's bounded-memory snippet was also re-executed with real
+weights at batch 4 and retained all 16 matches, exactly matching the fresh eager
+GeoJSON. No example script change was needed. All 33 hermetic example regression
+tests pass. These results establish continuing compatibility and contract
+fidelity; they are not prediction-accuracy or GPU-performance evidence. Runtime
+and network/cache conditions vary, so the historical timings remain separate.

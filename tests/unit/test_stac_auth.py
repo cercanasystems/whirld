@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -62,12 +63,15 @@ def test_asset_environment_restores_credentials_after_failure() -> None:
 
     first = StacAccessPolicy("https://first.test", "first-token")
     second = StacAccessPolicy("https://second.test", "second-token")
-    with rasterio.Env(GDAL_HTTP_HEADERS="X-Original: value"):
+    with rasterio.Env(
+        GDAL_HTTP_HEADERS="X-Original: value", GDAL_HTTP_HEADER_FILE="original.headers"
+    ):
         with first.asset_environment("https://first.test/band.tif"):
             assert (
                 get_gdal_config("GDAL_HTTP_HEADERS")
                 == "Authorization: Bearer first-token"
             )
+            assert get_gdal_config("GDAL_HTTP_HEADER_FILE") == os.devnull
             with pytest.raises(RuntimeError, match="read failure"):
                 with second.asset_environment("https://first.test/band.tif"):
                     assert get_gdal_config("GDAL_HTTP_HEADERS") == ""
@@ -77,6 +81,7 @@ def test_asset_environment_restores_credentials_after_failure() -> None:
                 == "Authorization: Bearer first-token"
             )
         assert get_gdal_config("GDAL_HTTP_HEADERS") == "X-Original: value"
+        assert get_gdal_config("GDAL_HTTP_HEADER_FILE") == "original.headers"
 
 
 @contextmanager

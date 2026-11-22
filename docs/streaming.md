@@ -36,9 +36,9 @@ It preserves band order, radiometry, masks/nodata, overlap, padded edge footprin
 row-major chip indices, acquisition time, and per-chip location metadata. It loads
 one backend for the run. Ordinary `embed()` continues to return in-memory arrays.
 Streaming currently supports embedding models and NPY output with the existing
-`*_meta.json` schema; inline JSON, REST streaming,
-[Segmentation streaming](segmentation-streaming.md) is available in the development
-tree as a separate disk GeoTIFF API/CLI workflow. [Classification streaming](classification-streaming.md)
+`*_meta.json` schema. Inline JSON and REST streaming remain deferred.
+[Segmentation streaming](segmentation-streaming.md) is included in the 0.3.0 candidate
+as a separate disk GeoTIFF API/CLI workflow. [Classification streaming](classification-streaming.md)
 is available through its separate disk GeoJSON API and CLI mode.
 
 Streaming assets must share the reference asset's CRS and use north-up metric
