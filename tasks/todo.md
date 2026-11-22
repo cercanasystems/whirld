@@ -1,3 +1,55 @@
+## Pass 12 — Real-model streaming validation
+
+Branch: `test/real-model-streaming-validation`, from merged PR #22 (`b863f4b`).
+Plan checked against AGENTS.md and lessons; a dedicated compliance reviewer is
+assigned. Execution uses the session's developer-selected Default mode.
+
+- [x] ~~Add an opt-in, object-owned real Clay validation runner with typed options
+      and reports, using an installed, checksum-verified Clay v1.5 checkpoint.~~
+- [x] ~~Compare public API eager/streamed float32 embeddings for one pinned public
+      Sentinel-2 scene at batch sizes 1, 2 and 3, including a partial last batch;
+      require finite (n, 1024) results, exact metadata except run timestamps, and
+      predeclared numerical tolerance rtol=1e-4, atol=1e-5.~~
+- [x] ~~Measure real CPU inference in fresh processes with fixed chip/batch sizes
+      over increasing public-scene regions. Record process peak RSS and elapsed
+      time including model load/I/O, separately from setup/download; report
+      throughput and limitations without claiming GPU validation.~~
+- [x] ~~Add focused hermetic tests for validation/report failures and a gated live
+      real-model integration check; run the real checkpoint/public-data experiment.~~
+- [x] ~~Document reproducible commands, pinned input/checkpoint identity, measured
+      results and remaining limits; run relevant regression/coverage, formatting,
+      lint and typing checks and obtain a final compliance review.~~
+
+Acceptance: identical chip order/geometry and model metadata; eager/streamed
+embeddings agree within the predeclared tolerance for all tested batch sizes.
+Resource reports describe actual real-model costs, without conflating full-process
+loading peaks with steady-state inference. No production inference behavior change
+unless validation reveals a reproducible defect. Reprojection issue #21 remains
+low priority and outside this pass. Publication authorized on 2026-11-22.
+
+### Review
+
+Completed on `test/real-model-streaming-validation`, branched from the clean
+merged main. Added an object-owned, opt-in validation runner with Pydantic settings,
+measurements and reports; installed checkpoint identity and SHA-256 are verified
+before fresh CPU workers. No production inference or dependency changes.
+
+The actual pinned checkpoint/public Sentinel-2 run passed: four-chip eager output
+matched streamed batches 1/2/3 exactly (maximum error and RMSE 0.0), with identical
+metadata except timestamps and a partial final batch at size 3. At fixed batch 1,
+4 -> 16 chips measured 2625.5 -> 2625.8 MiB peak process RSS and 13.96 -> 35.31 s.
+These include loading and remote I/O; GPU and steady-state memory are not measured.
+See [the reproducible validation guide](../docs/real-model-streaming.md) for all
+measurements, runtime versions, tolerances and interpretation limits.
+
+Verification: **490 passed / 8 skipped, 93.09% coverage**, Black (129 files), Ruff,
+mypy (58 source/script files), and diff checks pass. The real acceptance matrix ran
+through the standalone runner; its gated pytest wrapper remains skipped in the
+ordinary suite. Independent compliance review checked saved arrays/sidecars and
+found no blockers. README, streaming guide and development progress are updated.
+Prepared for PR review; hosted CI is separate from this local verification.
+Issue #21 remains deferred.
+
 ## Pass 11 conformance cleanup
 
 - [x] ~~Replace cross-layer acquisition tag dictionaries with immutable Pydantic
@@ -43,7 +95,7 @@ migrated; GDAL keyword dictionaries remain inside external adapters, and Rasteri
 still lacks full upstream type stubs. This is a scoped conformance improvement,
 not a claim that every legacy repository convention now meets AGENTS.md. No new
 dependencies or feature work on deferred issue #21. The implementation and
-conformance cleanup are ready for publication together on the feature branch.
+conformance cleanup were merged together in PR #22 (`b863f4b`).
 
 ## Pass 11 implementation plan — 2026-11-21
 
@@ -113,8 +165,8 @@ Source block dimensions, model/framework buffers, and a bounded multiple of GDAL
 cache budgets remain memory factors. Output publication rolls back ordinary
 failures but is not crash-atomic across two files; concurrent writers require
 distinct destinations. Large real-checkpoint/GPU inference was not run. The
-implementation and subsequent conformance cleanup are prepared for PR review;
-hosted CI results remain separate from this local verification record.
+implementation and subsequent conformance cleanup are merged in PR #22
+(`b863f4b`); this section records local verification evidence.
 
 ## OOP alignment pass — PR #20
 
@@ -509,7 +561,7 @@ Rasterio 1.5.2 satisfies rioxarray; TorchGeo 0.9.0 retains the trainers API requ
 by TerraTorch (the Prithvi extra now caps TorchGeo below 0.10). Added pinned mypy
 and PyYAML typing stubs. README documents units, precedence, and supported metadata.
 
-## Pass 11 — Bounded-memory COG inference (implemented; locally verified)
+## Pass 11 — Bounded-memory COG inference (merged in PR #22)
 
 **Prerequisite complete:** PR #20 merged; all four PR checks passed and the
 remediation issues are closed. Branch: `feat/bounded-memory-cog-inference`.

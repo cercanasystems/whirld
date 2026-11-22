@@ -6,6 +6,48 @@ remains.
 
 ---
 
+## 2026-11-21 — Pass 12: real Clay streaming validation
+
+Branch: `test/real-model-streaming-validation`, from PR #22's merged main
+(`b863f4b`). Re-read AGENTS.md and lessons, recorded acceptance criteria before
+implementation, and assigned a dedicated compliance reviewer. Work followed the
+written plan in the session's Default mode.
+
+Added `scripts/validate_clay_streaming.py`: `ClayStreamingValidation` owns pinned
+checkpoint verification, sequential fresh CPU workers and persisted reports;
+`InferenceWorker` owns each public API invocation; `EmbeddingComparison` checks
+finite float32 (n,1024) arrays, strict metadata and predeclared tolerances. Pydantic
+models define options, requests, measurements, checkpoint/runtime identity and
+reports. The runner requires an installed model and a new output directory.
+No production inference code or dependencies changed.
+
+**Actual real-model evidence:** the curated Clay v1.5 checkpoint's size/SHA-256
+matched the bundled registry. On the pinned public Sentinel-2 scene, all four-chip
+streamed outputs at batch sizes 1, 2 and 3 matched eager exactly (maximum absolute
+error and RMSE 0.0), inside the predeclared rtol=1e-4 / atol=1e-5. Metadata matched
+except timestamps, and batch 3 exercised a partial final batch.
+
+At fixed chip 256 / batch 1 / two CPU threads, enlarging the region from 4 to 16
+chips measured peak process RSS **2625.5 -> 2625.8 MiB**, with API-call time
+**13.96 -> 35.31 s**. Fresh-process RSS includes imports/model loading; elapsed time
+includes loading, remote reads, inference and publication. These small-region
+measurements complement the earlier reference scaling test, not a standalone
+proof of asymptotic memory bounds. GPU inference was not run. Full runtime versions,
+all measurements, pinned inputs and reproduction commands are in
+[docs/real-model-streaming.md](docs/real-model-streaming.md).
+
+**Verification:** **490 passed / 8 skipped, 93.09% coverage**; Black over 129 files,
+Ruff, mypy over source plus new script (58 files), and diff checks pass. Added 18
+hermetic validation tests plus a gated public API real-model test. The acceptance
+matrix ran using the standalone runner; the pytest wrapper is intentionally skipped
+in the ordinary suite. Independent compliance review also directly inspected the
+saved arrays and sidecars and found no blockers. New tests mirror script/API
+locations. No packaging/live unrelated model tests were repeated for this
+validation-only change. Issue #21 remains deferred. Publication authorized on
+2026-11-22; this pass is prepared for PR review with hosted CI tracked separately.
+
+---
+
 ## 2026-11-21 — Pass 11 AGENTS.md conformance cleanup
 
 Addressed the scoped audit findings before PR creation. The I/O-to-coordinator
@@ -28,7 +70,8 @@ Updated TODO and lessons to require a conformance audit before declaring PR
 readiness. Legacy eager data containers, older flat tests, and GDAL adapter option
 maps remain documented scope exceptions. Work followed a written plan in the
 session's Default mode. This cleanup is included with the feature implementation
-on `feat/bounded-memory-cog-inference` for PR review; no dependencies changed.
+on `feat/bounded-memory-cog-inference`, merged in PR #22 (`b863f4b`); no
+dependencies changed.
 
 ---
 
@@ -36,9 +79,9 @@ on `feat/bounded-memory-cog-inference` for PR review; no dependencies changed.
 
 Branch: `feat/bounded-memory-cog-inference`, based on merged PR #20. Re-read
 AGENTS.md and lessons, then committed the remediation status and implementation
-plan first (`c2e0288`). Feature implementation and final documentation are prepared
-for PR review together with the conformance cleanup recorded above. Hosted CI
-results are tracked separately from the local verification below.
+plan first (`c2e0288`). Feature implementation and final documentation were merged
+in PR #22 (`b863f4b`) with the conformance cleanup recorded above. The following
+results record local verification evidence.
 
 **Implementation:** `StacWindowReader` owns item selection, common-grid warped
 assets, per-origin credentials, bounded I/O caches, and lazy chip layout. It reads
