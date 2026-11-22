@@ -22,7 +22,7 @@ and produces georeferenced results plus a self-contained browser preview.
 
 ---
 
-## Status: 0.1.0 — initial release
+## Status: 0.2.0 — classification streaming
 
 This repository implements the Whirld MVP (see
 [`whirld-prd-mvp.md`](whirld-prd-mvp.md)): **three model paradigms** (embed / classify /
@@ -108,21 +108,21 @@ quantized variants.
 
 ---
 
-## Install 0.1.0
+## Install 0.2.0
 
-Download `whirld-0.1.0-py3-none-any.whl` from the
-[GitHub release](https://github.com/cercanasystems/whirld/releases/tag/v0.1.0),
+Download `whirld-0.2.0-py3-none-any.whl` from the
+[GitHub release](https://github.com/cercanasystems/whirld/releases/tag/v0.2.0),
 then install it in a Python 3.13.7 virtual environment:
 
 ```bash
 python3.13 -m venv .venv
-.venv/bin/python -m pip install ./whirld-0.1.0-py3-none-any.whl
+.venv/bin/python -m pip install ./whirld-0.2.0-py3-none-any.whl
 .venv/bin/whirld --help
 .venv/bin/whirld pull clay-v1
 ```
 
 For real models or the server, install the downloaded wheel with an extra, for
-example `.venv/bin/python -m pip install './whirld-0.1.0-py3-none-any.whl[hf]'`.
+example `.venv/bin/python -m pip install './whirld-0.2.0-py3-none-any.whl[hf]'`.
 Other extras are `remoteclip`, `prithvi` and `serve`. Model weights download
 separately. This release is distributed through GitHub; PyPI publication is separate.
 See [release notes](CHANGELOG.md) and the [release guide](docs/releases.md).
@@ -293,6 +293,22 @@ fc.feature_collection   # GeoJSON FeatureCollection of per-chip scores
 `import whirld` is lazy — it does **not** import numpy, rasterio, torch, or open_clip.
 
 ---
+
+## Bounded-memory classification
+
+Classify STAC or direct remote COG windows without retaining scene-sized scores
+or features. Output preserves eager scoring, WGS84 footprints and global ranking:
+
+```bash
+whirld classify item.json --model remoteclip --query 'a satellite image of water' \
+  --stream --batch-size 4 --all --output scores.geojson
+```
+
+`whirld.classify_to_disk(..., output="scores.geojson", top_k=None)` returns a small
+disk summary. Defaults retain the best five matches; `--all` / `top_k=None` retains
+all threshold-passing chips. Completed features are sorted on disk, then written
+incrementally. See [classification streaming](docs/classification-streaming.md)
+for memory/disk budgets, exact options and publication guarantees.
 
 ## Bounded-memory STAC and COG embeddings
 

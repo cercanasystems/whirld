@@ -6,6 +6,72 @@ remains.
 
 ---
 
+## 2026-11-22 — Pass 15: bounded-memory classification / 0.2.0
+
+Branch: `feat/bounded-classification`, from released main `b66ee8f` (v0.1.0).
+Re-read AGENTS.md and lessons, verified the feature branch before implementation,
+recorded the plan and assigned dedicated coordinator, writer and compliance work.
+User authorized the classification milestone and 0.2.0 GitHub release.
+
+Added public `classify_to_disk()` / `DiskClassifyResult` and `classify --stream`.
+STAC and direct remote COG readers prepare native-size non-overlapping chips for
+one loaded classification backend, with configurable batch/cache limits. Eager
+classification and REST behavior retain their existing defaults and return types.
+CLI streaming requires `--output`; `--all` / Python `top_k=None` retains every
+threshold-passing match, while default top-k remains five.
+
+`ClassificationStream` owns inference and usage records; strict Pydantic schemas
+validate options, queries, result summary and source provenance. The separate
+`ClassificationStreamWriter` owns a staged SQLite database with bounded caches,
+file-backed global sorting and cursor-based incremental GeoJSON serialization.
+Output preserves eager fields, inclusive threshold behavior, descending primary
+score and stable chip-index ties, including existing duplicate-query semantics.
+Only a complete flushed output atomically replaces its destination. Failed or
+interrupted runs close resources, remove staging and preserve prior output.
+Memory stays independent of completed feature count; temporary disk usage grows
+with qualifying features even for a small top-k.
+
+**Verification evidence:** focused tests cover eager/stream equivalence for
+single/multiple prompts, top-k/all/empty output, real authenticated HTTP reads,
+reordered bands/radiometry, masks, fractional bbox windows and partial edges.
+Writer tests cover invalid probabilities/shapes, geometry, ties, incomplete runs,
+SQL/serialization/output failures and interrupts. Coordinator tests prove one
+backend and bounded per-call contexts. Growing HTTP scenes use fixed native 224-pixel
+chips, batch 4 and cache 8 MiB; cache warmup and subsequent RSS growth stay bounded.
+
+A separate fresh-worker writer test generates 4,000/16,000/64,000 features in
+batches of 64, with unsorted scores and ties. Output grows 1.55/6.22/24.96 MB while
+RSS measures 73,646,080/74,334,208/74,596,352 bytes (about 70.2–71.2 MiB). It never loads
+completed GeoJSON. This isolates external sorting; framework/model and raster
+memory are covered separately and are not included in these writer measurements.
+
+**Actual RemoteCLIP CPU comparison:** pinned public Sentinel-2 item
+`S2A_10SFH_20240722_0_L2A`, bbox (-121.57, 38.53, -121.48, 38.60), four documented
+landscape prompts, cached verified checkpoint, two CPU threads. Streaming batches
+1 and 3 retained all 16 chips, identical rank and geometry, with maximum absolute
+score errors 4.9472e-6/5.3644e-6 against eager, within predeclared rtol=1e-4 / atol=1e-5.
+Stream runs took 6.53/7.01 s including source/model loading and publication; the
+whole eager-plus-two-stream comparison took 21.30 s. This verifies execution and
+numerical equivalence, not land-cover prediction accuracy or GPU performance.
+
+Updated streaming/direct-COG/release guides, classification example instructions,
+README, changelog and the single version source to 0.2.0. No new dependencies.
+**Final checks:** 704 passed / 9 skipped, 91.53% coverage across package and
+examples. Black (159 files), Ruff, mypy (69 files), registry and diff checks pass.
+Independent fresh wheel/source installations on Python 3.13.7 pass dependency,
+version, lazy-import, resource/license and local/STAC/streamed-STAC smoke checks.
+Installed classification output exactly matches eager for all-results, top-k,
+empty results and ties, with bounded calls, without torch/pytest/FastAPI installed.
+Final review found one large positive top-k edge at SQLite's integer limit;
+omitting unnecessary LIMIT clauses preserves eager behavior for arbitrary positive
+Python integers, covered by a 2**80 regression. Dedicated compliance review is
+clear after that correction. Final artifacts are rebuilt and rechecked against
+the reviewed source before publication.
+Segmentation streaming, local-file streaming, REST streaming and reprojection #21
+remain deferred. GitHub publication follows green hosted checks; PyPI is separate.
+
+---
+
 ## 2026-11-22 — Release 0.1.0 preparation
 
 Branch: `release/0.1.0`, from PR #25's merged main (`fd47547`), whose hosted

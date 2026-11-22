@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.0 — 2026-11-22
+
+- Add `classify_to_disk()` and CLI `classify --stream` for bounded STAC/direct
+  COG classification with one backend and configurable batch/cache budgets.
+- Preserve eager GeoJSON fields, inclusive thresholds, global score ordering and
+  stable ties. `top_k=None` / `--all` emits every match using disk-backed sorting.
+- Stage completed features in SQLite and atomically publish the single GeoJSON
+  only after successful completion; failures preserve prior output.
+- Add classification streaming documentation, numerical/HTTP/CLI/failure and
+  memory checks, plus real RemoteCLIP eager/stream validation.
+
+Validation: 704 tests passed, 9 opt-in checks skipped, 91.53% package/example
+coverage; fresh wheel/source installs pass. Real RemoteCLIP batches 1 and 3 retain
+all 16 pinned-scene chips with matching geometry/ranking and maximum score error
+below 5.4e-6. Writer-only RSS remains about 70–71 MiB while output grows from
+4,000 to 64,000 features (1.55–24.96 MB); raster memory is tested separately.
+
+Existing eager classification defaults and REST behavior remain compatible.
+Streaming requires a disk output and STAC/direct remote input; temporary disk
+space grows with retained features. North-up/same-CRS requirements continue;
+segmentation streaming and reprojection #21 remain deferred.
+
 ## 0.1.0 — 2026-11-22
 
 First release of Whirld, a local-first CLI and Python library for geospatial

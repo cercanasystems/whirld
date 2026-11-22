@@ -1,3 +1,58 @@
+## Pass 15 — Bounded-memory classification and release 0.2.0
+
+Branch: `feat/bounded-classification`, from released main `b66ee8f` (v0.1.0).
+Branch verified before implementation. Re-read AGENTS.md and lessons; dedicated
+compliance reviewer assigned. User authorized implementation and the 0.2.0
+milestone; release follows verified work and green hosted checks.
+
+- [x] ~~Add typed streaming classification options/result and an owned coordinator
+      reusing STAC/direct COG windows, one backend, and bounded inference batches.~~
+- [x] ~~Add a resource-owning disk-backed classification writer: preserve existing
+      GeoJSON fields, descending primary-score order, stable chip-index ties,
+      threshold and positive top-k semantics. Explicit all-results mode uses
+      external disk sorting, never a scene-sized Python feature/score list.
+      Stage a single output and atomically replace it only after success.~~
+- [x] ~~Expose classify_to_disk and classify --stream with batch/cache controls,
+      requiring disk output. Preserve existing eager defaults; streaming accepts
+      STAC and direct remote COG inputs. Add explicit all-results mode only for
+      streaming; reject invalid options before model/source I/O.~~
+- [x] ~~Verify eager/stream equivalence for single/multiple queries, thresholds,
+      ties/top-k/all/empty results, bbox/masks/edges/radiometry, backend call bounds,
+      auth/failures/interrupts and prior-output preservation. Prove RSS bounds
+      with increasing scene/output sizes in fresh workers and actual HTTP ranges.~~
+- [x] ~~Run actual RemoteCLIP classification against pinned public imagery and
+      compare eager/stream at multiple batch sizes within declared tolerances.
+      Update example, guides, TODO and development log; run full coverage/style/
+      type/base-install/artifact checks and dedicated final compliance review.~~
+- [x] ~~Prepare 0.2.0 version/changelog, verified installation assets and release
+      notes/checksums for publication after hosted checks.~~
+
+Publication sequence: commit and push the feature branch, open the review PR,
+require green hosted checks, then merge/tag/publish verified GitHub assets.
+The GitHub release records final tag identity, checksums and publication status.
+
+Acceptance: memory depends on model, band/chip/batch/query/cache sizes, not scene
+area or retained completed scores/features. Global ordering uses disk-backed
+sorting for all-results output. Existing classify return arrays/REST behavior stay
+compatible. Segmentation streaming and reprojection #21 remain deferred. Test
+real-model equivalence, not model prediction accuracy. No PyPI publication.
+
+### Review
+
+Implemented on the verified feature branch with explicit coordinator/writer
+ownership and strict typed schemas. Final verification: **704 passed / 9 skipped,
+91.53% coverage** across package and examples; Black (159 files), Ruff, mypy
+(69 files), registry and diff checks pass. Controlled authenticated HTTP tests
+preserve eager values, ranking, bbox/masks/edge geometry and scoped credentials.
+Fresh workers prove bounded raster memory and disk-sort memory through 64,000
+features (about 25 MB output, roughly 70–71 MiB writer RSS). Actual RemoteCLIP
+streaming batches 1/3 retain all 16 pinned-scene chips and exact geometry/rank;
+maximum score differences stay below 5.4e-6. Fresh wheel/source installs pass
+base-only workflow checks and classification equivalence. Dedicated compliance
+review is clear, including the SQLite huge-top-k correction. No dependencies added.
+Publication follows green hosted checks; final tag/assets are tracked by the
+GitHub release. Segmentation streaming and reprojection #21 remain deferred.
+
 ## Release 0.1.0
 
 Branch: `release/0.1.0`, from merged PR #25 (`fd47547`). Main CI is green.
@@ -747,7 +802,7 @@ large scene does not require loading the full region or all chips into RAM.
 memory stays within a documented bound determined by model size, chip/batch size,
 and bounded I/O caches rather than total scene area or chip count.
 
-**Follow-up:** ~~direct remote `.tif` URL input~~ (completed in Pass 14); extend streaming to classification
+**Follow-up:** ~~direct remote `.tif` URL input~~ (completed in Pass 14); extend streaming to ~~classification~~ (completed in Pass 15)
 and segmentation after the embedding path is verified.
 
 - [ ] **Low priority — deferred, no near-term implementation:** optional

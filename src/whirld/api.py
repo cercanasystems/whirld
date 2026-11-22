@@ -30,6 +30,7 @@ import numpy as np
 from .core import contract as contract_mod
 from .core import sensor as sensor_mod
 from .core.chips import ChipMeta, chip_raster, reassemble_mask
+from .core.classification_stream import ClassificationStream, DiskClassifyResult
 from .core.embedding_stream import DiskEmbedResult, EmbeddingStream
 from .core.fetch import Manifest, ModelStore
 from .core.inference_metadata import (
@@ -47,6 +48,7 @@ from .core.options import (
     EmbeddingOptions,
     InferenceOptions,
     SegmentationOptions,
+    StreamingClassificationOptions,
     StreamingEmbeddingOptions,
 )
 from .core.registry import ModelEntry
@@ -489,6 +491,85 @@ def classify(
         compute=compute,
         no_warnings=no_warnings,
         input_type=source.kind,
+    )
+
+
+def classify_to_disk(
+    input: str | Path,
+    *,
+    model: str,
+    query: str | list[str],
+    output: str | Path,
+    top_k: int | None = 5,
+    threshold: float = 0.0,
+    batch_size: int = 8,
+    cache_mb: int = 32,
+    device: str | None = None,
+    sensor: str | None = None,
+    crs: str | None = None,
+    bbox: tuple[float, float, float, float] | None = None,
+    stac_token: str | None = None,
+    token_origins: tuple[str, ...] = (),
+    cog: CogOptions | None = None,
+    no_warnings: bool = False,
+) -> DiskClassifyResult:
+    """Classify bounded raster windows and publish globally ranked GeoJSON on disk.
+
+    Args:
+        input: STAC item path/URL or direct HTTP(S) COG URL.
+        model: Installed classification model identifier, for example remoteclip.
+        query: One or more text queries; the first identifies the primary score.
+        output: Required GeoJSON destination, preserved if processing fails.
+        top_k: Positive maximum matches; None emits all threshold-passing chips.
+        threshold: Inclusive primary-score cutoff in [0, 1].
+        batch_size: Maximum prepared chips per model call; defaults to eight.
+        cache_mb: Bounded raster cache budget in MiB; defaults to 32.
+        device: Inference device override; None selects an available device.
+        sensor: Required for direct COGs; otherwise inferred from the STAC item.
+        crs: CRS assignment for sources whose CRS is missing.
+        bbox: Optional EPSG:4326 longitude/latitude read window.
+        stac_token: Bearer token scoped to the original input origin.
+        token_origins: Additional direct asset origins explicitly authorized.
+        cog: Optional direct COG band and radiometry overrides.
+        no_warnings: Suppress the real-model CPU runtime estimate.
+
+    Returns:
+        Output path, counts and model/sensor/device identity. Scores and geometry
+        remain on disk. Results sort by descending primary score, breaking ties
+        by chip index. Disk-backed sorting requires O(scene) temporary space.
+
+    Raises:
+        InvalidInputError: Invalid options, queries, input kind or output path.
+        WhirldError: Source, installation, inference or disk processing fails.
+    """
+    source = RasterInput.resolve(input, cog)
+    source.validate_sensor(sensor)
+    if source.kind == "geotiff":
+        raise InvalidInputError(
+            "Streaming requires a STAC item or direct remote COG input."
+        )
+    if output is None:
+        raise InvalidInputError("Streaming classification requires an output path.")
+    options = StreamingClassificationOptions.from_arguments(
+        top_k=top_k,
+        threshold=threshold,
+        batch_size=batch_size,
+        cache_mb=cache_mb,
+        bbox=bbox,
+    )
+    queries = _as_queries(query)
+    return ClassificationStream(ModelStore(), device).run(
+        str(input),
+        model=model,
+        queries=queries,
+        output=Path(output),
+        options=options,
+        sensor=sensor,
+        crs=crs,
+        cog=cog,
+        token=stac_token,
+        token_origins=token_origins,
+        no_warnings=no_warnings,
     )
 
 
