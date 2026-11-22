@@ -1,3 +1,41 @@
+## Release 0.1.0
+
+Branch: `release/0.1.0`, from merged PR #25 (`fd47547`). Main CI is green.
+Re-read AGENTS.md and lessons; dedicated release compliance reviewer assigned.
+User authorized the 0.1.0 GitHub release. No PyPI publication in this pass.
+
+- [x] ~~Reconcile package/runtime version, repository URLs, license inclusion and
+      advertised Python support with the verified Python 3.13.7 environment.~~
+- [x] ~~Add release notes and exact artifact installation/release instructions;
+      update README and development progress with scope and known limitations.~~
+- [x] ~~Build wheel and source distribution, inspect metadata/licenses/resources,
+      and test installations from both artifacts in fresh `.venv` environments.~~
+- [x] ~~Run appropriate regression/style/type checks and final compliance review;
+      commit release preparation and verify hosted CI before tagging.~~
+- [x] ~~Prepare verified wheel/source assets, checksum manifest and release notes
+      for an annotated v0.1.0 GitHub release after hosted CI passes.~~
+
+Publication follows the reviewed preparation commit: tag the merged commit,
+upload the verified assets and verify their downloaded checksums. The published
+GitHub release records final tag identity, asset hashes and release status.
+
+Acceptance: source/runtime/distribution versions agree at 0.1.0; release artifacts
+install and exercise local/STAC/direct COG reference workflows without optional
+model dependencies. Notes distinguish tested platform/Python support, model
+licenses and deferred streaming/reprojection features. Tag points to the reviewed
+CI-green release commit. Record final release URL and artifact hashes externally.
+
+### Review
+
+Release preparation verified: 605 passed / 9 skipped, 90.98% coverage; style,
+typing and registry checks pass. Fresh wheel and source installations pass lazy
+import, metadata/resource/license inspection, local/STAC/streamed-STAC workflows,
+and direct HTTP COG eager/stream equivalence (maximum difference 0.0). Dedicated
+compliance review found no remaining blockers. Final rebuilt artifacts preserve
+the tested package payload. Publication is authorized and follows green hosted
+preparation CI; the GitHub release records final tag and asset verification.
+PyPI credentials/setup are not required.
+
 ## Pass 14 — Direct remote COG input
 
 Branch: `feat/direct-cog-input`, from merged PR #24 (`d9686ae`). Re-read AGENTS.md

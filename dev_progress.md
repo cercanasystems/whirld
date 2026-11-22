@@ -6,6 +6,47 @@ remains.
 
 ---
 
+## 2026-11-22 — Release 0.1.0 preparation
+
+Branch: `release/0.1.0`, from PR #25's merged main (`fd47547`), whose hosted
+verification passed. User authorized the initial GitHub release; publication to
+PyPI is a separate decision. Re-read AGENTS.md and lessons, recorded the release
+plan and assigned dedicated compliance and artifact reviewers.
+
+Package version now comes from `whirld._version.__version__` through setuptools
+static attribute resolution, preserving lazy import. Corrected package repository
+URLs, added the Apache-2.0 license text and explicit license metadata, and included
+release documentation, examples, requirements, scripts and tests in the source
+archive. Vendored Clay code keeps its own license/notice/provenance unchanged.
+The release declares Python >=3.13.7, matching the development baseline; tested
+platforms are macOS ARM64 and Ubuntu 24.04 x86-64 CI on Python 3.13.7. Newer Python
+versions and other platforms remain unverified.
+
+Added `CHANGELOG.md`, artifact installation/checksum instructions and a release
+procedure. Initial 0.x notes distinguish the offline reference encoder from real
+models, explain separate weight downloads/licenses, and record memory, grid,
+REST and deferred-feature limits. No inference behavior or runtime dependency
+versions changed.
+
+**Verification:** 605 passed / 9 skipped, 90.98% coverage across package and
+examples; Black (153 files), Ruff, mypy (67 files), registry and diff checks pass.
+Both wheel and source distribution install in independent fresh Python 3.13.7
+`.venv` environments with 25 base packages and compatible dependencies. Runtime
+and distribution versions agree at 0.1.0; lazy imports and packaged registry,
+schema and vendor notices pass inspection. Local GeoTIFF, STAC and streamed-STAC
+clean-room checks pass from outside the checkout. Direct HTTP COG eager/stream
+reference outputs match exactly for both artifacts: finite `(9,512)` arrays,
+maximum absolute difference 0.0, without torch/FastAPI/pytest installed.
+
+Dedicated compliance review found no remaining blockers after correcting root
+license attribution and adding the README-linked PRD to the source archive.
+Final archive rebuilding verifies the unchanged package payload and corrected
+license/docs. Release assets include wheel, source archive and SHA-256 checksums;
+publication follows green hosted preparation CI and an annotated `v0.1.0` tag on
+the merged commit. The GitHub release records final publication and asset hashes.
+
+---
+
 ## 2026-11-22 — Pass 14: direct remote COG input
 
 Branch: `feat/direct-cog-input`, from merged PR #24 (`d9686ae`). Re-read AGENTS.md

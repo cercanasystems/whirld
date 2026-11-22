@@ -1,10 +1,9 @@
-# Production dependencies for Whirld (walking-skeleton scope).
+# Production dependencies for the Whirld base installation.
 # Pinned to exact versions resolved in the project virtualenv (Python 3.13).
 # Regenerate with: .venv/bin/python -m pip freeze
 #
-# NOTE: the optional `hf`, `serve`, and `stac` extras (torch, fastapi, pystac-client,
-# etc.) are intentionally omitted here; they belong to deferred command surfaces and
-# are declared in pyproject.toml [project.optional-dependencies].
+# Optional model/server/search extras are intentionally omitted here; install
+# the needed extra declared in pyproject.toml [project.optional-dependencies].
 
 numpy==2.5.0
 rasterio==1.5.2

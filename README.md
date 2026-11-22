@@ -22,7 +22,7 @@ and produces georeferenced results plus a self-contained browser preview.
 
 ---
 
-## Status: working MVP
+## Status: 0.1.0 — initial release
 
 This repository implements the Whirld MVP (see
 [`whirld-prd-mvp.md`](whirld-prd-mvp.md)): **three model paradigms** (embed / classify /
@@ -108,9 +108,30 @@ quantized variants.
 
 ---
 
+## Install 0.1.0
+
+Download `whirld-0.1.0-py3-none-any.whl` from the
+[GitHub release](https://github.com/cercanasystems/whirld/releases/tag/v0.1.0),
+then install it in a Python 3.13.7 virtual environment:
+
+```bash
+python3.13 -m venv .venv
+.venv/bin/python -m pip install ./whirld-0.1.0-py3-none-any.whl
+.venv/bin/whirld --help
+.venv/bin/whirld pull clay-v1
+```
+
+For real models or the server, install the downloaded wheel with an extra, for
+example `.venv/bin/python -m pip install './whirld-0.1.0-py3-none-any.whl[hf]'`.
+Other extras are `remoteclip`, `prithvi` and `serve`. Model weights download
+separately. This release is distributed through GitHub; PyPI publication is separate.
+See [release notes](CHANGELOG.md) and the [release guide](docs/releases.md).
+
 ## Install (development)
 
-Requires Python 3.10+ (developed and tested on 3.13).
+Requires Python 3.13.7 or newer. Release verification uses Python 3.13.7 on
+macOS ARM64 and Ubuntu 24.04 x86-64 CI; newer interpreters and other platforms
+have not been verified.
 
 ```bash
 python3.13 -m venv .venv
