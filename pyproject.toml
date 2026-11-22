@@ -1,23 +1,20 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "whirld"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Local-first CLI and library for running geospatial foundation models (the Ollama for geospatial)."
 readme = "README.md"
-requires-python = ">=3.10"
-license = { text = "Apache-2.0" }
+requires-python = ">=3.13.7"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [{ name = "Whirld" }]
 keywords = ["geospatial", "foundation-models", "remote-sensing", "clay", "embeddings"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
 ]
@@ -49,8 +46,11 @@ stac = ["pystac-client>=0.8"]
 whirld = "whirld.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/whirld/whirld"
-Repository = "https://github.com/whirld/whirld"
+Homepage = "https://github.com/cercanasystems/whirld"
+Repository = "https://github.com/cercanasystems/whirld"
+
+[tool.setuptools.dynamic]
+version = {attr = "whirld._version.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
