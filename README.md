@@ -15,6 +15,11 @@ whirld embed --model clay-v1 my_sentinel2_scene.tif
 # → s2_small_embeddings.npy (512-dim vector per chip) + metadata sidecar
 ```
 
+Try the [three runnable real-world examples](examples/README.md): find similar
+landscapes with Clay, compare land-cover prompts with RemoteCLIP, and map a
+burn-scar prediction with Prithvi. Each uses pinned open imagery and real weights,
+and produces georeferenced results plus a self-contained browser preview.
+
 ---
 
 ## Status: working MVP
