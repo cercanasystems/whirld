@@ -9,6 +9,7 @@ import typer
 from rich.console import Console
 
 from ... import api
+from ...errors import InvalidInputError
 from ._cog import CogArguments
 from ._stac import parse_bbox, resolve_stac_token
 
@@ -25,12 +26,30 @@ def classify_command(
         "--query",
         help='Text query (repeatable for zero-shot multi-class), e.g. "solar farm".',
     ),
-    top_k: int = typer.Option(5, "--top-k", help="Number of top matches to return."),
+    top_k: int | None = typer.Option(
+        None, "--top-k", help="Number of top matches (default: 5)."
+    ),
     threshold: float = typer.Option(
         0.0, "--threshold", help="Minimum score threshold (primary query)."
     ),
     output: str | None = typer.Option(
         None, "--output", help="Output GeoJSON path (default: stdout)."
+    ),
+    stream: bool = typer.Option(
+        False,
+        "--stream",
+        help="Classify STAC/COG windows with bounded memory; requires --output.",
+    ),
+    batch_size: int | None = typer.Option(
+        None, "--batch-size", help="Streaming chips per batch (default: 8)."
+    ),
+    cache_mb: int | None = typer.Option(
+        None, "--cache-mb", help="Streaming raster cache in MiB (default: 32)."
+    ),
+    all_results: bool = typer.Option(
+        False,
+        "--all",
+        help="Stream all threshold-passing matches; incompatible with --top-k.",
     ),
     device: str | None = typer.Option(
         None, "--device", help="Device: cuda, mps, cpu (default: auto)."
@@ -78,7 +97,11 @@ def classify_command(
         input: Local GeoTIFF, STAC item or direct HTTP(S) COG URL.
         model: Model identifier.
         query: One or more free-text queries (the first is primary).
-        top_k: Number of top matches to keep (by the primary query).
+        top_k: Number of top matches to keep (default five).
+        stream: Use bounded STAC/COG window processing and staged disk output.
+        batch_size: Streaming batch bound; omitted defaults to eight.
+        cache_mb: Streaming raster cache budget; omitted defaults to 32 MiB.
+        all_results: Stream every threshold-passing chip, sorted on disk.
         threshold: Minimum primary-query score threshold.
         output: GeoJSON output path; prints to stdout when omitted.
         device: Inference device override.
@@ -92,11 +115,43 @@ def classify_command(
         scale: COG reflectance scale, one value or a value for every source band.
         offset: COG reflectance offset, one value or a value for every source band.
     """
+    if stream:
+        if output is None:
+            raise InvalidInputError("--stream requires --output for GeoJSON.")
+        if all_results and top_k is not None:
+            raise InvalidInputError("--all and --top-k are mutually exclusive.")
+        disk = api.classify_to_disk(
+            input,
+            model=model,
+            query=query,
+            output=output,
+            top_k=None if all_results else (5 if top_k is None else top_k),
+            threshold=threshold,
+            batch_size=8 if batch_size is None else batch_size,
+            cache_mb=32 if cache_mb is None else cache_mb,
+            device=device,
+            sensor=sensor,
+            crs=crs,
+            no_warnings=no_warnings,
+            bbox=parse_bbox(bbox),
+            stac_token=resolve_stac_token(stac_token),
+            cog=CogArguments(
+                enabled=cog, bands=bands, scale=scale, offset=offset
+            ).options(),
+        )
+        console.print(
+            f"[green]✓[/green] Streamed {disk.chip_count} chips — "
+            f"{disk.feature_count} matches"
+        )
+        console.print(f"  GeoJSON: {disk.output_path.name}")
+        return
+    if all_results or batch_size is not None or cache_mb is not None:
+        raise InvalidInputError("--all, --batch-size and --cache-mb require --stream.")
     result = api.classify(
         input,
         model=model,
         query=query,
-        top_k=top_k,
+        top_k=5 if top_k is None else top_k,
         threshold=threshold,
         output=output,
         device=device,

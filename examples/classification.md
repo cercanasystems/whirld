@@ -80,3 +80,26 @@ preview creation, after model verification/thread/output-directory setup. Initia
 checkpoint download and verification are excluded from elapsed time; RSS is the
 process-lifetime high-water mark. Network, caches and hardware affect these
 observations. GPU inference was not tested.
+
+## Large scenes with bounded memory (0.2.0)
+
+The preview script intentionally loads its small 16-chip result to render it. For
+large regions use the disk API directly, with the same prompts and source metadata:
+
+```python
+import whirld
+from examples.classification import PROMPTS
+from examples.common import SENTINEL_SCENE
+
+result = whirld.classify_to_disk(
+    SENTINEL_SCENE.item_url, model="remoteclip", query=list(PROMPTS),
+    sensor=SENTINEL_SCENE.sensor, bbox=SENTINEL_SCENE.bbox,
+    top_k=None, batch_size=4, device="cpu", output="streamed-scores.geojson",
+)
+print(result.chip_count, result.feature_count)
+```
+
+Run from the repository checkout after the setup above. This pinned crop produces
+16 matches. Enlarge or remove the bbox for a larger scene. Global ranking uses
+temporary disk space; [classification streaming](../docs/classification-streaming.md)
+explains the memory and publication contract.

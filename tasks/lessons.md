@@ -74,3 +74,9 @@ contract; `claymodel` won't install on 3.13).
 install), run a cheap read-only probe and state findings as evidence. If I can't
 verify, say "let me check" — don't assert.
 
+
+## Branch before implementation
+
+- Create and verify the feature branch before starting implementation work or
+  delegating file edits. Initial read-only inspection may happen on main, but
+  report the verified branch explicitly so the working context is clear.

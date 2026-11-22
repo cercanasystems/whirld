@@ -162,6 +162,49 @@ class ClassificationOptions(SpatialOptions):
     threshold: float = Field(default=0.0, ge=0.0, le=1.0, allow_inf_nan=False)
 
 
+class StreamingClassificationOptions(SpatialOptions):
+    """Bound inference buffers and configure globally ranked disk output.
+
+    Args:
+        batch_size: Maximum native-size chips read and inferred per call.
+        cache_mb: Per-cache GDAL/VSI memory budget in MiB.
+        top_k: Positive maximum output feature count, or None for every match.
+        threshold: Inclusive minimum primary-query probability.
+        bbox: Optional finite EPSG:4326 source window.
+
+    Invalid values raise Pydantic ValidationError; from_arguments translates them
+    into InvalidInputError at public entry points. The immutable model prevents
+    per-run settings from mutating a resident backend or another invocation.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+    batch_size: int = Field(default=8, gt=0, strict=True)
+    cache_mb: int = Field(default=32, gt=0, strict=True)
+    top_k: int | None = Field(default=5, gt=0, strict=True)
+    threshold: float = Field(default=0.0, ge=0.0, le=1.0, allow_inf_nan=False)
+
+
+class ClassificationQueries(RequestOptions):
+    """Validate ordered prompts without changing their text or duplicate semantics.
+
+    The eager API historically drops empty/blank prompts, preserves nonblank text
+    and ordering, and requires at least one remaining prompt. This schema keeps
+    that behavior at the streaming coordinator's typed input boundary.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+    queries: list[str]
+
+    @field_validator("queries")
+    @classmethod
+    def nonempty_queries(cls, value: list[str]) -> list[str]:
+        """Drop blank prompts; reject a list without any nonblank strings."""
+        queries = [query for query in value if query and query.strip()]
+        if not queries:
+            raise ValueError("classify requires at least one non-empty query")
+        return queries
+
+
 class SegmentationOptions(SpatialOptions):
     """Finite probability threshold for binary segmentation."""
 
