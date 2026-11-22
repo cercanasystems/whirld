@@ -82,7 +82,7 @@ Model: IBM/NASA **Prithvi EO 2.0 300M BurnScars**,
 Apache 2.0. The pinned source image is available from the
 [official model examples](https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars/tree/a3f2c410e45b8ac7417976614528a872f024d831/examples).
 
-## Recorded execution
+## Historical execution (0.1.0)
 
 Executed on **2026-11-22** with actual pinned Prithvi weights: Python 3.13.7,
 Torch 2.12.1, macOS ARM64 26.6.2, CPU and two threads. The checkpoint SHA-256
@@ -113,3 +113,21 @@ allowed values, dimensions, CRS, transform and valid-pixel agreement. A separate
 source-unit check confirmed that normalized pixels equal `(reflectance - mean) /
 std` without an extra reflectance factor. Eight hermetic tests cover source units,
 mask geometry/classes/nodata, and overlay behavior.
+
+## 0.3.0 candidate revalidation
+
+Re-executed the documented entry point on 2026-11-22 with actual pinned weights,
+Python 3.13.7 and CPU/two threads. The source SHA-256, six-band reflectance units,
+mask values, source-validity agreement and CRS/affine were independently checked.
+The **512 × 512 uint8 mask** is bitwise-identical to the earlier saved result:
+**262,144 valid pixels, 208,989 predicted burned pixels**, with valid classes 0/1
+and nodata 255. Independent normalization again equals `(reflectance - mean) /
+std` within 1e-6; no second reflectance scale is applied. The source imagery and
+orange-overlay PNGs were visually inspected, and both self-contained HTML images
+match their adjacent PNG bytes and 512-square viewports.
+
+The fresh workflow measured **7.27 seconds / 2,697.1 MiB peak process RSS** under
+the timing boundaries above. It completed with no blank GDAL `Cannot read`
+diagnostics after the scoped header-file policy correction. These repeat checks
+establish compatibility and output fidelity, not prediction accuracy or a lower
+system-memory requirement.

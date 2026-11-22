@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -90,7 +91,10 @@ class StacAccessPolicy:
             "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
             "VSI_CACHE": True,
             "GDAL_HTTP_HEADERS": "",
-            "GDAL_HTTP_HEADER_FILE": "",
+            # Empty string makes GDAL try opening an empty filename on every
+            # HTTP read. A readable empty source clears inherited file headers
+            # without warnings, and the Env restores the caller's path afterward.
+            "GDAL_HTTP_HEADER_FILE": os.devnull,
             "CPL_VSIL_CURL_AUTHORIZATION_HEADER_ALLOWED_IF_REDIRECT": "NO",
         }
         token = self.token_for(href)

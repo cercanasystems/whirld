@@ -1,3 +1,49 @@
+## Release 0.3.0 preparation and example revalidation
+
+Branch: `release/0.3.0`, from main `afdbb6a` after manually merged PR #28.
+Re-read AGENTS.md and lessons; branch verified before edits. User authorized a
+release-preparation PR and verification that examples still work. The user
+manually merges; no tag, publication, release or PyPI action in this pass.
+
+- [x] ~~Set the single version source to 0.3.0 and prepare accurate release notes,
+      README/install guides and model/streaming documentation. Clearly distinguish
+      candidate artifacts from a published release and keep the approval boundary.~~
+- [x] ~~Re-run all three documented real-world example entry points with actual
+      pinned weights and public imagery in fresh output directories. Independently
+      check arrays/scores/masks, geometry, model provenance, metrics and previews;
+      fix any compatibility problems and update recorded results/commands.~~
+- [x] ~~Revalidate new flood/model-variant/streaming example workflows using their
+      pinned samples/checkpoints; retain explicit input, metadata and nodata policy.~~
+- [x] ~~Build source and wheel candidates, inspect version/metadata/resources/licenses
+      and source documentation, and verify independent fresh base-only installs
+      plus existing/new streaming smoke workflows outside the checkout.~~
+- [x] ~~Run full coverage, Black/Ruff/mypy/registry checks and dedicated compliance
+      review; document actual verification and remaining limits in TODO/progress.~~
+- [ ] Commit/push the preparation branch and open a PR for manual merge, then stop.
+      Tagging and release publication require separate explicit approval afterward.
+
+Acceptance: runtime/metadata/distribution agree on 0.3.0, all advertised examples
+execute with real inputs/weights and valid outputs, candidate archives install
+without optional model dependencies, and the PR remains open for user review.
+Do not infer model accuracy from execution checks. No automatic merge or release.
+
+### Review
+
+All five documented example paths pass with real pinned weights/public imagery:
+three defaults, alternate Clay reference and classification streaming. Independent
+arrays/scores/masks/grid/provenance and PNG/SVG checks pass; earlier outputs match
+apart from runtime version metadata. Guides retain separate historical/candidate
+measurements. The discovered empty GDAL header filename is corrected using an
+actual empty source, with inherited-auth isolation/restoration and HTTP regressions.
+
+Final checks: **800 passed / 12 skipped, 91.95% package/example coverage**; three
+actual-model checks pass separately. Black (171 files), Ruff, mypy (71 files),
+seven-entry registry and diff checks pass. Independent wheel/source base-only
+Python 3.13.7 installs pass version/metadata/resources/licenses and local/STAC/new
+HTTP streaming workflows. Rebuilt payload includes the policy correction and
+preserves inference behavior. Final compliance review is clear. Preparing the
+manual-review PR; no automatic merge, tag or publication.
+
 ## Pass 16 — Flood support, segmentation streaming and model variants
 
 Branch: `feat/flood-streaming-models`, from main `d4cb5f8` (v0.2.0).

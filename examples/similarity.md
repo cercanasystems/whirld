@@ -65,7 +65,7 @@ Chip footprints include padded edge cells and may extend beyond the requested
 crop. Cosine similarity is not a probability or a land-cover label. Similar scores
 do not establish that sites share a class, condition or downstream property.
 
-## Recorded run
+## Historical run (0.1.0)
 
 Verified on 2026-11-22 with Python 3.13.7, Torch 2.12.1, macOS ARM64 and
 CPU/two threads: **16 chips × 1,024 float32 values**, all finite. With reference
@@ -81,3 +81,27 @@ checkpoint verification are excluded from elapsed time.
 These are observations on one CPU host; network/cache/hardware conditions change
 runtime and small numerical differences can change close rankings. GPU execution
 was not tested.
+
+## 0.3.0 candidate revalidation
+
+Re-executed the documented entry point on 2026-11-22 with the same pinned real
+checkpoint, public scene, Python 3.13.7 and CPU/two-thread setup. All 16 × 1,024
+float32 embedding values are finite and bitwise-identical to the previous saved
+run. Independent cosine ranking again selected chips **5, 2, 4, 9, 8**, excluding
+reference 0. The embedding sidecar records Whirld **0.3.0**. Model revision and
+checkpoint identity, WGS84 footprints, embedded preview image and all six SVG
+footprints/label positions were checked; the imagery PNG was visually inspected.
+
+The repeated default run measured **105.65 seconds / 2,573.7 MiB peak RSS** under
+the timing boundaries above. That first invocation preceded the scoped header-file
+diagnostic correction included in this candidate. The documented alternate command
+with `--reference 5 --top-k 5` then ran with the final policy: **158.90 seconds /
+2,575.0 MiB peak RSS**, with no blank GDAL `Cannot read` warnings. Its complete
+embedding array is bitwise-identical to both the fresh default run and the saved
+historical run, independently confirming unchanged image/model input behavior.
+Reference 5 was excluded and the ranked chips were **0, 2, 9, 10, 1**. Its six SVG
+footprints and visible label positions were checked as well.
+
+These are fresh executions, not timing targets; remote read/cache conditions and
+other host activity can change timing. They do not change the interpretation or
+accuracy limitations above.

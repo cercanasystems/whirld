@@ -1,9 +1,9 @@
 # Bounded-memory segmentation
 
-The development tree adds `segment_to_disk()` and `segment --stream` for installed
-segmentation models, including Prithvi burn-scar and flood. This work is separate
-from the published 0.2.0 release; use the reviewed source checkout until a later
-release is approved. Install the `prithvi` extra and pull the selected model first.
+The 0.3.0 release candidate adds `segment_to_disk()` and `segment --stream` for
+installed segmentation models, including Prithvi burn-scar and flood. Use the
+reviewed source checkout while publication is pending. Install the `prithvi`
+extra and pull the selected model first.
 
 ```bash
 whirld segment item.json --model prithvi-flood --sensor sentinel-2-l1c \
