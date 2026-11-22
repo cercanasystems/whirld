@@ -77,9 +77,10 @@ for both heads, without torch/pytest/FastAPI installed. Dedicated final review
 found no blockers after moving the new sensor tests under their source layout.
 No dependencies added. README, Unreleased changelog and dedicated flood,
 segmentation-streaming and variant guides record setup, contracts and limits.
-Package builds here are verification artifacts, not release assets. Stop at a
-reviewable PR; overlap blending, REST/local raster streaming and reprojection #21
-remain deferred.
+Package builds here are verification artifacts, not release assets. Prepared
+[PR #28](https://github.com/cercanasystems/whirld/pull/28) on the matching upstream
+branch; hosted CI is tracked separately and the user manually merges. Overlap
+blending, REST/local raster streaming and reprojection #21 remain deferred.
 
 ---
 

@@ -49,8 +49,8 @@ The user merges PRs manually; stop at the reviewable PR. No release/tag action.
 - [x] ~~Keep TODO and dev_progress updated, add exact setup/usage/examples and
       limits, run full coverage/Black/Ruff/mypy/registry/fresh package checks,
       and complete dedicated final compliance review.~~
-- [ ] Commit/push to a matching new upstream and prepare a reviewable PR with
-      validation evidence. Pause for the user's manual merge; release separately.
+- [x] ~~Commit/push to a matching new upstream and prepare a reviewable PR with
+      validation evidence. Pause for the user's manual merge; release separately.~~
 
 Acceptance: new capabilities work with real public artifacts, explicit model
 contracts and existing trust/integrity rules. Streaming memory depends on model,
@@ -71,8 +71,9 @@ scores preserve ranking/geometry within 6.3e-6 maximum absolute error. Controlle
 HTTP scene and writer-only growth tests pass. Fresh base-only wheel/source
 installs pass existing workflows and both mask tasks. Final coverage: **799 passed / 12 skipped, 91.95%** across package and examples;
 Black (170 files), Ruff, mypy (71 files), seven-entry registry and diff checks pass.
-Final dedicated review is clear after the source-layout correction. Preparing the
-reviewable PR; the user manually merges. No version/tag/release action.
+Final dedicated review is clear after the source-layout correction. Prepared [PR #28](https://github.com/cercanasystems/whirld/pull/28) on the matching
+upstream feature branch. Hosted CI is tracked separately. The user manually
+merges; no version/tag/release action.
 
 ## Pass 15 — Bounded-memory classification and release 0.2.0
 
