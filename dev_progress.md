@@ -6,6 +6,73 @@ remains.
 
 ---
 
+## 2026-11-22 — Pass 14: direct remote COG input
+
+Branch: `feat/direct-cog-input`, from merged PR #24 (`d9686ae`). Re-read AGENTS.md
+and lessons, recorded the plan before implementation, and assigned separate I/O,
+integration and compliance reviews. Execution followed the written plan in Default
+mode. Publication authorized on 2026-11-22.
+
+The library and CLI now accept direct HTTP(S) GeoTIFF URLs for embed, classify,
+and segment, plus bounded-memory embedding output through `embed_to_disk` and
+`embed --stream`. Signed `.tif`/`.tiff` paths route automatically; explicit
+`CogOptions` / `--cog` select extensionless endpoints. Public `CogOptions` remains
+available through the lazy package entry point. CLI exposes source-order `--bands`,
+scalar/per-band `--scale` and `--offset`, and `--token` as an alias for existing
+origin-scoped credentials.
+
+`RasterInput` owns dispatch; typed `RasterScene` and source adapters separate
+metadata interpretation from the shared resource-owning `RasterWindowReader`.
+`CogWindowReader` and the compatible `StacWindowReader` share grid, mask,
+radiometry and bounded batch processing. No user-created STAC document or full-file
+staging is needed. Direct inputs require an explicit sensor and unambiguous TIFF
+descriptions or complete explicit source-order names. Per-field transforms override
+TIFF metadata; nonidentity TIFF transforms declare reflectance conversion, while
+implicit identity metadata preserves canonical DN. Explicit scale 1 declares
+already-scaled reflectance. TIFF masks, nodata and acquisition time survive.
+
+Controlled actual tiled COG fixtures verify byte ranges, bbox subsets, credential
+scoping on lazy reads, redirect stripping, signed-URL diagnostics/output names,
+reordered/per-band radiometry, edge geometry, and eager/stream/STAC equivalence.
+Fresh workers with chip128/batch4 handle 512-, 2048- and 4096-square scenes within
+the fixed RSS-growth limits (64 MiB warmup, then 32 MiB), with fixtures created
+outside the measured workers. Ordinary eager APIs intentionally retain the selected
+region in memory; source block size remains a decoder-memory constraint.
+
+**Public evidence:** the opt-in pinned IBM/NASA HLS sample check passes for all
+16 windows against independent reflectance normalization and geometry, without
+model weights. The sample is a range-readable row-strip GeoTIFF, not a tiled COG.
+A real Prithvi CPU run directly from that URL completed in **8.24 seconds** with
+cached weights and produced a bitwise-identical mask and grid to the existing
+STAC example: **208989 burned / 262144 valid pixels**, 512 × 512. This establishes
+pipeline equivalence, not prediction accuracy. Reproduction instructions and exact
+metadata rules are in [direct COG input](docs/direct-cog.md).
+
+A malformed-TIFF probe exposed signed queries in Rasterio DEBUG logs despite
+sanitized raised exceptions. `RasterDiagnostics` now owns thread-scoped filters
+and GDAL diagnostic settings for the reader lifetime, redacting URL queries and
+bearer values while restoring its exact settings/filters after success or failure.
+Focused tests cover real header errors, lazy reads, nested cleanup and unrelated
+threads. No logger levels or handlers are replaced.
+
+A fresh **Python 3.13.7 base-only package install** passes dependency checks, lazy
+import (including public `CogOptions`), local/STAC/streamed-STAC smoke checks, and
+direct-URL eager/stream equivalence: nine 512-dimensional reference embeddings,
+maximum absolute difference **0.0**, without torch, FastAPI or pytest installed.
+The fixture server runs outside the measured/installed subprocess. Black over
+153 files, Ruff, mypy over 67 source/example files and registry checks pass.
+Final full suite: **605 passed / 9 skipped, 90.98% coverage across whirld + examples**.
+The public pixel test and real Prithvi execution ran separately from opt-in skips.
+Dedicated final compliance review found no blocking correctness or AGENTS.md
+conformance issues. TODO and documentation reflect completion; prepared for PR
+review with hosted CI tracked separately.
+
+No new dependencies. North-up metric grids remain required; reprojection #21,
+REST remote input, classification/segmentation streaming and local-file streaming
+remain outside this pass.
+
+---
+
 ## 2026-11-22 — Pass 13: three runnable real-world examples
 
 Branch: `docs/real-world-examples`, from merged PR #23 (`e522f3f`). Re-read
@@ -58,8 +125,8 @@ package-only source coverage remains unchanged. CI includes examples in style,
 typing and the >=80% coverage gate. Real model/data runs were executed separately;
 ordinary opt-in integration tests remained skipped. No production inference or
 dependency changes; unrelated package-install/GPU checks were not repeated.
-Publication authorized on 2026-11-22; prepared for PR review with hosted CI tracked
-separately. Reprojection issue #21 remains deferred.
+Merged in [PR #24](https://github.com/cercanasystems/whirld/pull/24); main updated
+to `d9686ae`. Reprojection issue #21 remains deferred.
 
 ---
 

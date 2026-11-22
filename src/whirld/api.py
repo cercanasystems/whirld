@@ -6,7 +6,7 @@ into the single-call operations the CLI, the Python API, and the REST server sha
 
 The in-memory pipeline serves :func:`embed` (one-shot CLI/library use) and
 :func:`embed_raster` (a warm ModelSession for server use). :func:`embed_to_disk`
-uses an owned streaming coordinator with bounded STAC windows and incremental
+uses an owned streaming coordinator with bounded STAC/COG windows and incremental
 outputs. Both paths share band translation, chip geometry, model interfaces,
 acquisition metadata rules, and usage-record conventions.
 
@@ -43,6 +43,7 @@ from .core.inference_metadata import (
 )
 from .core.options import (
     ClassificationOptions,
+    CogOptions,
     EmbeddingOptions,
     InferenceOptions,
     SegmentationOptions,
@@ -51,7 +52,8 @@ from .core.options import (
 from .core.registry import ModelEntry
 from .errors import InvalidInputError, WhirldError
 from .io import output as output_mod
-from .io.raster import RasterSource, read_raster
+from .io.input import RasterInput
+from .io.raster import RasterSource
 from .logging_setup import configure_logging, get_logger, record_usage
 from .models.base import InferenceContext, ModelBackend, detect_device
 from .models.loader import load_backend
@@ -178,6 +180,7 @@ def embed(
     write: bool = True,
     bbox: tuple[float, float, float, float] | None = None,
     stac_token: str | None = None,
+    cog: CogOptions | None = None,
 ) -> EmbedResult:
     """Generate embeddings for a raster input (one-shot).
 
@@ -186,7 +189,7 @@ def embed(
     :class:`~whirld.core.session.ModelSession`.
 
     Args:
-        input: Local GeoTIFF path or a STAC item URL (``https://…/item.json``).
+        input: Local GeoTIFF, STAC item, or direct HTTP(S) .tif/.tiff URL.
         model: Model identifier (e.g. ``clay-v1``).
         output: Output path; defaults to ``<input_stem>_embeddings.npy``.
         fmt: Output format, ``npy`` or ``json``.
@@ -201,9 +204,11 @@ def embed(
             item's own ``datetime`` is used automatically when this is ``None``.
         no_warnings: Suppress the CPU full-precision runtime warning.
         write: If true, write outputs to disk.
-        bbox: ``(min_lon, min_lat, max_lon, max_lat)`` EPSG:4326 window for STAC
+        bbox: ``(min_lon, min_lat, max_lon, max_lat)`` EPSG:4326 window for STAC/COG
             inputs (COG range-request read); ignored for local files.
-        stac_token: Bearer token for gated STAC endpoints.
+        stac_token: Bearer token for the original STAC/COG origin.
+        cog: Optional direct COG band/scale/offset metadata; also selects
+            extensionless HTTP(S) TIFF URLs. Direct COG input requires sensor.
 
     Returns:
         An :class:`EmbedResult`.
@@ -213,6 +218,8 @@ def embed(
             invalid input, etc.).
     """
 
+    source = RasterInput.resolve(input, cog)
+    source.validate_sensor(sensor)
     EmbeddingOptions.from_arguments(
         chip_size=chip_size,
         overlap=overlap,
@@ -226,7 +233,13 @@ def embed(
         entry = store.registry.get(model)
         manifest = store.load_manifest(model)
         raster = _read_input(
-            input, entry=entry, crs=crs, sensor=sensor, bbox=bbox, stac_token=stac_token
+            input,
+            entry=entry,
+            crs=crs,
+            sensor=sensor,
+            bbox=bbox,
+            stac_token=stac_token,
+            cog=cog,
         )
         backend = load_backend(entry, manifest, resolved_device, store=store)
         return entry, manifest, backend, raster
@@ -247,7 +260,7 @@ def embed(
         compute=compute,
         acquisition_datetime=datetime,
         no_warnings=no_warnings,
-        input_type="stac" if _is_stac_input(input) else "geotiff",
+        input_type=source.kind,
         inference_options=InferenceOptions(batch_size=batch_size),
     )
 
@@ -267,14 +280,15 @@ def embed_to_disk(
     crs: str | None = None,
     bbox: tuple[float, float, float, float] | None = None,
     stac_token: str | None = None,
+    cog: CogOptions | None = None,
     token_origins: tuple[str, ...] = (),
     datetime: str | None = None,
     no_warnings: bool = False,
 ) -> DiskEmbedResult:
-    """Stream a STAC item's embeddings to disk with bounded working memory.
+    """Stream STAC or direct COG embeddings to disk with bounded working memory.
 
     Args:
-        input: HTTP(S) STAC item URL, file URL, or local item JSON path.
+        input: STAC item URL/path or direct HTTP(S) COG URL.
         model: Installed embedding model identifier.
         output: NPY destination; defaults to the existing input-based filename.
         fmt: Must be ``npy``; metadata is streamed to the usual JSON sidecar.
@@ -283,10 +297,12 @@ def embed_to_disk(
         batch_size: Maximum chips read and inferred together (default eight).
         cache_mb: GDAL block cache budget in MiB; other I/O caches are bounded.
         device: Inference device override, or automatic selection.
-        sensor: Explicit sensor override; otherwise inferred from the item.
+        sensor: Required for direct COGs; otherwise inferred from the item.
         crs: CRS to assign to an asset when absent.
         bbox: Optional longitude/latitude bounds in EPSG:4326.
-        stac_token: Bearer token scoped to the item's origin.
+        stac_token: Bearer token scoped to the input's origin.
+        cog: Optional COG band/scale/offset metadata; also selects extensionless
+            HTTP(S) TIFF URLs. Direct COG input requires sensor.
         token_origins: Additional asset origins authorized to receive that token.
         datetime: Acquisition datetime override, interpreted as UTC when naive.
         no_warnings: Suppress the real-model CPU runtime estimate.
@@ -299,6 +315,8 @@ def embed_to_disk(
         InvalidInputError: Unsupported input/output or invalid execution options.
         WhirldError: Registry, model, source, inference, or disk processing fails.
     """
+    source = RasterInput.resolve(input, cog)
+    source.validate_sensor(sensor)
     options = StreamingEmbeddingOptions.from_arguments(
         chip_size=chip_size,
         overlap=overlap,
@@ -307,8 +325,10 @@ def embed_to_disk(
         bbox=bbox,
         fmt=fmt,
     )
-    if not _is_stac_input(input):
-        raise InvalidInputError("Streaming currently requires a STAC item input.")
+    if source.kind == "geotiff":
+        raise InvalidInputError(
+            "Streaming requires a STAC item or direct remote COG input."
+        )
     target = Path(output) if output is not None else _default_output_path(input)
     return EmbeddingStream(ModelStore(), device).run(
         str(input),
@@ -318,6 +338,7 @@ def embed_to_disk(
         sensor=sensor,
         crs=crs,
         token=stac_token,
+        cog=cog,
         token_origins=token_origins,
         acquisition_datetime=datetime,
         no_warnings=no_warnings,
@@ -402,11 +423,12 @@ def classify(
     no_warnings: bool = False,
     bbox: tuple[float, float, float, float] | None = None,
     stac_token: str | None = None,
+    cog: CogOptions | None = None,
 ) -> ClassifyResult:
     """Classify a raster against one or more text queries (zero-shot, one-shot load).
 
     Args:
-        input: Local GeoTIFF path or a STAC item URL (``https://…/item.json``).
+        input: Local GeoTIFF, STAC item, or direct HTTP(S) .tif/.tiff URL.
         model: Model identifier (e.g. ``remoteclip``).
         query: One query or a list of queries (the first is primary; scores are
             softmax probabilities across the queries).
@@ -417,9 +439,11 @@ def classify(
         sensor: Explicit sensor override; ``None`` to auto-detect.
         crs: CRS to assign when the input has none (e.g. ``EPSG:32630``).
         no_warnings: Suppress the CPU full-precision runtime warning.
-        bbox: ``(min_lon, min_lat, max_lon, max_lat)`` EPSG:4326 window for STAC
+        bbox: ``(min_lon, min_lat, max_lon, max_lat)`` EPSG:4326 window for STAC/COG
             inputs; ignored for local files.
-        stac_token: Bearer token for gated STAC endpoints.
+        stac_token: Bearer token for the original STAC/COG origin.
+        cog: Optional direct COG band/scale/offset metadata; also selects
+            extensionless HTTP(S) TIFF URLs. Direct COG input requires sensor.
 
     Returns:
         A :class:`ClassifyResult`.
@@ -428,6 +452,8 @@ def classify(
         WhirldError: Any domain error (model not installed, unsupported sensor,
             empty query, invalid input, etc.).
     """
+    source = RasterInput.resolve(input, cog)
+    source.validate_sensor(sensor)
     ClassificationOptions.from_arguments(top_k=top_k, threshold=threshold, bbox=bbox)
     queries = _as_queries(query)
 
@@ -436,7 +462,13 @@ def classify(
         entry = store.registry.get(model)
         manifest = store.load_manifest(model)
         raster = _read_input(
-            input, entry=entry, crs=crs, sensor=sensor, bbox=bbox, stac_token=stac_token
+            input,
+            entry=entry,
+            crs=crs,
+            sensor=sensor,
+            bbox=bbox,
+            stac_token=stac_token,
+            cog=cog,
         )
         backend = load_backend(entry, manifest, resolved_device, store=store)
         return entry, manifest, backend, raster
@@ -456,7 +488,7 @@ def classify(
         device=device,
         compute=compute,
         no_warnings=no_warnings,
-        input_type="stac" if _is_stac_input(input) else "geotiff",
+        input_type=source.kind,
     )
 
 
@@ -563,11 +595,12 @@ def segment(
     no_warnings: bool = False,
     bbox: tuple[float, float, float, float] | None = None,
     stac_token: str | None = None,
+    cog: CogOptions | None = None,
 ) -> SegmentResult:
     """Run per-pixel segmentation on a raster, writing a single-band mask GeoTIFF.
 
     Args:
-        input: Local GeoTIFF path or a STAC item URL (``https://…/item.json``).
+        input: Local GeoTIFF, STAC item, or direct HTTP(S) .tif/.tiff URL.
         model: Model identifier (e.g. ``prithvi-burn-scar``, or ``prithvi-eo-2``
             with ``head``).
         head: Task head (``burn-scar`` / ``flood``); required for ``prithvi-eo-2``.
@@ -577,9 +610,11 @@ def segment(
         threshold: Binary mask threshold on the positive class; ``0.5`` ≡ argmax.
         crs: CRS to assign when the input has none.
         no_warnings: Suppress the CPU full-precision runtime warning.
-        bbox: ``(min_lon, min_lat, max_lon, max_lat)`` EPSG:4326 window for STAC
+        bbox: ``(min_lon, min_lat, max_lon, max_lat)`` EPSG:4326 window for STAC/COG
             inputs; ignored for local files.
-        stac_token: Bearer token for gated STAC endpoints.
+        stac_token: Bearer token for the original STAC/COG origin.
+        cog: Optional direct COG band/scale/offset metadata; also selects
+            extensionless HTTP(S) TIFF URLs. Direct COG input requires sensor.
 
     Returns:
         A :class:`SegmentResult`.
@@ -588,6 +623,8 @@ def segment(
         WhirldError: Any domain error (model not installed, unsupported sensor,
             invalid input, etc.).
     """
+    source = RasterInput.resolve(input, cog)
+    source.validate_sensor(sensor)
     SegmentationOptions.from_arguments(threshold=threshold, bbox=bbox)
     resolved_model = _resolve_segment_model(model, head)
 
@@ -596,7 +633,13 @@ def segment(
         entry = store.registry.get(resolved_model)
         manifest = store.load_manifest(resolved_model)
         raster = _read_input(
-            input, entry=entry, crs=crs, sensor=sensor, bbox=bbox, stac_token=stac_token
+            input,
+            entry=entry,
+            crs=crs,
+            sensor=sensor,
+            bbox=bbox,
+            stac_token=stac_token,
+            cog=cog,
         )
         backend = load_backend(entry, manifest, resolved_device, store=store)
         return entry, manifest, backend, raster
@@ -616,7 +659,7 @@ def segment(
         device=device,
         compute=compute,
         no_warnings=no_warnings,
-        input_type="stac" if _is_stac_input(input) else "geotiff",
+        input_type=source.kind,
     )
 
 
@@ -975,18 +1018,9 @@ def _output_basis(input_path: str | Path) -> Path:
     return Path(input_path)
 
 
-def _looks_like_url(value: str | Path) -> bool:
-    """Return whether a value looks like an HTTP(S) URL (i.e. a STAC input)."""
-    text = str(value)
-    return text.startswith("http://") or text.startswith("https://")
-
-
 def _is_stac_input(value: str | Path) -> bool:
-    """Return whether the input is a STAC item (URL, ``file://``, or ``.json`` path)."""
-    text = str(value)
-    return (
-        _looks_like_url(value) or text.startswith("file://") or text.endswith(".json")
-    )
+    """Compatibility query for STAC routing, excluding direct .tif/.tiff URLs."""
+    return RasterInput.resolve(value).kind == "stac"
 
 
 def _read_input(
@@ -997,22 +1031,25 @@ def _read_input(
     sensor: str | None,
     bbox: tuple[float, float, float, float] | None,
     stac_token: str | None,
+    cog: CogOptions | None = None,
 ) -> RasterSource:
-    """Load the input into a :class:`RasterSource` — local GeoTIFF or STAC item URL.
+    """Read local, STAC or direct COG input using its owned source adapter.
 
-    A STAC item URL/``.json`` path is read via :func:`whirld.io.stac.read_stac_item`
-    (lazy-imported so the dependency only loads on the STAC path); anything else is a
-    local GeoTIFF read with :func:`whirld.io.raster.read_raster`.
+    Args:
+        value: Input path or HTTP(S) URL; signed queries are preserved for reads.
+        entry: Model band/unit contract.
+        crs: Assign a CRS only when absent.
+        sensor: Explicit sensor for COG; optional for existing local/STAC paths.
+        bbox: Geographic read window for remote/STAC sources.
+        stac_token: Bearer credential scoped to the input origin.
+        cog: Optional direct COG metadata/extensionless selection.
+
+    Returns:
+        Resident source pixels with geometry, acquisition and radiometry metadata.
+
+    Raises:
+        WhirldError: Input selection, metadata validation or source reads fail.
     """
-    if _is_stac_input(value):
-        from .io.stac import read_stac_item
-
-        return read_stac_item(
-            str(value),
-            entry=entry,
-            sensor=sensor,
-            crs=crs,
-            bbox=bbox,
-            token=stac_token,
-        )
-    return read_raster(value, crs=crs)
+    return RasterInput.resolve(value, cog).read(
+        entry=entry, crs=crs, sensor=sensor, bbox=bbox, token=stac_token
+    )

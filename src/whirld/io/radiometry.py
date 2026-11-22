@@ -1,4 +1,4 @@
-"""Validated per-band STAC radiometry, kept separate from model normalization."""
+"""Validated per-band raster radiometry, kept separate from model normalization."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ class BandRadiometry(BaseModel):
 
     @property
     def has_transform(self) -> bool:
-        """Whether STAC explicitly declares either part of the affine transform."""
+        """Whether metadata explicitly declares either part of the affine transform."""
         return bool({"scale", "offset"} & self.model_fields_set)
 
     @property
@@ -44,9 +44,13 @@ class BandRadiometry(BaseModel):
         return float(self.nodata) if self.nodata is not None else None
 
 
-class StacBand(BaseModel):
-    """One selected asset band and its radiometry, aligned to the model contract."""
+class RasterBand(BaseModel):
+    """One selected raster band and its radiometry, aligned to the model contract."""
 
-    href: str
+    href: str = Field(repr=False)
     index: int = Field(default=1, ge=1)
     radiometry: BandRadiometry = Field(default_factory=BandRadiometry)
+
+
+# Preserve existing STAC imports while the shared reader uses a source-neutral name.
+StacBand = RasterBand

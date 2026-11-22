@@ -1,4 +1,4 @@
-"""Windowed STAC chip reads with bounded buffers and explicit resource ownership."""
+"""Shared raster windows with STAC compatibility and bounded resource ownership."""
 
 from __future__ import annotations
 
@@ -21,18 +21,16 @@ from ..core.inference_metadata import AcquisitionMetadata
 from ..core.options import StreamingEmbeddingOptions
 from ..core.registry import ModelEntry
 from ..errors import InvalidInputError
-from .radiometry import StacBand
+from .diagnostics import RasterDiagnostics
+from .radiometry import RasterBand
+from .raster import RasterSource
+from .scene import RasterScene, RasterSceneSource, StacSceneSource
 from .stac import (
     StacWarpPolicy,
     _band_source,
-    _build_source,
-    _fetch_item,
     _gdal_path,
     _Grid,
-    _item_id,
-    _match_asset,
     _output_grid,
-    _resolve_sensor,
 )
 from .stac_auth import StacAccessPolicy
 
@@ -133,7 +131,7 @@ class _BandWindowReader:
 
     def __init__(
         self,
-        band: StacBand,
+        band: RasterBand,
         grid: _Grid,
         access: StacAccessPolicy,
         warp_mb: int,
@@ -184,7 +182,7 @@ class _BandWindowReader:
                 if source.crs is None:
                     if self._crs_override is None:
                         raise InvalidInputError(
-                            "STAC asset has no CRS; supply a CRS override."
+                            "Raster asset has no CRS; supply a CRS override."
                         )
                     options["src_crs"] = self._crs_override
                 options.update(
@@ -249,11 +247,11 @@ class _BandWindowReader:
         self._vrt = None
 
 
-class StacWindowReader:
-    """Yield normalized chip batches from a STAC item without whole-scene arrays.
+class RasterWindowReader:
+    """Yield normalized chip batches from a typed source without whole-scene arrays.
 
     Args:
-        url: Local path, file URL, or HTTP(S) URL of one STAC item.
+        url: Source location used to scope authorization. STAC is the default.
         entry: Model contract defining band order, normalization, and output grid.
         chip_size: Padded square chip size in target-grid pixels.
         overlap: Pixel overlap; must be smaller than chip_size.
@@ -267,6 +265,7 @@ class StacWindowReader:
             VSI cache and per-band warp budgets are divided over selected bands,
             with a 1 MiB warp minimum per band. VRT source handles, model/batch
             buffers, and source decoder blocks add bounded working memory.
+        source: Optional typed resolver; defaults to StacSceneSource for compatibility.
 
     Use one consumer inside a with block. The reader owns its GDAL environments
     and datasets, and closes them on normal completion and failures. No full-scene
@@ -288,6 +287,7 @@ class StacWindowReader:
         token: str | None = None,
         token_origins: tuple[str, ...] = (),
         cache_mb: int = 32,
+        source: RasterSceneSource | None = None,
     ) -> None:
         """Validate limits and bind the contract/policy without reading pixels."""
         self._options = StreamingEmbeddingOptions.from_arguments(
@@ -298,6 +298,8 @@ class StacWindowReader:
             cache_mb=cache_mb,
         )
         self._url = str(url)
+        self._source = source or StacSceneSource(self._url)
+        self._scene: RasterScene | None = None
         self._entry = entry
         self._sensor_override = sensor
         self._crs_override = crs
@@ -307,10 +309,10 @@ class StacWindowReader:
         self._layout: _ChipLayout | None = None
         self._sensor = ""
         self._metadata = AcquisitionMetadata()
-        self._selected: list[StacBand] = []
+        self._selected: list[RasterBand] = []
         self._readers: list[_BandWindowReader] = []
 
-    def __enter__(self) -> StacWindowReader:
+    def __enter__(self) -> RasterWindowReader:
         """Resolve item geometry and open credential-scoped warped band readers.
 
         Returns:
@@ -323,31 +325,39 @@ class StacWindowReader:
                 All partially opened resources are closed before propagation.
         """
         if self._resources is not None:
-            raise InvalidInputError("STAC window reader is already open.")
+            raise InvalidInputError(
+                f"{self._source.kind.upper()} window reader is already open."
+            )
         self._grid = None
         self._layout = None
         self._metadata = AcquisitionMetadata()
+        self._scene = None
         resources = ExitStack()
         self._resources = resources
         try:
-            item = _fetch_item(self._url, self._access.token_for(self._url))
-            self._sensor = _resolve_sensor(item, self._entry, self._sensor_override)
-            contract = self._entry.band_contract.sensors[self._sensor]
-            assets = item.get("assets") or {}
-            if not assets:
-                raise InvalidInputError(
-                    f"STAC item '{_item_id(item)}' declares no assets."
+            if self._source.kind == "cog":
+                resources.enter_context(
+                    RasterDiagnostics(self._access.token_for(self._url))
                 )
-            self._selected = [
-                _match_asset(assets, band, alias, item)
-                for band, alias in zip(contract.bands, contract.aliases, strict=True)
-            ]
             cache_bytes = self._options.cache_mb * 1024 * 1024
+            # Bound caches before resolving a COG header as well as before pixels.
             resources.enter_context(
                 rasterio.Env(
                     GDAL_CACHEMAX=cache_bytes,
-                    VSI_CACHE_SIZE=str(max(1, cache_bytes // len(self._selected))),
+                    VSI_CACHE_SIZE=str(cache_bytes),
                     CPL_VSIL_CURL_CACHE_SIZE=str(cache_bytes),
+                )
+            )
+            scene = self._source.resolve(
+                self._entry, self._sensor_override, self._access
+            )
+            self._scene = scene
+            self._sensor = scene.sensor
+            self._metadata = scene.metadata
+            self._selected = list(scene.bands)
+            resources.enter_context(
+                rasterio.Env(
+                    VSI_CACHE_SIZE=str(max(1, cache_bytes // len(self._selected)))
                 )
             )
             with self._access.asset_environment(self._selected[0].href):
@@ -361,7 +371,7 @@ class StacWindowReader:
                     )
                     if crs is None:
                         raise InvalidInputError(
-                            "STAC asset has no CRS; supply a CRS override."
+                            "Raster asset has no CRS; supply a CRS override."
                         )
                     grid = _output_grid(
                         source, crs, self.resolution_m, self._options.bbox
@@ -374,10 +384,6 @@ class StacWindowReader:
                 transform=grid.transform,
                 chip_size=self._options.chip_size,
                 overlap=self._options.overlap,
-            )
-            acquired = (item.get("properties") or {}).get("datetime")
-            self._metadata = AcquisitionMetadata(
-                timestamp=str(acquired) if acquired else None
             )
             self._readers = [
                 resources.enter_context(
@@ -396,7 +402,9 @@ class StacWindowReader:
             self._resources = None
             self._readers = []
             if isinstance(exc, rasterio.errors.RasterioError):
-                raise InvalidInputError("Could not open STAC raster assets.") from exc
+                raise InvalidInputError(
+                    f"Could not open {self._source.kind.upper()} raster assets."
+                ) from (None if self._source.kind == "cog" else exc)
             raise
         return self
 
@@ -415,7 +423,9 @@ class StacWindowReader:
     def _require_layout(self) -> _ChipLayout:
         """Return resolved geometry or reject access before context entry."""
         if self._layout is None:
-            raise InvalidInputError("Enter the STAC window reader before use.")
+            raise InvalidInputError(
+                f"Enter the {self._source.kind.upper()} window reader before use."
+            )
         return self._layout
 
     @property
@@ -467,21 +477,20 @@ class StacWindowReader:
         """Number of columns in the global chip layout."""
         return self._require_layout().n_cols
 
-    def _normalized_window(self, window: Window) -> np.ndarray:
-        """Read and normalize one clipped tile through the shared band contract.
+    def _raw_window(self, window: Window) -> RasterSource:
+        """Read selected stored-value pixels while retaining masks and radiometry.
 
         Args:
-            window: In-bounds rectangle on the common output grid.
+            window: In-bounds rectangle on the shared output grid.
 
         Returns:
-            A bounded float32 band stack before edge padding, with missing values
-            replaced by the model contract's normalized nodata fill.
+            An unnormalized raster window for the established translation layer.
 
         Raises:
-            InvalidInputError: Raster reads or radiometric conversion fail.
-            UnsupportedSensorError: Required bands or normalization are incompatible.
+            InvalidInputError: Reader is closed or a source window cannot be read.
         """
-        assert self._grid is not None
+        if self._resources is None or self._grid is None or self._scene is None:
+            raise InvalidInputError("Open the raster window reader before reading.")
         bands = np.empty(
             (len(self._selected), int(window.height), int(window.width)),
             dtype=np.float32,
@@ -490,22 +499,45 @@ class StacWindowReader:
             for index, reader in enumerate(self._readers):
                 bands[index] = reader.read(window)
         except rasterio.errors.RasterioError as exc:
-            raise InvalidInputError("Could not read a STAC asset window.") from exc
+            raise InvalidInputError(
+                f"Could not read a {self._source.kind.upper()} asset window."
+            ) from (None if self._source.kind == "cog" else exc)
         grid = _Grid(
             self.crs,
             window_transform(window, self._grid.transform),
             int(window.width),
             int(window.height),
         )
-        # The eager source builder remains the single band/radiometry adapter.
-        source = _build_source(
-            bands,
-            grid,
-            self._entry.band_contract.sensors[self.sensor].bands,
-            self.sensor,
-            {},
-            self._selected,
-        )
+        return self._scene.as_raster(bands, grid)
+
+    def read_raster(self) -> RasterSource:
+        """Read the complete selected region for existing eager inference APIs.
+
+        Returns:
+            Stored values on the same target grid used by bounded chip reads.
+            This eager operation intentionally allocates the region's full array.
+
+        Raises:
+            InvalidInputError: Reader is unopened/closed or an asset read fails.
+        """
+        layout = self._require_layout()
+        return self._raw_window(Window(0, 0, layout.width, layout.height))
+
+    def _normalized_window(self, window: Window) -> np.ndarray:
+        """Read and normalize a clipped tile through the shared band contract.
+
+        Args:
+            window: In-bounds rectangle on the common output grid.
+
+        Returns:
+            Float32 model-order pixels, with invalid observations filled only
+            after normalization; callers add edge padding afterward.
+
+        Raises:
+            InvalidInputError: Reading or radiometric conversion fails.
+            UnsupportedSensorError: The selected model contract is incompatible.
+        """
+        source = self._raw_window(window)
         return translate(source, self._entry, self.sensor).data
 
     def batches(self) -> Iterator[ChipBatch]:
@@ -519,13 +551,17 @@ class StacWindowReader:
             InvalidInputError: The reader is not open, or a source read fails.
         """
         if self._resources is None:
-            raise InvalidInputError("STAC window reader must be open while iterating.")
+            raise InvalidInputError(
+                f"{self._source.kind.upper()} window reader must be open "
+                "while iterating."
+            )
         layout = self._require_layout()
         chips = layout.chips()
         for start in range(0, layout.count, self._options.batch_size):
             if self._resources is None:
                 raise InvalidInputError(
-                    "STAC window reader was closed during iteration."
+                    f"{self._source.kind.upper()} window reader was closed "
+                    "during iteration."
                 )
             count = min(self._options.batch_size, layout.count - start)
             pixels = np.full(
@@ -543,3 +579,11 @@ class StacWindowReader:
                 metadata.append(chip)
             yield ChipBatch(pixels=pixels, chips=metadata)
             del pixels, metadata
+
+
+class StacWindowReader(RasterWindowReader):
+    """Compatible STAC reader backed by shared resource-owned window execution.
+
+    Constructor arguments and batch/property semantics match RasterWindowReader;
+    the default StacSceneSource preserves the existing STAC selection rules.
+    """

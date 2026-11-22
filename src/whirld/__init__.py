@@ -34,9 +34,11 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
         pull,
         segment,
     )
+    from .core.options import CogOptions
 
 __all__ = [
     "__version__",
+    "CogOptions",
     "pull",
     "embed",
     "embed_to_disk",
@@ -73,6 +75,10 @@ def __getattr__(name: str) -> Any:
     Raises:
         AttributeError: The attribute is not part of the public API.
     """
+    if name == "CogOptions":
+        from .core.options import CogOptions
+
+        return CogOptions
     if name in _PUBLIC:
         from . import api
 

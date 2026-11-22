@@ -1,11 +1,11 @@
-# Bounded-memory STAC embeddings
+# Bounded-memory STAC and COG embeddings
 
 Run commands from the repository root after installing Whirld and pulling the
 embedding model (for example, `whirld pull clay-v1`).
 
 ## CLI and Python usage
 
-Use `--stream` to read STAC asset windows, infer bounded chip batches, and write
+Use `--stream` to read STAC asset or direct remote COG windows, infer bounded chip batches, and write
 NPY rows plus JSON chip metadata incrementally:
 
 ```bash
@@ -30,11 +30,13 @@ embeddings = numpy.load(result.output_path, mmap_mode="r")
 ## Supported inputs and numerical behavior
 
 `embed_to_disk()` accepts local STAC JSON paths, file URLs, and HTTP(S) item URLs.
+Direct HTTP(S) TIFF URLs are also supported with an explicit sensor and complete
+band identity; see [direct COG input](direct-cog.md) for `CogOptions` and CLI flags.
 It preserves band order, radiometry, masks/nodata, overlap, padded edge footprints,
 row-major chip indices, acquisition time, and per-chip location metadata. It loads
 one backend for the run. Ordinary `embed()` continues to return in-memory arrays.
 Streaming currently supports embedding models and NPY output with the existing
-`*_meta.json` schema; direct remote TIFF input, inline JSON, REST streaming,
+`*_meta.json` schema; inline JSON, REST streaming,
 classification, and segmentation streaming are follow-ups.
 
 Streaming assets must share the reference asset's CRS and use north-up metric
