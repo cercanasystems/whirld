@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterator
-from typing import Literal, TypeVar
+from typing import Annotated, Literal, TypeVar
 
 from pydantic import (
     BaseModel,
@@ -35,6 +35,49 @@ class RequestOptions(BaseModel):
                 for error in exc.errors()
             )
             raise InvalidInputError(messages) from exc
+
+
+FiniteValue = Annotated[float, Field(strict=True, allow_inf_nan=False)]
+
+
+class CogOptions(RequestOptions):
+    """Explicit source-position metadata for one remote multiband GeoTIFF.
+
+    ``bands`` overrides TIFF descriptions and must name every source position.
+    Scale/offset values may be scalar or per-source-band tuples. Explicit values
+    override TIFF transforms; explicit scale 1 declares reflectance, while absent
+    identity TIFF values retain canonical DN. Counts are checked against the
+    opened TIFF. Constructing invalid values raises Pydantic ValidationError;
+    from_arguments maps those failures to InvalidInputError for CLI adapters.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+    bands: tuple[str, ...] | None = None
+    scale: FiniteValue | tuple[FiniteValue, ...] | None = None
+    offset: FiniteValue | tuple[FiniteValue, ...] | None = None
+
+    @field_validator("bands")
+    @classmethod
+    def validate_bands(cls, value: tuple[str, ...] | None) -> tuple[str, ...] | None:
+        """Normalize names; reject empty or duplicate source-position declarations."""
+        if value is None:
+            return None
+        names = tuple(name.strip() for name in value)
+        if not names or any(not name for name in names):
+            raise ValueError("bands must contain nonempty source-position names")
+        if len({name.casefold() for name in names}) != len(names):
+            raise ValueError("bands must have unique names")
+        return names
+
+    @field_validator("scale", "offset")
+    @classmethod
+    def validate_values(
+        cls, value: float | tuple[float, ...] | None
+    ) -> float | tuple[float, ...] | None:
+        """Reject empty per-band metadata tuples before any remote I/O."""
+        if isinstance(value, tuple) and not value:
+            raise ValueError("per-band values must not be empty")
+        return value
 
 
 class InferenceOptions(RequestOptions):

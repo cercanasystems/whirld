@@ -26,7 +26,7 @@ and produces georeferenced results plus a self-contained browser preview.
 
 This repository implements the Whirld MVP (see
 [`whirld-prd-mvp.md`](whirld-prd-mvp.md)): **three model paradigms** (embed / classify /
-segment) across four bundled models, a CLI, a REST API, local-file **and STAC** input,
+segment) across four bundled models, a CLI, a REST API, local-file, **STAC and direct remote COG** input,
 and a contributor-facing registry with a security + license **governance gate**. The
 offline `clay-v1` reference model runs with **no network**; the three real models
 download + sha256-verify genuine checkpoints and run the real networks.
@@ -40,7 +40,7 @@ download + sha256-verify genuine checkpoints and run the real networks.
   descriptions → resolution → `--sensor` override).
 - **Three paradigms behind one pipeline**: `embed` (vectors), `classify` (zero-shot
   text query → GeoJSON scores), `segment` (per-pixel mask GeoTIFF).
-- **Input**: local GeoTIFF/COG **or a STAC item URL** — band assets read with COG
+- **Input**: local GeoTIFF/COG, **a STAC item URL or a direct remote COG URL** — band assets read with COG
   `/vsicurl/` range requests, optional `--bbox` window, bearer-token auth.
 - **Registry**: bundled, schema-validated model YAMLs seeded into `~/.whirld`, with
   registry-driven backend selection and a **governance gate** (license + weights-RCE
@@ -135,12 +135,18 @@ whirld embed --model clay-v1 https://earth-search.aws.element84.com/.../item.jso
 whirld rm clay-v1              # remove a cached model (rm --all clears everything)
 ```
 
-**Input** is a local GeoTIFF/COG **or a STAC item URL**. For a STAC item, Whirld
+**Input** is a local GeoTIFF/COG, **a STAC item URL or a direct remote COG URL**. For a STAC item, Whirld
 fetches the item JSON, picks only the band assets the model needs, and reads them with
 COG **range requests** (`/vsicurl/`). Pass `--bbox MIN_LON,MIN_LAT,MAX_LON,MAX_LAT`
 (EPSG:4326) to window the read, `--sensor` if it can't be inferred from the item, and
 `--stac-token` (or `WHIRLD_STAC_TOKEN`) for gated endpoints. Works on
 `embed`/`classify`/`segment`; the item path needs no extra dependency.
+
+For direct HTTP(S) `.tif`/`.tiff` inputs, always supply `--sensor` and complete
+TIFF band descriptions or explicit `--bands` names in source order. Use `--cog`
+for extensionless endpoints and `--scale 1` for already-scaled reflectance. See
+[direct COG input](docs/direct-cog.md) for metadata precedence, Python `CogOptions`,
+streaming usage and a tested public sample.
 
 Bearer credentials are scoped to the original item's HTTP origin (scheme, host,
 and port). Cross-origin item redirects lose authorization, and asset redirects
@@ -267,9 +273,9 @@ fc.feature_collection   # GeoJSON FeatureCollection of per-chip scores
 
 ---
 
-## Bounded-memory STAC embeddings
+## Bounded-memory STAC and COG embeddings
 
-Stream STAC windows through one loaded backend and write NPY rows and JSON chip
+Stream STAC or direct remote COG windows through one loaded backend and write NPY rows and JSON chip
 metadata incrementally:
 
 ```bash
@@ -318,7 +324,10 @@ src/whirld/
   io/
     raster.py         rasterio reader (path + in-memory bytes)
     stac_auth.py      StacAccessPolicy: per-read credentials + GDAL scope
-    stac_stream.py    StacWindowReader: resource lifetime + normalized chip batches
+    scene.py          Typed raster scenes and source adapter contract
+    cog.py            Direct COG metadata + eager/windowed adapters
+    input.py          Typed local/STAC/direct-COG routing
+    stac_stream.py    Shared resource lifetime + normalized chip batches
     embedding_stream.py EmbeddingStreamWriter: staged incremental NPY/JSON output
     output.py         npy + meta sidecar; GeoJSON; mask GeoTIFF writers
   server/             FastAPI app + routes (health, models, embed, classify, segment)

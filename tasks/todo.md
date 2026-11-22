@@ -1,3 +1,58 @@
+## Pass 14 — Direct remote COG input
+
+Branch: `feat/direct-cog-input`, from merged PR #24 (`d9686ae`). Re-read AGENTS.md
+and lessons; dedicated compliance/design review assigned. Written plan checked
+before implementation; execution remains in developer-selected Default mode.
+
+- [x] ~~Introduce typed scene/source resolution and reuse one resource-owning grid,
+      mask/radiometry and window engine for STAC and direct HTTP(S) GeoTIFF input.
+      Preserve existing STAC/local behavior and public reader compatibility.~~
+- [x] ~~Add direct COG metadata rules: explicit sensor required; select complete,
+      unique TIFF band descriptions or explicit source-position band names; reject
+      unnamed/ambiguous mappings. Explicit scalar/per-band scale/offset overrides
+      TIFF nonidentity transforms; absent/identity TIFF values keep canonical DN.
+      Explicit scale 1 identifies reflectance. Preserve TIFF masks/nodata/time.~~
+- [x] ~~Add public CogOptions and automatic .tif/.tiff URL routing (including signed
+      queries); allow explicit COG options for extensionless URLs. Expose --cog,
+      --bands, --scale and --offset in embed/classify/segment, and --token as an
+      alias for existing scoped credentials. Stream embeddings with existing NPY
+      output; eager APIs retain resident-result behavior. Require remote HTTP(S)
+      for COG options and reject incompatible local/STAC option combinations.~~
+- [x] ~~Verify numerical/metadata equivalence for reordered bands, physical units,
+      masks/nodata, bbox, resampling, overlap and partial edges; validate URL,
+      options and credential boundaries, including failures with signed URLs.~~
+- [x] ~~Verify controlled HTTP range/subset reads and fixed-chip/batch RSS as scene
+      size grows. Add public API/CLI integration and an opt-in real public remote
+      GeoTIFF check; demonstrate a real model run with the official HLS sample.~~
+- [x] ~~Document exact usage/metadata precedence, authentication and memory limits;
+      update TODO/development progress, run full coverage/style/typing/install
+      checks and final compliance review.~~
+
+Acceptance: direct URLs work without a user-created STAC item; semantic band/unit
+handling is explicit and numerically equivalent to the established pipeline.
+No full-file staging for remote input. Remote GeoTIFF drivers are restricted to
+GTiff; authorization is scoped on opens/lazy reads and stripped on redirects.
+URLs with query credentials must not leak into new errors, logs or filenames.
+Only north-up metric grids are supported; streaming reprojection #21 stays deferred.
+COG layout is recommended, not promised by filename; source block size and server
+Range support remain requirements/limits. Publication authorized on 2026-11-22.
+
+### Review
+
+Typed source adapters now feed shared window execution without fabricated STAC
+files or duplicate pixel algorithms. Controlled HTTP range/memory tests and real
+public HLS pixel checks pass. Direct Prithvi inference matches the prior STAC
+mask and grid exactly. Final verification: **605 passed / 9 skipped, 90.98%
+coverage across whirld + examples**. Black (153 files), Ruff, mypy (67 files),
+registry validation and diff checks pass. A fresh base-only Python 3.13.7 install
+passes dependency/lazy-import and local/STAC/direct-URL smoke checks; direct eager
+and streaming reference embeddings match exactly. Signed-query and bearer
+redaction covers actual malformed TIFF DEBUG diagnostics and lazy reads, with
+nested cleanup and thread isolation verified. Final dedicated compliance review
+found no blocking correctness or AGENTS.md issues. No dependency changes;
+reprojection #21 remains deferred. Prepared for PR review; hosted CI is tracked
+separately from local validation.
+
 ## Pass 13 — Three runnable real-world examples
 
 Branch: `docs/real-world-examples`, from merged PR #23. Re-read AGENTS.md and
@@ -654,7 +709,7 @@ large scene does not require loading the full region or all chips into RAM.
 memory stays within a documented bound determined by model size, chip/batch size,
 and bounded I/O caches rather than total scene area or chip count.
 
-**Follow-up:** direct remote `.tif` URL input; extend streaming to classification
+**Follow-up:** ~~direct remote `.tif` URL input~~ (completed in Pass 14); extend streaming to classification
 and segmentation after the embedding path is verified.
 
 - [ ] **Low priority — deferred, no near-term implementation:** optional

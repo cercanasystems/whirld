@@ -1,4 +1,4 @@
-"""Resource-owned, bounded-memory STAC embedding execution."""
+"""Resource-owned, bounded-memory STAC/COG embedding execution."""
 
 from __future__ import annotations
 
@@ -9,14 +9,15 @@ from pydantic import BaseModel, ConfigDict
 
 from ..errors import InvalidInputError
 from ..io.embedding_stream import EmbeddingMetadata, EmbeddingStreamWriter
-from ..io.stac_stream import StacWindowReader
+from ..io.input import RasterInput
+from ..io.stac_stream import RasterWindowReader, StacWindowReader
 from ..logging_setup import configure_logging, record_usage
 from ..models.base import InferenceContext, detect_device
 from ..models.loader import load_backend
 from .chips import ChipSet
 from .fetch import ModelStore
 from .inference_metadata import chip_latlons, warn_cpu
-from .options import InferenceOptions, StreamingEmbeddingOptions
+from .options import CogOptions, InferenceOptions, StreamingEmbeddingOptions
 
 
 class DiskEmbedResult(BaseModel):
@@ -57,21 +58,23 @@ class EmbeddingStream:
         options: StreamingEmbeddingOptions,
         sensor: str | None = None,
         crs: str | None = None,
+        cog: CogOptions | None = None,
         token: str | None = None,
         token_origins: tuple[str, ...] = (),
         acquisition_datetime: str | None = None,
         no_warnings: bool = False,
     ) -> DiskEmbedResult:
-        """Stream a STAC item's embeddings into a compatible NPY/JSON pair.
+        """Stream STAC or direct COG embeddings into a compatible NPY/JSON pair.
 
         Args:
-            url: HTTP(S) item URL, file URL, or local STAC JSON path.
+            url: STAC item URL/path or direct HTTP(S) COG URL.
+            cog: Explicit direct COG band/radiometry metadata, if provided.
             model: Installed embedding model identifier in this stream's store.
             output: NPY destination; a missing .npy suffix is appended.
             options: Validated chip, overlap, batch, bbox, and cache configuration.
-            sensor: Sensor override; otherwise infer it from item metadata.
+            sensor: Required for direct COGs; otherwise infer from STAC metadata.
             crs: Source CRS assignment for assets whose CRS is absent.
-            token: Bearer credential authorized for the original item origin.
+            token: Bearer credential authorized for the original source origin.
             token_origins: Additional direct asset origins authorized for token.
             acquisition_datetime: Timestamp override, tried before source metadata.
             no_warnings: Suppress the real-model CPU runtime estimate.
@@ -87,6 +90,8 @@ class EmbeddingStream:
         Failed runs clean staging files; previously published outputs survive
         inference failures. Usage records contain only non-sensitive summaries.
         """
+        source = RasterInput.resolve(url, cog)
+        source.validate_sensor(sensor)
         configure_logging()
         started = time.monotonic()
         version = ""
@@ -104,19 +109,39 @@ class EmbeddingStream:
             options = StreamingEmbeddingOptions.from_arguments(
                 **(options.model_dump() | {"chip_size": size})
             )
-            with StacWindowReader(
-                url,
-                entry=entry,
-                chip_size=size,
-                overlap=options.overlap,
-                batch_size=options.batch_size,
-                sensor=sensor,
-                crs=crs,
-                bbox=options.bbox,
-                token=token,
-                token_origins=token_origins,
-                cache_mb=options.cache_mb,
-            ) as reader:
+            reader: RasterWindowReader
+            if source.kind == "cog":
+                from ..io.cog import CogWindowReader
+
+                reader = CogWindowReader(
+                    url,
+                    entry=entry,
+                    chip_size=size,
+                    overlap=options.overlap,
+                    batch_size=options.batch_size,
+                    sensor=sensor,
+                    crs=crs,
+                    bbox=options.bbox,
+                    token=token,
+                    token_origins=token_origins,
+                    cache_mb=options.cache_mb,
+                    cog=source.cog,
+                )
+            else:
+                reader = StacWindowReader(
+                    url,
+                    entry=entry,
+                    chip_size=size,
+                    overlap=options.overlap,
+                    batch_size=options.batch_size,
+                    sensor=sensor,
+                    crs=crs,
+                    bbox=options.bbox,
+                    token=token,
+                    token_origins=token_origins,
+                    cache_mb=options.cache_mb,
+                )
+            with reader:
                 resolved_sensor, count = reader.sensor, reader.chip_count
                 warn_cpu(model, manifest, self._device, count, no_warnings)
                 backend = load_backend(entry, manifest, self._device, store=self._store)
@@ -169,7 +194,7 @@ class EmbeddingStream:
                 command="embed",
                 model=model,
                 model_version=version,
-                input_type="stac",
+                input_type=source.kind,
                 sensor_detected=resolved_sensor,
                 chip_count=count,
                 device=self._device,
