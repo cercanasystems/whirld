@@ -1,3 +1,66 @@
+## Pass 13 — Three runnable real-world examples
+
+Branch: `docs/real-world-examples`, from merged PR #23. Re-read AGENTS.md and
+lessons; dedicated compliance review assigned. Written plan checked before
+implementation; session remains in developer-selected Default mode.
+
+- [x] ~~Select pinned open imagery and verify retrieval, attribution, model input
+      contracts and small CPU defaults for all three examples.~~
+- [x] ~~Build Clay similarity search: stream real embeddings, rank a reference chip
+      by cosine similarity, export georeferenced matches and an inspectable preview.~~
+- [x] ~~Build RemoteCLIP classification: score explicit competing prompts on real
+      imagery, export GeoJSON and a preview with prompt-dependent score caveats.~~
+- [x] ~~Build Prithvi burn-scar segmentation: prepare a genuine HLS sample, infer
+      with real weights, export a georeferenced mask and imagery overlay preview.~~
+- [x] ~~Execute all examples with real weights; validate spatial/output contracts,
+      record runtime/memory/setup costs and visually inspect their previews.~~
+- [x] ~~Add focused hermetic tests, exact setup/run instructions, source attribution,
+      expected results and README links; run regression/coverage, Black/Ruff/mypy
+      and final compliance review; update development progress and this review.~~
+
+Acceptance: every example runs from documented commands against pinned public
+inputs with actual model weights; small CPU defaults, automatic preparation,
+explicit band/radiometry handling, useful viewable outputs, and recorded evidence.
+Do not equate model execution with validated prediction accuracy. Examples live
+under `examples/` as requested, with typed, documented object ownership and no
+unnecessary new dependencies. Downloads/results stay outside tracked source.
+Reprojection #21 remains deferred. Publication authorized on 2026-11-22.
+
+### Review
+
+Implemented and executed all three workflows on CPU with actual checkpoint
+weights. Shared `ExampleRuntime` verifies the bundled registry and checkpoint
+checksum, reserves a new output directory and writes model/runtime provenance.
+Pydantic schemas define options, geospatial results and reports. `Preview` owns
+RGB display conversion and self-contained SVG/HTML rendering; source pixels and
+model inputs remain separate. Download/results directories are ignored by Git.
+
+- Clay: pinned Sacramento Sentinel-2 item, 16 x 1024 finite float32 embeddings;
+  reference 0 ranks chips 5/2/4/9/8; 43.33 s and 2596.3 MiB peak process RSS.
+- RemoteCLIP: all 16 chips and four finite normalized prompt scores; 14 urban,
+  one farmland and one water winner; 10.14 s and 1589.1 MiB peak process RSS.
+- Prithvi: official pinned, checksum-verified HLS sample with explicit reflectance
+  scale 1; 512 x 512 binary mask with exact source grid/validity; 208989 predicted
+  burned pixels of 262144 valid; 8.60 s and 3101.0 MiB peak process RSS.
+
+Independent review verified saved artifacts and source units. Browser/PNG visual
+inspection verified all previews; partial-chip label clipping was fixed and tested.
+Live classification exposed an invalid top_k=0 example argument; the final example
+requests the pinned region's 16 chips and verifies none are omitted. Production
+inference code and dependency pins are unchanged. CPU timing includes imagery,
+loading, inference and previews after setup; GPU execution and prediction accuracy
+are not established. Attribution and interpretation limits are in each guide.
+
+Verification: **523 passed / 8 skipped; 90.41% combined package/example coverage**.
+Black (138 files), Ruff, mypy (62 source/example files), and diff checks pass.
+33 new hermetic tests cover example contracts. CI now includes examples in
+formatting, lint, typing and the >=80% coverage gate; actual model/data execution
+was performed separately from the ordinary suite. README and development progress
+are updated. Final compliance review found no blocking issue. Prepared for PR
+review on `docs/real-world-examples`; hosted CI is separate from this local
+verification record. Deferred issue #21 remains untouched.
+
+
 ## Pass 12 — Real-model streaming validation
 
 Branch: `test/real-model-streaming-validation`, from merged PR #22 (`b863f4b`).
@@ -47,7 +110,7 @@ mypy (58 source/script files), and diff checks pass. The real acceptance matrix 
 through the standalone runner; its gated pytest wrapper remains skipped in the
 ordinary suite. Independent compliance review checked saved arrays/sidecars and
 found no blockers. README, streaming guide and development progress are updated.
-Prepared for PR review; hosted CI is separate from this local verification.
+Merged in PR #23 (`e522f3f`); the preceding record is local verification evidence.
 Issue #21 remains deferred.
 
 ## Pass 11 conformance cleanup

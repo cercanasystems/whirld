@@ -38,3 +38,6 @@ tests/fixtures/*.tif
 .idea/
 .vscode/
 *.swp
+
+# Real-world example downloads and outputs
+example-runs/

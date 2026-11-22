@@ -6,6 +6,63 @@ remains.
 
 ---
 
+## 2026-11-22 — Pass 13: three runnable real-world examples
+
+Branch: `docs/real-world-examples`, from merged PR #23 (`e522f3f`). Re-read
+AGENTS.md and lessons, recorded the plan before implementation, and assigned a
+dedicated compliance reviewer. Execution followed the written plan in Default mode.
+
+Added [three documented examples](examples/README.md), run from a repository
+checkout with Python 3.13.7 and the pinned `.venv` dependencies:
+
+- **Clay similarity:** stream real embeddings from a pinned July 22, 2024
+  Sentinel-2 region near Sacramento; rank a reference chip by cosine similarity;
+  export WGS84 matches and an imagery preview. Query chips are excluded, invalid
+  vectors rejected, and ties ordered by chip index.
+- **RemoteCLIP classification:** score the same region against farmland/forest/
+  water/urban prompts; preserve all 16 chips and four scores in GeoJSON and a
+  colored preview. The script verifies probabilities, chip identity and geometry.
+- **Prithvi burn scar:** download the official 6.3 MB HLS demonstration sample
+  with a pinned revision/SHA-256, declare already-scaled reflectance using a local
+  STAC adapter, run the actual head, and export a binary GeoTIFF plus original and
+  prediction-overlay previews. Output grid and validity match the source exactly.
+
+Example orchestration and resource setup have explicit object owners. Pydantic
+models define options, reports and parsed geospatial contracts. Shared setup checks
+active entries against the bundled model registry, verifies checkpoint bytes, and
+records CPU/model provenance. Previews are self-contained, require no new map or
+plotting dependencies, escape text, and retain source attribution. New output
+folders protect previous results; downloaded/generated data are not committed.
+
+**Actual CPU runs:** Clay produced finite `(16,1024)` arrays and ranked chips
+5/2/4/9/8 for reference 0 (**43.33 s / 2596.3 MiB peak RSS**). RemoteCLIP returned
+16 features, four normalized scores each; winners were 14 urban, one farmland and
+one water (**10.14 s / 1589.1 MiB**). Prithvi produced a valid 512-square mask with
+208989 predicted burned pixels of 262144 valid (**8.60 s / 3101.0 MiB**). Timings
+include imagery/model loading, inference and preview creation after checkpoint
+setup; RSS is process-lifetime peak. These establish executable examples, not
+prediction accuracy or GPU performance. Guides record exact sources, licenses,
+versions, commands, expected outputs and limitations.
+
+Live execution caught a public-API mismatch: `top_k=0` is invalid even though an
+internal helper has permissive branching. The classification example now requests
+and verifies the pinned region's 16 chips, with a regression test and lesson.
+Browser inspection caught clipped edge-chip labels; previews now place labels in
+the visible footprint with wrapping/scaling. Final saved arrays, probabilities,
+geographic outputs, HLS normalization and previews were independently reviewed.
+
+**Verification:** **523 passed / 8 skipped, 90.41% coverage across whirld + examples**;
+33 new example tests, Black over 138 files, Ruff, mypy over 62 source/example files,
+and diff checks pass. The coverage denominator now includes example code; the
+package-only source coverage remains unchanged. CI includes examples in style,
+typing and the >=80% coverage gate. Real model/data runs were executed separately;
+ordinary opt-in integration tests remained skipped. No production inference or
+dependency changes; unrelated package-install/GPU checks were not repeated.
+Publication authorized on 2026-11-22; prepared for PR review with hosted CI tracked
+separately. Reprojection issue #21 remains deferred.
+
+---
+
 ## 2026-11-21 — Pass 12: real Clay streaming validation
 
 Branch: `test/real-model-streaming-validation`, from PR #22's merged main
@@ -44,7 +101,7 @@ in the ordinary suite. Independent compliance review also directly inspected the
 saved arrays and sidecars and found no blockers. New tests mirror script/API
 locations. No packaging/live unrelated model tests were repeated for this
 validation-only change. Issue #21 remains deferred. Publication authorized on
-2026-11-22; this pass is prepared for PR review with hosted CI tracked separately.
+2026-11-22; this pass was merged in PR #23 (`e522f3f`).
 
 ---
 

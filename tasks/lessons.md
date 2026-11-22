@@ -33,6 +33,14 @@ Reviewed at the start of each session.
 - Assign a dedicated compliance subagent at the start of nontrivial work, as
   required by AGENTS.md, and keep it involved as implementation and scope evolve.
 
+## Runnable examples
+
+- Derive example arguments from the complete public API validation path, not
+  permissive branches in internal helpers. For example, the public classification
+  API requires positive `top_k` even if a lower-level helper accepts zero.
+- Execute every advertised workflow with real inputs and weights before claiming
+  it works; helper unit tests alone cannot establish entry-point compatibility.
+
 ## TODO presentation
 
 - Keep completed tasks checked and strike through their full descriptions in

@@ -25,14 +25,14 @@ jobs:
           .venv/bin/python -m pip check
       - name: Formatting and lint
         run: |
-          .venv/bin/black --check src tests scripts
-          .venv/bin/ruff check src tests scripts
+          .venv/bin/black --check src tests scripts examples
+          .venv/bin/ruff check src tests scripts examples
       - name: Package typing
-        run: .venv/bin/mypy src/whirld
+        run: .venv/bin/mypy src/whirld examples
       - name: Bundled registry validation
         run: .venv/bin/python scripts/check_registry.py --validate-only src/whirld/registry_data/models/*.yaml
       - name: Regression suite and coverage
-        run: .venv/bin/python -m pytest --cov=whirld --cov-fail-under=80
+        run: .venv/bin/python -m pytest --cov=whirld --cov=examples --cov-fail-under=80
   base-install:
     runs-on: ubuntu-24.04
     steps:
