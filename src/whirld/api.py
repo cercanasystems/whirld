@@ -50,8 +50,10 @@ from .core.options import (
     SegmentationOptions,
     StreamingClassificationOptions,
     StreamingEmbeddingOptions,
+    StreamingSegmentationOptions,
 )
 from .core.registry import ModelEntry
+from .core.segmentation_stream import DiskSegmentResult, SegmentationStream
 from .errors import InvalidInputError, WhirldError
 from .io import output as output_mod
 from .io.input import RasterInput
@@ -741,6 +743,82 @@ def segment(
         compute=compute,
         no_warnings=no_warnings,
         input_type=source.kind,
+    )
+
+
+def segment_to_disk(
+    input: str | Path,
+    *,
+    model: str,
+    output: str | Path,
+    head: str | None = None,
+    threshold: float = 0.5,
+    batch_size: int = 4,
+    cache_mb: int = 32,
+    device: str | None = None,
+    sensor: str | None = None,
+    crs: str | None = None,
+    bbox: tuple[float, float, float, float] | None = None,
+    stac_token: str | None = None,
+    token_origins: tuple[str, ...] = (),
+    cog: CogOptions | None = None,
+    no_warnings: bool = False,
+) -> DiskSegmentResult:
+    """Segment bounded native tiles and publish a mask GeoTIFF incrementally.
+
+    Args:
+        input: STAC item path/URL or direct HTTP(S) GeoTIFF/COG URL.
+        model: Installed segmentation model or prithvi-eo-2 task alias.
+        output: Required single-band GeoTIFF destination.
+        head: Task head for the prithvi-eo-2 alias, or backend-specific hint.
+        threshold: Positive-class probability threshold; default matches eager.
+        batch_size: Maximum prepared native chips per call (default four).
+        cache_mb: Bounded raster cache budget in MiB (default 32).
+        device: Inference device override; None selects an available device.
+        sensor: Required for direct COG input; otherwise inferred from STAC.
+        crs: CRS assignment for sources whose identity is missing.
+        bbox: Optional EPSG:4326 read window.
+        stac_token: Bearer credential scoped to the original input origin.
+        token_origins: Additional explicitly authorized direct asset origins.
+        cog: Direct source band and radiometry overrides.
+        no_warnings: Suppress the real-model CPU runtime estimate.
+
+    Returns:
+        Output path, grid, dimensions, class/pixel counts and model identity.
+        No mask array or scene-sized chip list is retained. Invalid source pixels
+        become nodata255; padded chip edges are cropped to the target extent.
+
+    Raises:
+        InvalidInputError: Invalid options, input kind, sensor or output path.
+        WhirldError: Source/model/inference/output processing fails. Prior output
+            survives incomplete processing; successful publication is atomic.
+    """
+    source = RasterInput.resolve(input, cog)
+    source.validate_sensor(sensor)
+    if source.kind == "geotiff":
+        raise InvalidInputError(
+            "Streaming requires a STAC item or direct remote COG input."
+        )
+    if output is None:
+        raise InvalidInputError("Streaming segmentation requires an output path.")
+    options = StreamingSegmentationOptions.from_arguments(
+        threshold=threshold,
+        batch_size=batch_size,
+        cache_mb=cache_mb,
+        bbox=bbox,
+    )
+    return SegmentationStream(ModelStore(), device).run(
+        str(input),
+        model=_resolve_segment_model(model, head),
+        output=Path(output),
+        options=options,
+        head=head,
+        sensor=sensor,
+        crs=crs,
+        cog=cog,
+        token=stac_token,
+        token_origins=token_origins,
+        no_warnings=no_warnings,
     )
 
 

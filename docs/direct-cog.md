@@ -70,6 +70,8 @@ it does not reproject an unsupported grid. Reprojection remains deferred in
 
 `classify_to_disk()` / `classify --stream` also supports bounded classification
 with disk-backed GeoJSON ranking; see [classification streaming](classification-streaming.md).
+`segment_to_disk()` / `segment --stream` adds bounded mask writing in the development
+tree; see [segmentation streaming](segmentation-streaming.md).
 `embed_to_disk()` / `embed --stream` reads bounded windows and writes NPY plus
 JSON metadata incrementally. Ordinary `embed`, `classify`, and `segment` retain
 the selected region in memory. Use a bbox for small eager runs. No remote raster

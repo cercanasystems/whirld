@@ -1,0 +1,58 @@
+# Official EO 2.0 Sen1Floods11 head. Its training config uses_metadata: false;
+# optional TL coordinates are intentionally omitted, matching that training path.
+# Sentinel-2 L1C is an explicit contract, not an alias for L2A or HLS.
+name: prithvi-flood
+display_name: Prithvi EO 2.0 (flood)
+description: >
+  Prithvi EO 2.0 300M TL fine-tuned for single-image water/flood segmentation
+  on Sentinel-2 L1C imagery. Outputs 0 for no water and 1 for water/flood;
+  source-invalid pixels are written as 255 by Whirld.
+version: 2.0.0
+category: segmentation
+backend: prithvi
+trust: first-party
+tags: [segmentation, flood, water, prithvi, sentinel-2-l1c, mask]
+config_file: config.yaml
+source:
+  type: huggingface
+  repo: ibm-nasa-geospatial/Prithvi-EO-2.0-300M-TL-Sen1Floods11
+  revision: 91ce9d38086a80b078a192b374df758b8855b732
+  files:
+    - Prithvi-EO-V2-300M-TL-Sen1Floods11.pt
+    - config.yaml
+distribution:
+  sha256: 76eed77d8bd543ae441308b80e8408502243a871cb8a338ddc8220ed96dfc270
+  size_bytes: 1276843350
+band_contract:
+  sensors:
+    sentinel-2-l1c:
+      bands: [B02, B03, B04, B8A, B11, B12]
+      aliases: [blue, green, red, nir_narrow, swir1, swir2]
+      native_resolution_m: 10
+      canonical_reflectance_scale: 0.0001
+  target_resolution_m: 10
+  chip_size_px: 512
+  patch_size: 16
+  normalization:
+    type: per_band_zscore
+    scale: 0.0001
+    # Sen1Floods11NonGeoDataModule stats in reflectance units, selected in band order.
+    mean: [0.1412956, 0.13795798, 0.12353792, 0.30902815, 0.2044958, 0.11912015]
+    std: [0.07406382, 0.07370365, 0.08692279, 0.11798815, 0.09772074, 0.07659938]
+  nodata_fill: 0.0
+output:
+  type: mask
+  format: geotiff
+  classes: 2
+  dtype: uint8
+hardware:
+  min_ram_gb: 8
+  recommended_vram_gb: 8
+license: Apache-2.0
+license_url: https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-TL-Sen1Floods11
+citation: >
+  Szwarcman et al. (2024). Prithvi-EO-2.0: A Versatile Multi-Temporal Foundation
+  Model for Earth Observation Applications. https://arxiv.org/abs/2412.02732
+authors: [IBM, NASA, Forschungszentrum Juelich]
+source_url: https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-TL-Sen1Floods11
+whirld_min_version: 0.2.0

@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 
 from ... import api
+from ...errors import InvalidInputError
 from ._cog import CogArguments
 from ._stac import parse_bbox, resolve_stac_token
 
@@ -26,6 +27,17 @@ def segment_command(
     ),
     output: str | None = typer.Option(
         None, "--output", help="Output GeoTIFF path (default: <stem>_<model>.tif)."
+    ),
+    stream: bool = typer.Option(
+        False,
+        "--stream",
+        help="Segment STAC/COG windows with bounded memory; requires --output.",
+    ),
+    batch_size: int | None = typer.Option(
+        None, "--batch-size", help="Streaming chips per batch (default: 4)."
+    ),
+    cache_mb: int | None = typer.Option(
+        None, "--cache-mb", help="Streaming raster cache in MiB (default: 32)."
     ),
     threshold: float = typer.Option(
         0.5, "--threshold", help="Binary mask threshold (0.5 = argmax)."
@@ -78,6 +90,9 @@ def segment_command(
         head: Task head (required for the ``prithvi-eo-2`` alias).
         output: Output path override.
         threshold: Binary mask threshold (0.5 = argmax).
+        stream: Use native window batches and staged GeoTIFF output.
+        batch_size: Streaming batch bound; omitted defaults to four.
+        cache_mb: Streaming raster cache budget; omitted defaults to 32 MiB.
         device: Inference device override.
         sensor: Sensor override.
         crs: CRS to assign when the input declares none.
@@ -89,6 +104,35 @@ def segment_command(
         scale: COG reflectance scale, one value or a value for every source band.
         offset: COG reflectance offset, one value or a value for every source band.
     """
+    if stream:
+        if output is None:
+            raise InvalidInputError("--stream requires --output for GeoTIFF.")
+        disk = api.segment_to_disk(
+            input,
+            model=model,
+            head=head,
+            output=output,
+            threshold=threshold,
+            batch_size=4 if batch_size is None else batch_size,
+            cache_mb=32 if cache_mb is None else cache_mb,
+            device=device,
+            sensor=sensor,
+            crs=crs,
+            no_warnings=no_warnings,
+            bbox=parse_bbox(bbox),
+            stac_token=resolve_stac_token(stac_token),
+            cog=CogArguments(
+                enabled=cog, bands=bands, scale=scale, offset=offset
+            ).options(),
+        )
+        console.print(
+            f"[green]✓[/green] Streamed {disk.chip_count} chips — "
+            f"{disk.height}x{disk.width} mask ({disk.positive_pixel_count} positive px)"
+        )
+        console.print(f"  Mask: {disk.output_path.name}")
+        return
+    if batch_size is not None or cache_mb is not None:
+        raise InvalidInputError("--batch-size and --cache-mb require --stream.")
     result = api.segment(
         input,
         model=model,

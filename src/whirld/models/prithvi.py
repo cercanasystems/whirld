@@ -4,7 +4,7 @@ Prithvi's fine-tuned segmentation heads (burn-scar, flood) are TerraTorch
 ``SemanticSegmentationTask`` checkpoints. Each head is a separate checkpoint plus a
 YAML config that defines the architecture; TerraTorch rebuilds the model from the
 config and loads the weights. Whirld owns normalization (via the band contract), so
-this backend feeds **already-normalized** HLS tiles straight to the raw ``nn.Module``
+this backend feeds **already-normalized** optical tiles to the raw ``nn.Module``
 and turns the logits into a class-index mask.
 
 Requires the ``prithvi`` extra (``terratorch``). Unlike Clay, no vendoring is needed
@@ -243,10 +243,13 @@ class PrithviBackend(ModelBackend):
 
         Args:
             chips: Array ``(n_chips, 6, tile, tile)``, float32, already
-                band-contract-normalized HLS reflectance.
+                band-contract-normalized optical reflectance.
             head: Unused (the loaded checkpoint already encodes the task).
             threshold: Positive-class probability threshold; ``0.5`` ≡ argmax.
-            context: Unused.
+            context: Currently unused. The bundled flood training configuration
+                sets use_metadata=False; optional TL coordinates are intentionally
+                omitted to match that metadata-free contract. The upstream demo's
+                optional coordinate-conditioned mode is not implied by this API.
 
         Returns:
             Per-chip masks ``(n_chips, tile, tile)``, uint8 class indices.

@@ -16,7 +16,7 @@ from rasterio.windows import Window
 from rasterio.windows import transform as window_transform
 
 from ..core.chips import ChipMeta, _chip_bbox
-from ..core.contract import translate
+from ..core.contract import TranslatedRaster, translate
 from ..core.inference_metadata import AcquisitionMetadata
 from ..core.options import StreamingEmbeddingOptions
 from ..core.registry import ModelEntry
@@ -41,6 +41,7 @@ class ChipBatch(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
     pixels: np.ndarray
     chips: list[ChipMeta]
+    valid_masks: np.ndarray | None = None
 
 
 class _ChipLayout(BaseModel):
@@ -442,6 +443,21 @@ class RasterWindowReader:
         return self._grid.crs
 
     @property
+    def width(self) -> int:
+        """Return the resolved target-grid width in pixels after opening."""
+        return self._require_layout().width
+
+    @property
+    def height(self) -> int:
+        """Return the resolved target-grid height in pixels after opening."""
+        return self._require_layout().height
+
+    @property
+    def transform(self) -> rasterio.Affine:
+        """Return the resolved target-grid affine transform after opening."""
+        return self._require_layout().transform
+
+    @property
     def metadata(self) -> AcquisitionMetadata:
         """Return immutable acquisition metadata after source resolution.
 
@@ -537,11 +553,28 @@ class RasterWindowReader:
             InvalidInputError: Reading or radiometric conversion fails.
             UnsupportedSensorError: The selected model contract is incompatible.
         """
-        source = self._raw_window(window)
-        return translate(source, self._entry, self.sensor).data
+        return self._translated_window(window).data
 
-    def batches(self) -> Iterator[ChipBatch]:
+    def _translated_window(self, window: Window) -> TranslatedRaster:
+        """Translate one bounded source window, retaining pre-fill validity.
+
+        Args:
+            window: In-bounds target-grid rectangle.
+
+        Returns:
+            Model-order pixels and validity before normalized nodata fill.
+
+        Raises:
+            WhirldError: Source reading or model translation fails.
+        """
+        return translate(self._raw_window(window), self._entry, self.sensor)
+
+    def batches(self, *, include_validity: bool = False) -> Iterator[ChipBatch]:
         """Yield normalized float32 batches with global chip coordinates.
+
+        Args:
+            include_validity: Retain a per-chip all-required-band validity mask;
+                padded pixels are False. False avoids allocating this extra array.
 
         Yields:
             At most batch_size padded chips and their row-major geometry. The
@@ -569,16 +602,28 @@ class RasterWindowReader:
                 self._entry.band_contract.nodata_fill,
                 dtype=np.float32,
             )
+            valid_masks = (
+                np.zeros((count, self.chip_size, self.chip_size), dtype=bool)
+                if include_validity
+                else None
+            )
             metadata = []
             for index in range(count):
                 chip = next(chips)
                 window = layout.window(chip)
-                pixels[index, :, : int(window.height), : int(window.width)] = (
-                    self._normalized_window(window)
-                )
+                height, width = int(window.height), int(window.width)
+                if valid_masks is None:
+                    pixels[index, :, :height, :width] = self._normalized_window(window)
+                else:
+                    translated = self._translated_window(window)
+                    pixels[index, :, :height, :width] = translated.data
+                    valid_masks[index, :height, :width] = (
+                        True if translated.valid_mask is None else translated.valid_mask
+                    )
+                    del translated
                 metadata.append(chip)
-            yield ChipBatch(pixels=pixels, chips=metadata)
-            del pixels, metadata
+            yield ChipBatch(pixels=pixels, chips=metadata, valid_masks=valid_masks)
+            del pixels, metadata, valid_masks
 
 
 class StacWindowReader(RasterWindowReader):

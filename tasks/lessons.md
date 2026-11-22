@@ -80,3 +80,12 @@ verify, say "let me check" — don't assert.
 - Create and verify the feature branch before starting implementation work or
   delegating file edits. Initial read-only inspection may happen on main, but
   report the verified branch explicitly so the working context is clear.
+
+## Manual PR merges and release approval
+
+- The user merges PRs manually. Stop after preparing the reviewable PR; never
+  merge it automatically, including during release preparation.
+- Pause before creating/pushing release tags or publishing a release. Wait for
+  explicit user approval after the changes are reviewed and manually merged.
+  Discussing a version milestone or asking to implement it does not authorize
+  automatically merging its PR or publishing its release.
