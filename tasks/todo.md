@@ -29,7 +29,7 @@ or version bump from this feature work. Separately finish previously approved
       preserving input units; no full-file staging inside the streaming APIs.~~
 - [x] ~~Update usage/limits/examples and progress/TODO, run full coverage/style/type/
       registry/base-install checks and dedicated final review.~~
-- [ ] Commit/push a matching feature upstream and open a PR; stop for manual merge.
+- [x] ~~Commit/push a matching feature upstream and open a PR; stop for manual merge.~~
 
 Acceptance: local raster users need no STAC wrapper for disk streaming. For fixed
 source block layout, chip/batch/model/cache settings, working memory is independent
@@ -55,7 +55,10 @@ Fresh base-only wheel/archive clean-room smoke includes local/STAC eager/stream
 parity; formatting, lint, types and registry checks pass. Dedicated design and
 compliance review found no blocker. Final verification: **932 passed / 12 skipped,
 92.26% package/example coverage**; Black (176 files), Ruff, mypy (72 files), seven
-registry entries and diff checks pass. PR preparation is the remaining step.
+registry entries and diff checks pass. Committed/pushed to the matching upstream
+and opened [PR #30](https://github.com/cercanasystems/whirld/pull/30). Hosted CI is
+tracked separately from these local checks. Stop for the user’s manual merge; no
+feature release/version bump.
 
 ### Next separate milestone
 

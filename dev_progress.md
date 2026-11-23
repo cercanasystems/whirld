@@ -59,8 +59,10 @@ and diff checks pass. An isolated wheel built from the source archive installs
 into a fresh base-only Python 3.13.7 `.venv`; dependency checks and archive-provided
 clean-room smoke pass, including lazy import and local/STAC eager/stream output
 equivalence. Final full suite: **932 passed / 12 skipped, 92.26% package/example
-coverage**. Dedicated final compliance/design review found no blocker. PR
-preparation follows these verified changes; stop for manual merge.
+coverage**. Dedicated final compliance/design review found no blocker. Committed
+and pushed to the matching upstream and opened
+[PR #30](https://github.com/cercanasystems/whirld/pull/30). Hosted CI is tracked
+separately; stop for the user’s manual merge. No feature release or version bump.
 
 ## 2026-11-22 — Approved 0.3.0 publication
 
