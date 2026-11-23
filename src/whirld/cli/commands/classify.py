@@ -38,7 +38,7 @@ def classify_command(
     stream: bool = typer.Option(
         False,
         "--stream",
-        help="Classify STAC/COG windows with bounded memory; requires --output.",
+        help="Classify local/STAC/COG windows in batches; requires --output.",
     ),
     batch_size: int | None = typer.Option(
         None, "--batch-size", help="Streaming chips per batch (default: 8)."
@@ -98,7 +98,7 @@ def classify_command(
         model: Model identifier.
         query: One or more free-text queries (the first is primary).
         top_k: Number of top matches to keep (default five).
-        stream: Use bounded STAC/COG window processing and staged disk output.
+        stream: Use bounded local/STAC/COG windows and staged disk output.
         batch_size: Streaming batch bound; omitted defaults to eight.
         cache_mb: Streaming raster cache budget; omitted defaults to 32 MiB.
         all_results: Stream every threshold-passing chip, sorted on disk.
@@ -108,7 +108,8 @@ def classify_command(
         sensor: Sensor override.
         crs: CRS to assign when the input declares none.
         no_warnings: Suppress the CPU full-precision runtime warning.
-        bbox: STAC/COG read window (EPSG:4326); ignored for local files.
+        bbox: STAC/COG EPSG:4326 window; rejected by local streaming and
+            ignored for eager local reads.
         stac_token: Bearer token scoped to the STAC/COG origin.
         cog: Force direct COG routing for extensionless HTTP(S) URLs.
         bands: Source-position COG band names, overriding TIFF descriptions.

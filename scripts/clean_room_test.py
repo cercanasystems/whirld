@@ -10,7 +10,7 @@ new user hits in their first five minutes:
 3. ``whirld embed <geotiff>`` produces embeddings from a local raster.
 4. ``whirld embed <stac item.json>`` produces embeddings from a STAC item via the
    ``/vsicurl/`` reader (here against ``file://`` assets, so it is hermetic).
-5. Stream the same STAC item into compatible output using bounded batches.
+5. Stream local GeoTIFF and STAC inputs into compatible output in bounded batches.
 6. Optionally, if ``WHIRLD_TEST_STAC_URL`` is set, the same against a *real* remote
    STAC item — proving live HTTP range reads on a clean Linux install.
 
@@ -191,6 +191,26 @@ def main() -> int:
         _assert_embeddings(emb_stac, "STAC item")
 
         import numpy as np
+
+        emb_local_stream = work / "local_stream_embeddings.npy"
+        _step("stream local GeoTIFF without a STAC wrapper")
+        _run_cli(
+            [
+                "embed",
+                tif.as_uri(),
+                "--model",
+                "clay-v1",
+                "--stream",
+                "--batch-size",
+                "1",
+                "--output",
+                str(emb_local_stream),
+            ]
+        )
+        _assert_embeddings(emb_local_stream, "streamed local GeoTIFF")
+        np.testing.assert_allclose(
+            np.load(emb_local_stream), np.load(emb_tif), rtol=1e-5, atol=1e-6
+        )
 
         emb_stream = work / "stream_embeddings.npy"
         _step("stream STAC item in bounded batches")

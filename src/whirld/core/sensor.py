@@ -21,7 +21,7 @@ import re
 from collections.abc import Mapping
 
 from ..errors import UnsupportedSensorError
-from ..io.raster import RasterSource
+from ..io.raster import RasterMetadata
 from ..logging_setup import get_logger
 from .registry import ModelEntry, SensorContract
 
@@ -54,7 +54,7 @@ def _search_tokens(sensor_key: str) -> set[str]:
 
 
 def detect_sensor(
-    raster: RasterSource,
+    raster: RasterMetadata,
     entry: ModelEntry,
     override: str | None = None,
 ) -> str:
@@ -113,7 +113,7 @@ def detect_sensor(
 
 
 def _detect_from_tags(
-    raster: RasterSource, candidates: Mapping[str, SensorContract]
+    raster: RasterMetadata, candidates: Mapping[str, SensorContract]
 ) -> str | None:
     """Match a sensor by scanning IMAGEDESCRIPTION/SOFTWARE TIFF tags."""
     haystack = " ".join(
@@ -129,7 +129,7 @@ def _detect_from_tags(
 
 
 def _detect_from_band_descriptions(
-    raster: RasterSource, candidates: Mapping[str, SensorContract]
+    raster: RasterMetadata, candidates: Mapping[str, SensorContract]
 ) -> str | None:
     """Match a sensor when the raster's band descriptions equal its native bands.
 
@@ -148,7 +148,7 @@ def _detect_from_band_descriptions(
 
 
 def _detect_from_resolution(
-    raster: RasterSource, candidates: Mapping[str, SensorContract]
+    raster: RasterMetadata, candidates: Mapping[str, SensorContract]
 ) -> str | None:
     """Match a sensor by native ground resolution within a small tolerance.
 

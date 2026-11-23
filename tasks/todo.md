@@ -1,3 +1,70 @@
+## Pass 17 — Local GeoTIFF/COG streaming
+
+Branch: `feat/local-raster-streaming`, from main `58b9727` after manually merged
+PR #29. Re-read AGENTS.md and lessons and verified branch before edits. Dedicated
+compliance review assigned. Focus this PR on local streaming; a labeled evaluation
+suite is a subsequent separate milestone. User manually merges PRs; no new release
+or version bump from this feature work. Separately finish previously approved
+0.3.0 publication from its exact merged commit, excluding feature changes.
+
+- [x] ~~Add a typed metadata-only local source and resource-owning local window
+      reader sharing the existing raster grid/window/mask pipeline. Reuse sensor
+      detection and local band selection without fake pixels/STAC or full reads.~~
+- [x] ~~Preserve eager local named/positional selection, tags/datetime, canonical-DN
+      convention (TIFF scale/offset ignored), all-band nodata/masks, 0.5% native-grid
+      tolerance and ceil resampling extents. Reject local bbox for the initial
+      streaming surface; eager local bbox remains ignored. Retain metric/north-up
+      constraints and GTiff-only opens, regular filesystem paths and safe local
+      file-URI handling; no virtual/remote GDAL path escape through local input.~~
+- [x] ~~Route local paths/file TIFF URLs through all three disk APIs and CLI stream
+      modes while preserving STAC/remote behavior and their option validation.
+      Reject unsupported local COG metadata options and bbox explicitly; validate
+      before model/source I/O. Use existing staged output resource owners.~~
+- [x] ~~Prove eager/local-stream equivalence for embeddings, scores/ranks/GeoJSON,
+      masks/grid/validity, sensor auto/override, band names/positional ambiguities,
+      resampling/native tolerance, nodata/internal masks, missing CRS and edge
+      chips. Verify failures/interrupts and that only bounded windows are read.~~
+- [x] ~~Measure process RSS on increasing local scenes with fixed buffers across all
+      paradigms. Run actual installed-model local workflows using pinned imagery,
+      preserving input units; no full-file staging inside the streaming APIs.~~
+- [x] ~~Update usage/limits/examples and progress/TODO, run full coverage/style/type/
+      registry/base-install checks and dedicated final review.~~
+- [ ] Commit/push a matching feature upstream and open a PR; stop for manual merge.
+
+Acceptance: local raster users need no STAC wrapper for disk streaming. For fixed
+source block layout, chip/batch/model/cache settings, working memory is independent
+of scene area/output count. Existing output contracts and eager behavior remain
+compatible, and metadata decisions match the local pipeline. Untiled strips can
+require large decoder buffers; recommend tiled TIFFs for tighter bounds.
+No new dependencies, reprojection#21, local crop semantics, evaluation framework,
+REST changes, model families or release/version changes in this feature PR.
+
+### Review
+
+Plan recorded before implementation. Local metadata semantics deliberately remain
+separate from direct COG/STAC rules; header-only typed metadata feeds common
+resource-owned windows and existing output writers. Reprojection stays deferred.
+
+Local I/O tests (78), public/CLI/RSS integration tests (43) and URI routing prove
+eager equivalence, safe inputs and bounded windows. Every paradigm passes fresh
+512/2048/4096-square fixed-buffer RSS checks. Actual pinned Clay v1.5 embeddings
+and flood masks match exactly at batches 1/2; RemoteCLIP ranking/geometry match
+with maximum score error 4.18e-6. Canonical-DN conversion of the public Sentinel-2
+subset is explicit. All new guide setup/CLI/Python snippets execute unchanged.
+Fresh base-only wheel/archive clean-room smoke includes local/STAC eager/stream
+parity; formatting, lint, types and registry checks pass. Dedicated design and
+compliance review found no blocker. Final verification: **932 passed / 12 skipped,
+92.26% package/example coverage**; Black (176 files), Ruff, mypy (72 files), seven
+registry entries and diff checks pass. PR preparation is the remaining step.
+
+### Next separate milestone
+
+- [ ] Build a small labeled evaluation suite after this PR is reviewed/merged:
+      pin open imagery and labels, keep spatial train/test separation, define
+      task-appropriate metrics and record reproducible model/input provenance.
+      Establish a baseline before selecting more model families. Keep execution
+      equivalence checks distinct from predictive-quality evaluation.
+
 ## Release 0.3.0 preparation and example revalidation
 
 Branch: `release/0.3.0`, from main `afdbb6a` after manually merged PR #28.
@@ -44,6 +111,12 @@ HTTP streaming workflows. Rebuilt payload includes the policy correction and
 preserves inference behavior. Final compliance review is clear. Prepared [PR #29](https://github.com/cercanasystems/whirld/pull/29) on the matching
 upstream branch. Hosted CI is tracked separately; no automatic merge, tag or
 publication.
+
+Subsequent publication: user manually merged PR #29 and separately authorized
+publication. [v0.3.0](https://github.com/cercanasystems/whirld/releases/tag/v0.3.0)
+is published from exact merged `58b9727`, excluding local streaming. Main CI,
+tag identity and downloaded wheel/source checksums passed. The development log
+records final hashes. No automatic merge or PyPI publication.
 
 ## Pass 16 — Flood support, segmentation streaming and model variants
 
@@ -104,8 +177,9 @@ contracts and existing trust/integrity rules. Streaming memory depends on model,
 chip/batch/band/cache buffers rather than scene/output pixels. No full-scene
 arrays, mask assembly or metadata lists. Source grid/crop semantics and final
 mask bytes match eager within predeclared model tolerances. Keep reprojection #21,
-segmentation overlap blending, REST/local raster streaming and new model families
-deferred. No version/tag/release changes without explicit later approval.
+segmentation overlap blending, REST streaming, ~~local raster streaming~~
+(completed in Pass 17) and new model families deferred. No version/tag/release
+changes without explicit later approval.
 
 ### Review
 

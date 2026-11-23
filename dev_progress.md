@@ -6,6 +6,79 @@ remains.
 
 ---
 
+## 2026-11-22 — Pass 17: local GeoTIFF streaming
+
+Branch: `feat/local-raster-streaming`, from manually merged PR #29/main
+`58b9727`. Re-read AGENTS.md and lessons, verified the branch before edits,
+recorded the plan and assigned independent I/O, integration and compliance work.
+This pass implements local streaming; the labeled evaluation suite is a separate
+next milestone. No version bump or feature release is included. The user merges
+PRs manually and separately approves publication.
+
+Local GeoTIFF/COG paths and safe absolute TIFF file URLs now work with all three
+disk APIs and CLI `--stream` modes, without a STAC wrapper. `LocalSceneSource`
+inspects typed headers only and reuses the existing sensor/band algorithms.
+`LocalWindowReader` owns bounded windows, sidecar-aware GDAL environments and
+lazy band views, sharing the existing inference coordinators and staged writers.
+Protected reader policies preserve remote/STAC behavior while allowing local
+grid tolerance, finite-sample filtering and eager downsampling kernels.
+
+Local inputs retain eager native names/positional fallback, canonical DN values
+(TIFF scale/offset ignored), nodata/internal/external masks, PAM metadata,
+datetime, both pixel dimensions, 0.5% native-grid tolerance and ceil extents.
+Tiny native VRT descriptors remove NaN/infinities before interpolation without
+Python pixel callbacks or full-scene arrays. GTiff-only regular-file opens,
+absolute path binding and URI validation prevent accidental virtual/remote
+dispatch. Local streaming rejects bbox and remote-only COG overrides explicitly.
+North-up projected meters remain required; reprojection #21 stays deferred.
+
+Added 78 focused local I/O checks and 43 API/CLI/RSS integration checks, plus URI
+routing coverage. They compare eager pixels, metadata, geometry, ranking, masks,
+anisotropic/up/downsampling and edge chips; exercise cleanup, failures and
+interrupts; and enforce window/batch bounds. Independent combined probes include
+Float64 overflow, infinities, NaN, numeric nodata and external masks. Fresh workers
+process 512/2048/4096-square tiled local scenes in every paradigm at fixed buffers,
+passing 64 MiB warmup / 32 MiB final RSS-growth limits. Source decoder blocks still
+matter: large untiled strips can require large buffers, so the guide recommends
+tiled TIFFs for tighter bounds.
+
+Nine actual-checkpoint eager/stream calls ran in fresh CPU/two-thread workers on
+Python 3.13.7. Official projected flood imagery matches exactly at stream batches
+1/2: 233029 valid and 109762 positive pixels, with identical invalid pixels and
+grid. A pinned public Sentinel-2 subset was explicitly converted from declared
+scale/offset to canonical DN for a local TIFF. Clay v1.5 produces bitwise identical
+(4,1024) float32 embeddings and matching chip metadata. RemoteCLIP preserves all
+six ranked features and geometry; maximum score error is 4.18e-6, within the
+predeclared rtol=1e-4/atol=1e-5. Curated weight hashes were independently checked.
+The [local guide](docs/local-streaming.md) records source, conversion and metrics.
+Its setup, three CLI commands and three Python calls all ran unchanged; outputs
+agree across interfaces, including the deliberately resampled synthetic HLS case.
+
+Black (176 files), Ruff, mypy (72 source/example files), seven registry entries
+and diff checks pass. An isolated wheel built from the source archive installs
+into a fresh base-only Python 3.13.7 `.venv`; dependency checks and archive-provided
+clean-room smoke pass, including lazy import and local/STAC eager/stream output
+equivalence. Final full suite: **932 passed / 12 skipped, 92.26% package/example
+coverage**. Dedicated final compliance/design review found no blocker. PR
+preparation follows these verified changes; stop for manual merge.
+
+## 2026-11-22 — Approved 0.3.0 publication
+
+After the user confirmed manual PR #29 merge and main pull, completed their
+earlier explicit publication approval from exact merged commit
+`58b972701a2f9155fd3cc0bc523d693e84aa74fd`. Main CI passed, the merged source matches
+the verified release candidates, and all packaged Python/resource files were
+compared before publication. Local streaming feature changes are excluded.
+
+Published [v0.3.0](https://github.com/cercanasystems/whirld/releases/tag/v0.3.0)
+with the wheel, source distribution and SHA256SUMS; downloaded the published assets
+and verified checksums and the annotated tag's peeled commit. Wheel SHA-256:
+`a1e380626f3a66c58b0fa8eac95eeecfa86215765fe89ac6fd84f5b65410aaf2`;
+source SHA-256:
+`c082ca2a53929b4ae0e6b2e39265784ab01d1410353b6862f8651860f29d6ac9`.
+README/release notes now distinguish the published release from unreleased local
+streaming. No PyPI publication or automatic PR merge.
+
 ## 2026-11-22 — Release 0.3.0 preparation and example revalidation
 
 Branch: `release/0.3.0`, from manually merged PR #28/main `afdbb6a`.

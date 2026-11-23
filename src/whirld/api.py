@@ -6,7 +6,7 @@ into the single-call operations the CLI, the Python API, and the REST server sha
 
 The in-memory pipeline serves :func:`embed` (one-shot CLI/library use) and
 :func:`embed_raster` (a warm ModelSession for server use). :func:`embed_to_disk`
-uses an owned streaming coordinator with bounded STAC/COG windows and incremental
+uses an owned streaming coordinator with bounded raster windows and incremental
 outputs. Both paths share band translation, chip geometry, model interfaces,
 acquisition metadata rules, and usage-record conventions.
 
@@ -289,10 +289,10 @@ def embed_to_disk(
     datetime: str | None = None,
     no_warnings: bool = False,
 ) -> DiskEmbedResult:
-    """Stream STAC or direct COG embeddings to disk with bounded working memory.
+    """Stream local, STAC or direct COG embeddings to disk in bounded batches.
 
     Args:
-        input: STAC item URL/path or direct HTTP(S) COG URL.
+        input: Local GeoTIFF path/file URL, STAC item or direct HTTP(S) COG URL.
         model: Installed embedding model identifier.
         output: NPY destination; defaults to the existing input-based filename.
         fmt: Must be ``npy``; metadata is streamed to the usual JSON sidecar.
@@ -301,9 +301,9 @@ def embed_to_disk(
         batch_size: Maximum chips read and inferred together (default eight).
         cache_mb: GDAL block cache budget in MiB; other I/O caches are bounded.
         device: Inference device override, or automatic selection.
-        sensor: Required for direct COGs; otherwise inferred from the item.
+        sensor: Required for direct COGs; otherwise inferred from source metadata.
         crs: CRS to assign to an asset when absent.
-        bbox: Optional longitude/latitude bounds in EPSG:4326.
+        bbox: Optional EPSG:4326 read window for STAC/remote COGs; rejected locally.
         stac_token: Bearer token scoped to the input's origin.
         cog: Optional COG band/scale/offset metadata; also selects extensionless
             HTTP(S) TIFF URLs. Direct COG input requires sensor.
@@ -329,10 +329,7 @@ def embed_to_disk(
         bbox=bbox,
         fmt=fmt,
     )
-    if source.kind == "geotiff":
-        raise InvalidInputError(
-            "Streaming requires a STAC item or direct remote COG input."
-        )
+    source.validate_streaming(bbox)
     target = Path(output) if output is not None else _default_output_path(input)
     return EmbeddingStream(ModelStore(), device).run(
         str(input),
@@ -518,7 +515,7 @@ def classify_to_disk(
     """Classify bounded raster windows and publish globally ranked GeoJSON on disk.
 
     Args:
-        input: STAC item path/URL or direct HTTP(S) COG URL.
+        input: Local GeoTIFF path/file URL, STAC item or direct HTTP(S) COG URL.
         model: Installed classification model identifier, for example remoteclip.
         query: One or more text queries; the first identifies the primary score.
         output: Required GeoJSON destination, preserved if processing fails.
@@ -527,9 +524,9 @@ def classify_to_disk(
         batch_size: Maximum prepared chips per model call; defaults to eight.
         cache_mb: Bounded raster cache budget in MiB; defaults to 32.
         device: Inference device override; None selects an available device.
-        sensor: Required for direct COGs; otherwise inferred from the STAC item.
+        sensor: Required for direct COGs; otherwise inferred from source metadata.
         crs: CRS assignment for sources whose CRS is missing.
-        bbox: Optional EPSG:4326 longitude/latitude read window.
+        bbox: Optional EPSG:4326 read window for STAC/remote COGs; rejected locally.
         stac_token: Bearer token scoped to the original input origin.
         token_origins: Additional direct asset origins explicitly authorized.
         cog: Optional direct COG band and radiometry overrides.
@@ -546,10 +543,7 @@ def classify_to_disk(
     """
     source = RasterInput.resolve(input, cog)
     source.validate_sensor(sensor)
-    if source.kind == "geotiff":
-        raise InvalidInputError(
-            "Streaming requires a STAC item or direct remote COG input."
-        )
+    source.validate_streaming(bbox)
     if output is None:
         raise InvalidInputError("Streaming classification requires an output path.")
     options = StreamingClassificationOptions.from_arguments(
@@ -767,7 +761,7 @@ def segment_to_disk(
     """Segment bounded native tiles and publish a mask GeoTIFF incrementally.
 
     Args:
-        input: STAC item path/URL or direct HTTP(S) GeoTIFF/COG URL.
+        input: Local GeoTIFF path/file URL, STAC item or direct HTTP(S) COG URL.
         model: Installed segmentation model or prithvi-eo-2 task alias.
         output: Required single-band GeoTIFF destination.
         head: Task head for the prithvi-eo-2 alias, or backend-specific hint.
@@ -775,9 +769,9 @@ def segment_to_disk(
         batch_size: Maximum prepared native chips per call (default four).
         cache_mb: Bounded raster cache budget in MiB (default 32).
         device: Inference device override; None selects an available device.
-        sensor: Required for direct COG input; otherwise inferred from STAC.
+        sensor: Required for direct COGs; otherwise inferred from source metadata.
         crs: CRS assignment for sources whose identity is missing.
-        bbox: Optional EPSG:4326 read window.
+        bbox: Optional EPSG:4326 read window for STAC/remote COGs; rejected locally.
         stac_token: Bearer credential scoped to the original input origin.
         token_origins: Additional explicitly authorized direct asset origins.
         cog: Direct source band and radiometry overrides.
@@ -795,10 +789,7 @@ def segment_to_disk(
     """
     source = RasterInput.resolve(input, cog)
     source.validate_sensor(sensor)
-    if source.kind == "geotiff":
-        raise InvalidInputError(
-            "Streaming requires a STAC item or direct remote COG input."
-        )
+    source.validate_streaming(bbox)
     if output is None:
         raise InvalidInputError("Streaming segmentation requires an output path.")
     options = StreamingSegmentationOptions.from_arguments(
@@ -1171,7 +1162,7 @@ def _output_basis(input_path: str | Path) -> Path:
         name = re.sub(r"[^A-Za-z0-9._-]", "_", name).lstrip(".")
         return Path(name or "scene")
     if parsed.scheme == "file":
-        if parsed.netloc not in {"", "localhost"}:
+        if parsed.netloc.lower() not in {"", "localhost"}:
             raise InvalidInputError("file URLs must refer to the local host.")
         return Path(unquote(parsed.path))
     return Path(input_path)

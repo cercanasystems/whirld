@@ -73,7 +73,7 @@ class ClassificationStream:
         """Bind a source-specific window reader without opening source resources.
 
         Args:
-            source: Validated STAC/direct-COG location and metadata overrides.
+            source: Validated local/STAC/COG identity and metadata overrides.
             entry: Classification contract defining native chip size.
             options: Validated memory and source-window limits.
             sensor: Explicit selection, required for direct rasters.
@@ -84,6 +84,19 @@ class ClassificationStream:
         Returns:
             Unopened reader configured with native-size non-overlapping chips.
         """
+        if source.kind == "geotiff":
+            from ..io.local import LocalWindowReader
+
+            return LocalWindowReader(
+                source.location,
+                entry=entry,
+                chip_size=entry.band_contract.chip_size_px,
+                batch_size=options.batch_size,
+                cache_mb=options.cache_mb,
+                sensor=sensor,
+                crs=crs,
+                bbox=options.bbox,
+            )
         if source.kind == "cog":
             return CogWindowReader(
                 source.location,
@@ -129,7 +142,7 @@ class ClassificationStream:
         """Score native-size source windows and publish globally ranked GeoJSON.
 
         Args:
-            url: STAC item URL/path or direct HTTP(S) GeoTIFF URL.
+            url: Local GeoTIFF, STAC item or direct HTTP(S) GeoTIFF URL.
             model: Installed classification model identifier.
             queries: Ordered prompts; first drives threshold and ranking.
             output: Destination GeoJSON, replaced only after successful completion.
@@ -155,10 +168,7 @@ class ClassificationStream:
         """
         source = RasterInput.resolve(url, cog)
         source.validate_sensor(sensor)
-        if source.kind == "geotiff":
-            raise InvalidInputError(
-                "Streaming classification requires STAC or direct remote COG input."
-            )
+        source.validate_streaming(options.bbox)
         queries = ClassificationQueries.from_arguments(queries=queries).queries
         configure_logging()
         started = time.monotonic()

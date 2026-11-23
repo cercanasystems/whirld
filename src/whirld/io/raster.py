@@ -9,11 +9,14 @@ and ground resolution.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
 import numpy as np
 import rasterio
+from pydantic import BaseModel, ConfigDict, Field
 from rasterio.errors import RasterioError
 
 from ..errors import InvalidInputError
@@ -21,6 +24,61 @@ from ..logging_setup import get_logger
 from .radiometry import BandRadiometry
 
 _log = get_logger("io.raster")
+
+
+class RasterMetadata(Protocol):
+    """Read-only spectral metadata shared by resident rasters and header adapters."""
+
+    @property
+    def band_descriptions(self) -> Sequence[str | None]:
+        """Source-order names; None identifies an unlabeled stored band."""
+        ...
+
+    @property
+    def tags(self) -> Mapping[str, str]:
+        """Dataset metadata used for sensor and acquisition identity."""
+        ...
+
+    @property
+    def band_count(self) -> int:
+        """Number of stored source bands."""
+        ...
+
+    @property
+    def resolution_m(self) -> tuple[float, float]:
+        """Validated north-up metric pixel dimensions."""
+        ...
+
+
+class RasterHeader(BaseModel):
+    """Typed local dataset metadata without resident or placeholder pixel arrays.
+
+    Width/height and source-order descriptions come from the GTiff header only.
+    Invalid dimensions raise Pydantic ValidationError. Metric-grid validation is
+    deferred to resolution_m so explicit sensor overrides retain eager precedence.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True, extra="forbid")
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    crs: str
+    transform: rasterio.Affine
+    band_descriptions: tuple[str | None, ...] = Field(min_length=1)
+    tags: dict[str, str] = Field(default_factory=dict)
+
+    @property
+    def band_count(self) -> int:
+        """Return stored band count without allocating any pixel storage."""
+        return len(self.band_descriptions)
+
+    @property
+    def resolution_m(self) -> tuple[float, float]:
+        """Validate and return north-up projected-meter pixel sizes.
+
+        Raises:
+            InvalidInputError: CRS or affine does not satisfy the metric contract.
+        """
+        return validate_metric_grid(self.crs, self.transform)
 
 
 @dataclass

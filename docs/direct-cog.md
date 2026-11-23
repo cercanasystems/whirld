@@ -41,6 +41,9 @@ are allowed. Explicit names replace TIFF descriptions. Duplicate names or two
 source bands matching the same native/alias identity are rejected. The same
 `cog` argument and CLI options work with `embed`, `classify`, and `segment`.
 COG options apply only to direct remote rasters, not local files or STAC JSON.
+Unreleased [local GeoTIFF streaming](local-streaming.md) uses eager local
+canonical-DN and native band-selection rules; it ignores TIFF scale/offset tags
+and rejects remote-only COG options and bbox requests.
 
 ## Units, masks and geometry
 
@@ -70,7 +73,7 @@ it does not reproject an unsupported grid. Reprojection remains deferred in
 
 `classify_to_disk()` / `classify --stream` also supports bounded classification
 with disk-backed GeoJSON ranking; see [classification streaming](classification-streaming.md).
-`segment_to_disk()` / `segment --stream` adds bounded mask writing in the 0.3.0 candidate; see [segmentation streaming](segmentation-streaming.md).
+`segment_to_disk()` / `segment --stream` adds bounded mask writing in 0.3.0; see [segmentation streaming](segmentation-streaming.md).
 `embed_to_disk()` / `embed --stream` reads bounded windows and writes NPY plus
 JSON metadata incrementally. Ordinary `embed`, `classify`, and `segment` retain
 the selected region in memory. Use a bbox for small eager runs. No remote raster

@@ -235,15 +235,15 @@ def test_unsupported_model_rejected_before_source_or_backend(
 
 
 @pytest.mark.parametrize("location", ["scene.tif", "/tmp/local.tiff"])
-def test_local_input_rejected_before_store_io(location: str, tmp_path: Path) -> None:
-    """A local raster cannot accidentally use STAC parsing as a streaming source."""
-    with pytest.raises(InvalidInputError, match="STAC or direct remote COG"):
+def test_local_bbox_rejected_before_store_io(location: str, tmp_path: Path) -> None:
+    """Unsupported local crops fail before model installation or raster reads."""
+    with pytest.raises(InvalidInputError, match="bbox"):
         ClassificationStream(cast(ModelStore, None), "cpu").run(
             location,
             model="remoteclip",
             queries=["forest"],
             output=tmp_path / "unused.geojson",
-            options=StreamingClassificationOptions(),
+            options=StreamingClassificationOptions(bbox=(-1.0, 50.0, 0.0, 51.0)),
         )
 
 

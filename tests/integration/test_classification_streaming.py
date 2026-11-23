@@ -318,22 +318,27 @@ def test_fractional_bbox_and_explicit_radiometry_match_eager(
 
 
 @pytest.mark.parametrize(
-    "location,sensor,query",
+    "location,sensor,query,bbox",
     [
-        ("local.tif", None, "water"),
-        ("https://example.invalid/scene.tif", None, "water"),
-        ("https://example.invalid/scene.tif", "sentinel-2-l2a", " "),
+        ("local.tif", None, "water", (-1.0, 50.0, 0.0, 51.0)),
+        ("https://example.invalid/scene.tif", None, "water", None),
+        ("https://example.invalid/scene.tif", "sentinel-2-l2a", " ", None),
     ],
 )
 def test_input_and_query_domains_fail_before_io(
-    location: str, sensor: str | None, query: str, tmp_path: Path
+    location: str,
+    sensor: str | None,
+    query: str,
+    bbox: tuple[float, float, float, float] | None,
+    tmp_path: Path,
 ) -> None:
-    """New public entry point rejects unsupported input or missing semantic identity."""
+    """Reject local crops, missing remote sensor identity and empty queries early."""
     with pytest.raises(InvalidInputError):
         whirld.classify_to_disk(
             location,
             model="remoteclip",
             query=query,
             sensor=sensor,
+            bbox=bbox,
             output=tmp_path / "never.geojson",
         )

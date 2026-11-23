@@ -1,12 +1,33 @@
 # Releases
 
-Whirld 0.3.0 is a release candidate awaiting manual merge and explicit publication
-approval. No 0.3.0 GitHub release or tag has been created. The latest published
-release remains [0.2.0](https://github.com/cercanasystems/whirld/releases/tag/v0.2.0).
-The package version comes from `src/whirld/_version.py`; setuptools resolves it
-without importing the inference stack.
+[Whirld 0.3.0](https://github.com/cercanasystems/whirld/releases/tag/v0.3.0)
+is published from merged commit `58b9727`. The wheel, source distribution and
+`SHA256SUMS` were downloaded and verified after publication. PyPI publication is
+separate. The package version comes from `src/whirld/_version.py`; setuptools
+resolves it without importing the inference stack.
 
-## Build, install and verify the candidate
+The current source checkout adds [local raster streaming](local-streaming.md)
+under **Unreleased**. This feature is not part of the 0.3.0 release assets, and its
+implementation does not bump the package version. Future release preparation
+still requires manual PR merge and separate approval to publish.
+
+## Install the published release
+
+Download all three assets from the linked release into one directory, then verify
+before installing with Python 3.13.7:
+
+```bash
+shasum -a 256 -c SHA256SUMS  # Linux: sha256sum -c SHA256SUMS
+python3.13 -m venv .venv
+.venv/bin/python -m pip install ./whirld-0.3.0-py3-none-any.whl
+.venv/bin/python -m pip check
+.venv/bin/whirld --help
+```
+
+Use the source archive instead of the wheel if preferred. Model weights download
+separately; model/server extras can be selected on the wheel path as shown below.
+
+## Build and verify release artifacts
 
 Use Python 3.13.7 in a `.venv`. From the reviewed source checkout, build the
 source distribution, then build the wheel from that archive using an isolated
@@ -17,8 +38,8 @@ uv build --sdist --out-dir dist
 uv build dist/whirld-0.3.0.tar.gz --wheel --out-dir dist
 ```
 
-These are local verification artifacts until publication is approved. To install
-in a fresh virtual environment:
+Future builds remain local verification artifacts until publication is approved.
+To install a locally built wheel in a fresh virtual environment:
 
 ```bash
 python3.13 -m venv .venv
@@ -65,7 +86,7 @@ license attribution and runnable workflows. PyPI publication is separate.
    the user's manual merge.** Never merge the PR automatically.
 6. After the user has merged and separately approved publication, verify the
    merged tree matches candidate build inputs and create final artifacts and a
-   SHA-256 checksum file. Only then create/push annotated `v0.3.0` and publish the
+   SHA-256 checksum file. Only then create/push the new annotated `vX.Y.Z` tag and publish the
    GitHub release with wheel, source archive and `SHA256SUMS`.
 7. Download published assets, check their checksums and tag identity, and record
    the release URL/hashes. Do not replace published versioned assets; use a patch

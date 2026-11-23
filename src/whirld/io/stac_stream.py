@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import ExitStack
+from contextlib import AbstractContextManager, ExitStack
 from types import TracebackType
 from typing import Any, Protocol
 
@@ -156,6 +156,35 @@ class _BandWindowReader:
         self._vrt: _WarpedRaster | None = None
         self._index = 1
 
+    def _band_source(
+        self, source: rasterio.DatasetReader
+    ) -> AbstractContextManager[tuple[Any, int]]:
+        """Select the band's lazy source; subclasses may adapt stored samples.
+
+        Args:
+            source: Open source dataset guarded by the owned access policy.
+
+        Returns:
+            A context owning the selected source and its one-based data index.
+        """
+        return _band_source(source, self._band)
+
+    def _warp_options(self, source: rasterio.DatasetReader) -> dict[str, float]:
+        """Fix sampling scales so independent windows share the same kernel.
+
+        Args:
+            source: Open source header used to compare source and target grids.
+
+        Returns:
+            Stable physical sampling scales for remote STAC and COG assets.
+
+        Raises:
+            InvalidInputError: Source geometry requires general reprojection.
+        """
+        return StacWarpPolicy(source, self._grid, self._crs_override).options(
+            require_stable=True
+        )
+
     def __enter__(self) -> _BandWindowReader:
         """Open source and warped datasets under the asset's credential policy.
 
@@ -186,13 +215,9 @@ class _BandWindowReader:
                             "Raster asset has no CRS; supply a CRS override."
                         )
                     options["src_crs"] = self._crs_override
-                options.update(
-                    StacWarpPolicy(source, self._grid, self._crs_override).options(
-                        require_stable=True
-                    )
-                )
+                options.update(self._warp_options(source))
                 selected, self._index = self._resources.enter_context(
-                    _band_source(source, self._band)
+                    self._band_source(source)
                 )
                 self._vrt = self._resources.enter_context(
                     WarpedVRT(
@@ -267,6 +292,8 @@ class RasterWindowReader:
             with a 1 MiB warp minimum per band. VRT source handles, model/batch
             buffers, and source decoder blocks add bounded working memory.
         source: Optional typed resolver; defaults to StacSceneSource for compatibility.
+        access: Optional source-specific owned GDAL policy; remote defaults retain
+            scoped authentication and disabled remote sidecar discovery.
 
     Use one consumer inside a with block. The reader owns its GDAL environments
     and datasets, and closes them on normal completion and failures. No full-scene
@@ -289,6 +316,7 @@ class RasterWindowReader:
         token_origins: tuple[str, ...] = (),
         cache_mb: int = 32,
         source: RasterSceneSource | None = None,
+        access: StacAccessPolicy | None = None,
     ) -> None:
         """Validate limits and bind the contract/policy without reading pixels."""
         self._options = StreamingEmbeddingOptions.from_arguments(
@@ -304,7 +332,7 @@ class RasterWindowReader:
         self._entry = entry
         self._sensor_override = sensor
         self._crs_override = crs
-        self._access = StacAccessPolicy(self._url, token, token_origins)
+        self._access = access or StacAccessPolicy(self._url, token, token_origins)
         self._resources: ExitStack | None = None
         self._grid: _Grid | None = None
         self._layout: _ChipLayout | None = None
@@ -312,6 +340,40 @@ class RasterWindowReader:
         self._metadata = AcquisitionMetadata()
         self._selected: list[RasterBand] = []
         self._readers: list[_BandWindowReader] = []
+
+    def _target_grid(self, source: rasterio.DatasetReader, crs: str) -> _Grid:
+        """Resolve the source adapter's common destination geometry.
+
+        Args:
+            source: Open reference dataset, whose pixels remain unread here.
+            crs: Resolved source CRS, including a missing-CRS assignment.
+
+        Returns:
+            The standard exact-resolution STAC/COG grid. Source-specific readers
+            may override this policy without changing owned window processing.
+
+        Raises:
+            InvalidInputError: Source grid or requested bounds are unsupported.
+        """
+        return _output_grid(source, crs, self.resolution_m, self._options.bbox)
+
+    def _band_reader(self, band: RasterBand, grid: _Grid) -> _BandWindowReader:
+        """Construct one owned band reader with the shared per-band memory budget.
+
+        Args:
+            band: Selected source location, index, and per-band radiometry.
+            grid: Shared destination geometry used across independent windows.
+
+        Returns:
+            An unopened source/warp resource owner under this scene's policy.
+        """
+        return _BandWindowReader(
+            band,
+            grid,
+            self._access,
+            max(1, self._options.cache_mb // len(self._selected)),
+            self._crs_override,
+        )
 
     def __enter__(self) -> RasterWindowReader:
         """Resolve item geometry and open credential-scoped warped band readers.
@@ -374,9 +436,7 @@ class RasterWindowReader:
                         raise InvalidInputError(
                             "Raster asset has no CRS; supply a CRS override."
                         )
-                    grid = _output_grid(
-                        source, crs, self.resolution_m, self._options.bbox
-                    )
+                    grid = self._target_grid(source, crs)
             self._grid = grid
             assert self._options.chip_size is not None
             self._layout = _ChipLayout(
@@ -387,15 +447,7 @@ class RasterWindowReader:
                 overlap=self._options.overlap,
             )
             self._readers = [
-                resources.enter_context(
-                    _BandWindowReader(
-                        band,
-                        grid,
-                        self._access,
-                        max(1, self._options.cache_mb // len(self._selected)),
-                        self._crs_override,
-                    )
-                )
+                resources.enter_context(self._band_reader(band, grid))
                 for band in self._selected
             ]
         except BaseException as exc:
