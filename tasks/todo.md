@@ -35,8 +35,8 @@ REST, inference-policy, version or release changes. The user manually merges PRs
 - [x] ~~Maintain README, evaluation guide, TODO and dev_progress; run coverage >=80%,
       Black/Ruff/mypy, registry and fresh base-install/package checks. Complete
       independent scientific/compliance review.~~
-- [ ] Commit/push the feature branch and prepare a reviewable PR; stop for manual
-      merge. No release/tag/version action.
+- [x] ~~Commit/push the feature branch and prepare a reviewable PR; stop for manual
+      merge. No release/tag/version action.~~
 
 Acceptance: a user can reproduce an explicitly licensed, hash-pinned small quality
 baseline with existing weights and no full-dataset download. Split membership,
@@ -72,7 +72,10 @@ Fresh base-only Python 3.13.7 source-built wheel installation, 25-package depend
 checks and archive clean-room smoke pass. All packaged Python bytes match the
 current tree; exact manifest and baseline documentation ship in the expected
 artifacts. Missing optional runtimes fail clearly before network access. Final
-scientific/compliance review found no blocker. PR preparation remains.
+scientific/compliance review found no blocker. Committed/pushed to the matching
+upstream and opened [PR #31](https://github.com/cercanasystems/whirld/pull/31).
+Hosted CI is tracked separately; stop for the user's manual merge. No release or
+version action.
 
 ## Pass 17 — Local GeoTIFF/COG streaming
 

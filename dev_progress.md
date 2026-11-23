@@ -70,8 +70,10 @@ clean-room workflows pass. Packaged Python files match the current source and
 installed files byte-for-byte. The exact four-case manifest ships in wheel/source;
 the source archive includes the script, guides and baseline JSON. Base-only
 evaluation exits with an actionable extra-install message, zero network calls and
-no residual output/cache. No new dependencies or version changes. PR preparation
-follows; the user merges manually and release publication remains separate.
+no residual output/cache. No new dependencies or version changes. Committed/pushed
+to the matching upstream and opened
+[PR #31](https://github.com/cercanasystems/whirld/pull/31). Hosted CI is tracked
+separately; the user merges manually and release publication remains separate.
 
 ## 2026-11-22 — Pass 17: local GeoTIFF streaming
 
