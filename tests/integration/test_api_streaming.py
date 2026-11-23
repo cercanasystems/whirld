@@ -73,10 +73,10 @@ def test_streaming_options_fail_before_io(options: dict[str, object]) -> None:
         )
 
 
-def test_streaming_rejects_local_tiff() -> None:
-    """Pass 11's explicit STAC-only scope fails without loading model or raster."""
-    with pytest.raises(InvalidInputError, match="STAC item"):
-        whirld.embed_to_disk("scene.tif", model="clay-v1")
+def test_streaming_rejects_local_bbox() -> None:
+    """Unsupported local crops fail without loading a model or raster."""
+    with pytest.raises(InvalidInputError, match="bbox"):
+        whirld.embed_to_disk("scene.tif", model="clay-v1", bbox=(-1.0, 50.0, 0.0, 51.0))
 
 
 def test_streaming_rejects_nonembedding_model(

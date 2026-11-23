@@ -67,10 +67,10 @@ class SegmentationStream:
         """Construct an unopened native-chip reader with explicit source policies.
 
         Args:
-            source: Validated STAC/direct raster location and COG metadata.
+            source: Validated local/STAC/COG identity and COG metadata.
             entry: Segmentation model's spectral and spatial contract.
             options: Typed memory, threshold and bbox settings.
-            sensor: Explicit sensor selection or STAC inference request.
+            sensor: Explicit selection or local/STAC inference request.
             crs: Missing-CRS assignment without reprojection.
             token: Origin-scoped bearer credential.
             token_origins: Additional authorized direct asset origins.
@@ -78,6 +78,19 @@ class SegmentationStream:
         Returns:
             Resource-owning reader using zero overlap and native chip size.
         """
+        if source.kind == "geotiff":
+            from ..io.local import LocalWindowReader
+
+            return LocalWindowReader(
+                source.location,
+                entry=entry,
+                chip_size=entry.band_contract.chip_size_px,
+                batch_size=options.batch_size,
+                cache_mb=options.cache_mb,
+                sensor=sensor,
+                crs=crs,
+                bbox=options.bbox,
+            )
         if source.kind == "cog":
             return CogWindowReader(
                 source.location,
@@ -123,7 +136,7 @@ class SegmentationStream:
         """Infer native non-overlapping tiles and atomically publish a mask.
 
         Args:
-            url: STAC item path/URL or direct HTTP(S) GeoTIFF URL.
+            url: Local GeoTIFF, STAC item or direct HTTP(S) GeoTIFF URL.
             model: Resolved installed segmentation model identity.
             output: Required final GeoTIFF destination.
             options: Validated batch/cache, bbox and threshold settings.
@@ -145,10 +158,7 @@ class SegmentationStream:
         """
         source = RasterInput.resolve(url, cog)
         source.validate_sensor(sensor)
-        if source.kind == "geotiff":
-            raise InvalidInputError(
-                "Streaming segmentation requires STAC or direct remote COG input."
-            )
+        source.validate_streaming(options.bbox)
         configure_logging()
         started = time.monotonic()
         version = ""

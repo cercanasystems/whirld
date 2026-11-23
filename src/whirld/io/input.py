@@ -54,6 +54,19 @@ class RasterInput(BaseModel):
                     "COG options require a direct HTTP(S) GeoTIFF, not local/STAC JSON"
                 )
             direct = True
+        if parsed.scheme == "file" and suffix.endswith((".tif", ".tiff")):
+            if (
+                parsed.netloc.lower() not in {"", "localhost"}
+                or parsed.query
+                or parsed.fragment
+                or not parsed.path.startswith("/")
+                or "\x00" in unquote(parsed.path)
+            ):
+                raise InvalidInputError(
+                    "Local TIFF file URLs require an absolute path, empty/localhost "
+                    "authority and no query or fragment"
+                )
+            return cls(location=unquote(parsed.path), kind="geotiff")
         if direct:
             http_origin(location)
             if parsed.fragment:
@@ -67,6 +80,25 @@ class RasterInput(BaseModel):
         """Reject omitted sensor identity for direct COGs before model/source I/O."""
         if self.kind == "cog" and not sensor:
             raise InvalidInputError("Direct COG input requires an explicit sensor")
+
+    def validate_streaming(
+        self, bbox: tuple[float, float, float, float] | None = None
+    ) -> None:
+        """Reject local streaming options that have no eager-local equivalent.
+
+        Args:
+            bbox: Optional read crop. Local eager input ignores this argument;
+                initial local streaming rejects it to avoid silent differences.
+
+        Raises:
+            InvalidInputError: A local raster is combined with a bbox. Crop it
+                beforehand or use a STAC item when geographic windowing is needed.
+        """
+        if self.kind == "geotiff" and bbox is not None:
+            raise InvalidInputError(
+                "Local raster streaming does not accept bbox; crop the input "
+                "first or reference it from a STAC item."
+            )
 
     def read(
         self,

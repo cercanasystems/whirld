@@ -1,4 +1,4 @@
-"""Resource-owned, bounded-memory STAC/COG embedding execution."""
+"""Resource-owned, bounded-memory raster embedding execution."""
 
 from __future__ import annotations
 
@@ -64,15 +64,15 @@ class EmbeddingStream:
         acquisition_datetime: str | None = None,
         no_warnings: bool = False,
     ) -> DiskEmbedResult:
-        """Stream STAC or direct COG embeddings into a compatible NPY/JSON pair.
+        """Stream local, STAC or direct COG embeddings into a compatible NPY/JSON pair.
 
         Args:
-            url: STAC item URL/path or direct HTTP(S) COG URL.
+            url: Local GeoTIFF, STAC item or direct HTTP(S) COG URL.
             cog: Explicit direct COG band/radiometry metadata, if provided.
             model: Installed embedding model identifier in this stream's store.
             output: NPY destination; a missing .npy suffix is appended.
             options: Validated chip, overlap, batch, bbox, and cache configuration.
-            sensor: Required for direct COGs; otherwise infer from STAC metadata.
+            sensor: Required for direct COGs; otherwise infer from source metadata.
             crs: Source CRS assignment for assets whose CRS is absent.
             token: Bearer credential authorized for the original source origin.
             token_origins: Additional direct asset origins authorized for token.
@@ -92,6 +92,7 @@ class EmbeddingStream:
         """
         source = RasterInput.resolve(url, cog)
         source.validate_sensor(sensor)
+        source.validate_streaming(options.bbox)
         configure_logging()
         started = time.monotonic()
         version = ""
@@ -110,7 +111,21 @@ class EmbeddingStream:
                 **(options.model_dump() | {"chip_size": size})
             )
             reader: RasterWindowReader
-            if source.kind == "cog":
+            if source.kind == "geotiff":
+                from ..io.local import LocalWindowReader
+
+                reader = LocalWindowReader(
+                    source.location,
+                    entry=entry,
+                    chip_size=size,
+                    overlap=options.overlap,
+                    batch_size=options.batch_size,
+                    cache_mb=options.cache_mb,
+                    sensor=sensor,
+                    crs=crs,
+                    bbox=options.bbox,
+                )
+            elif source.kind == "cog":
                 from ..io.cog import CogWindowReader
 
                 reader = CogWindowReader(

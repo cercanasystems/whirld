@@ -1,11 +1,11 @@
-# Bounded-memory STAC and COG embeddings
+# Bounded-memory raster embeddings
 
 Run commands from the repository root after installing Whirld and pulling the
 embedding model (for example, `whirld pull clay-v1`).
 
 ## CLI and Python usage
 
-Use `--stream` to read STAC asset or direct remote COG windows, infer bounded chip batches, and write
+Use `--stream` to read raster windows, infer bounded chip batches, and write
 NPY rows plus JSON chip metadata incrementally:
 
 ```bash
@@ -29,7 +29,10 @@ embeddings = numpy.load(result.output_path, mmap_mode="r")
 
 ## Supported inputs and numerical behavior
 
-`embed_to_disk()` accepts local STAC JSON paths, file URLs, and HTTP(S) item URLs.
+`embed_to_disk()` accepts local GeoTIFFs (unreleased), local STAC JSON paths,
+file URLs, and HTTP(S) item URLs. See [local streaming](local-streaming.md) for
+runnable commands and the local canonical-DN, band selection and bbox contract;
+local support requires the current source checkout, beyond published 0.3.0.
 Direct HTTP(S) TIFF URLs are also supported with an explicit sensor and complete
 band identity; see [direct COG input](direct-cog.md) for `CogOptions` and CLI flags.
 It preserves band order, radiometry, masks/nodata, overlap, padded edge footprints,
@@ -37,7 +40,7 @@ row-major chip indices, acquisition time, and per-chip location metadata. It loa
 one backend for the run. Ordinary `embed()` continues to return in-memory arrays.
 Streaming currently supports embedding models and NPY output with the existing
 `*_meta.json` schema. Inline JSON and REST streaming remain deferred.
-[Segmentation streaming](segmentation-streaming.md) is included in the 0.3.0 candidate
+[Segmentation streaming](segmentation-streaming.md) is included in 0.3.0
 as a separate disk GeoTIFF API/CLI workflow. [Classification streaming](classification-streaming.md)
 is available through its separate disk GeoJSON API and CLI mode.
 
@@ -46,8 +49,8 @@ grids; different pixel resolutions are supported. Reproject differently projecte
 or rotated secondary assets before streaming. The ordinary reader retains its
 existing reprojection support for those secondary assets.
 
-For aligned assets, both paths set bilinear sampling scale from the actual pixel
-sizes. This avoids GDAL's chunk-dependent scale estimates and can correct previous
+For aligned STAC/remote COG assets, eager and streaming paths set bilinear
+sampling scale from the actual pixel sizes. This avoids GDAL's chunk-dependent scale estimates and can correct previous
 results for fractionally aligned bbox windows. See GDAL's
 [warp sampling options](https://gdal.org/en/stable/doxygen/structGDALWarpOptions.html).
 

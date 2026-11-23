@@ -363,7 +363,7 @@ def test_nonsegmentation_model_rejected_before_installation(
 @pytest.mark.parametrize(
     "source,sensor", [("local.tif", None), ("https://example.invalid/image.tif", None)]
 )
-def test_unsupported_local_or_missing_direct_sensor_fails_before_installation(
+def test_local_bbox_or_missing_direct_sensor_fails_before_installation(
     whirld_home: Path,
     tmp_path: Path,
     source: str,
@@ -377,7 +377,9 @@ def test_unsupported_local_or_missing_direct_sensor_fails_before_installation(
             model="prithvi-burn-scar",
             sensor=sensor,
             output=tmp_path / "mask.tif",
-            options=StreamingSegmentationOptions(),
+            options=StreamingSegmentationOptions(
+                bbox=(-1.0, 50.0, 0.0, 51.0) if source == "local.tif" else None
+            ),
         )
     assert store.manifest_calls == [] and not (tmp_path / "mask.tif").exists()
 

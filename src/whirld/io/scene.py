@@ -24,7 +24,7 @@ class RasterScene(BaseModel):
     bands: tuple[RasterBand, ...] = Field(min_length=1)
     band_names: tuple[str, ...] = Field(min_length=1)
     metadata: AcquisitionMetadata = Field(default_factory=AcquisitionMetadata)
-    kind: Literal["stac", "cog"]
+    kind: Literal["stac", "cog", "geotiff"]
 
     def as_raster(self, pixels: np.ndarray, grid: _Grid) -> RasterSource:
         """Adapt a stored-value window to the existing normalization boundary.
@@ -54,7 +54,7 @@ class RasterSceneSource(Protocol):
     """Resolve source metadata without materializing scene pixels."""
 
     @property
-    def kind(self) -> Literal["stac", "cog"]:
+    def kind(self) -> Literal["stac", "cog", "geotiff"]:
         """Identify the source for diagnostic messages and usage metadata."""
         ...
 

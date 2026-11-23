@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.3.0 — pending release
+## Unreleased
+
+- Add local GeoTIFF streaming to all three disk APIs and CLI `--stream` modes,
+  preserving eager local sensor/band, canonical-DN, mask and grid behavior.
+- Support local TIFF file URLs, sidecar masks/PAM metadata and bounded pre-warp
+  nonfinite filtering; reject local bbox and remote-only COG options.
+- Reuse existing staged writers and output formats without a version bump or
+  REST behavior change. See [local streaming](docs/local-streaming.md).
+
+## 0.3.0 — 2026-11-22
 
 - Add Prithvi EO 2.0 flood segmentation with an explicit Sentinel-2 L1C
   contract, pinned official checkpoint/config and documented metadata/padding
@@ -15,7 +24,7 @@
   spurious empty-filename warnings during remote example/raster reads while
   preserving credential isolation and caller configuration restoration.
 
-Candidate verification: **800 passed / 12 skipped, 91.95% package/example
+Release verification: **800 passed / 12 skipped, 91.95% package/example
 coverage**, plus three opt-in actual-model checks. All three default real-world
 examples, the alternate Clay reference and the classification-streaming snippet
 execute with actual pinned weights/public imagery and independently validated
@@ -24,8 +33,9 @@ contracts hold. Independent fresh source/wheel base-only installs pass existing
 and new HTTP streaming workflows. Recorded details are in the example guides and
 development log. Public IO/cache conditions affect timings.
 
-Release preparation is pending manual merge and separate publication approval.
-No 0.3.0 tag or release exists yet. The new model/input policies and streaming
+[Published 0.3.0](https://github.com/cercanasystems/whirld/releases/tag/v0.3.0)
+was built from merged commit `58b9727`; release assets and SHA-256 checksums were
+verified after publication. The new model/input policies and streaming
 limits are documented in the linked guides; existing eager APIs remain compatible.
 Python support remains >=3.13.7, verified with 3.13.7; no new dependencies.
 

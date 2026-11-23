@@ -22,14 +22,17 @@ and produces georeferenced results plus a self-contained browser preview.
 
 ---
 
-## Status: 0.3.0 release candidate
+## Status: 0.3.0 published
 
-The 0.3.0 candidate includes Prithvi flood support, bounded-memory segmentation,
-and RemoteCLIP RN50/ViT-L/14 variants. The implementation is merged; release
-preparation awaits manual PR review and separate publication approval. No 0.3.0
-release assets are published yet. See [flood support](docs/flood-model.md),
+[Whirld 0.3.0](https://github.com/cercanasystems/whirld/releases/tag/v0.3.0)
+includes Prithvi flood support, bounded-memory segmentation, and RemoteCLIP
+RN50/ViT-L/14 variants. Published wheel/source assets and checksums are verified.
+See [flood support](docs/flood-model.md),
 [segmentation streaming](docs/segmentation-streaming.md), and
 [model variants](docs/model-variants.md).
+
+The current checkout additionally supports [local GeoTIFF streaming](docs/local-streaming.md)
+for all three workflows. This is unreleased and is not part of the 0.3.0 artifacts.
 
 This repository implements the Whirld MVP (see
 [`whirld-prd-mvp.md`](whirld-prd-mvp.md)): **three model paradigms** (embed / classify /
@@ -118,26 +121,25 @@ quantized variants.
 
 ---
 
-## Install the 0.3.0 candidate
+## Install 0.3.0
 
-Use a checkout of the release preparation branch with Python 3.13.7. Until the
-release is approved and published, install the candidate from source:
+Download the wheel, source archive and `SHA256SUMS` from the
+[0.3.0 release](https://github.com/cercanasystems/whirld/releases/tag/v0.3.0).
+Verify checksums before installing; see the [release guide](docs/releases.md).
+With Python 3.13.7 and the downloaded wheel in the current directory:
 
 ```bash
 python3.13 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt .
+.venv/bin/python -m pip install ./whirld-0.3.0-py3-none-any.whl
 .venv/bin/whirld --help
 .venv/bin/whirld pull clay-v1
 ```
 
-For real models or the server, install the needed extra from the checkout, for
-example `.venv/bin/python -m pip install '.[hf]'`. Other extras are `remoteclip`,
-`prithvi` and `serve`; model weights download separately. The examples use the
-fully pinned development environment described below.
-
-The latest published release remains [0.2.0](https://github.com/cercanasystems/whirld/releases/tag/v0.2.0).
-See [release notes](CHANGELOG.md) and the [release guide](docs/releases.md) for
-candidate wheel/source installation and publication steps. PyPI publication is separate.
+Install optional model/server runtimes from the wheel, for example
+`.venv/bin/python -m pip install './whirld-0.3.0-py3-none-any.whl[remoteclip]'`.
+Other extras are `hf`, `prithvi` and `serve`; model weights download separately.
+The examples use the pinned development environment below. PyPI publication is
+separate. See [release notes](CHANGELOG.md) for compatibility and verification.
 
 ## Install (development)
 
@@ -192,7 +194,7 @@ Inputs must use a north-up projected grid in meters. Reproject geographic,
 feet-based, rotated, or south-up rasters before inference. Both pixel dimensions
 are respected when resampling. Named inputs must include every required band
 unambiguously; positional band order applies only to entirely unlabeled rasters
-with exactly the required band count. Local files and uploads preserve nodata and
+with at least the required band count. Local files and uploads preserve nodata and
 internal masks through resampling and normalization. Uploads accept GeoTIFF only.
 
 Acquisition timestamps accept ISO-8601 (including STAC) and TIFF date tags;
@@ -308,7 +310,7 @@ fc.feature_collection   # GeoJSON FeatureCollection of per-chip scores
 
 ## Bounded-memory classification
 
-Classify STAC or direct remote COG windows without retaining scene-sized scores
+Classify local GeoTIFF, STAC or direct remote COG windows without retaining scene-sized scores
 or features. Output preserves eager scoring, WGS84 footprints and global ranking:
 
 ```bash
@@ -321,10 +323,12 @@ disk summary. Defaults retain the best five matches; `--all` / `top_k=None` reta
 all threshold-passing chips. Completed features are sorted on disk, then written
 incrementally. See [classification streaming](docs/classification-streaming.md)
 for memory/disk budgets, exact options and publication guarantees.
+Local raster support is [unreleased](docs/local-streaming.md); the guide includes
+runnable embedding, classification and segmentation commands.
 
-## Bounded-memory STAC and COG embeddings
+## Bounded-memory raster embeddings
 
-Stream STAC or direct remote COG windows through one loaded backend and write NPY rows and JSON chip
+Stream local GeoTIFF, STAC or direct remote COG windows through one loaded backend and write NPY rows and JSON chip
 metadata incrementally:
 
 ```bash
@@ -375,6 +379,7 @@ src/whirld/
     stac_auth.py      StacAccessPolicy: per-read credentials + GDAL scope
     scene.py          Typed raster scenes and source adapter contract
     cog.py            Direct COG metadata + eager/windowed adapters
+    local.py          Local GeoTIFF headers + bounded windows (unreleased)
     input.py          Typed local/STAC/direct-COG routing
     stac_stream.py    Shared resource lifetime + normalized chip batches
     embedding_stream.py EmbeddingStreamWriter: staged incremental NPY/JSON output

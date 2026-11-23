@@ -75,3 +75,45 @@ def test_local_path_object_retains_existing_dispatch(tmp_path: Path) -> None:
     source = RasterInput.resolve(tmp_path / "scene.tif")
     assert source.kind == "geotiff"
     source.validate_sensor(None)
+
+
+@pytest.mark.parametrize("authority", ["", "localhost", "LOCALHOST"])
+def test_local_file_uri_decodes_only_the_path(tmp_path: Path, authority: str) -> None:
+    """File URLs round-trip literal spaces, percent signs, hashes and questions."""
+    path = tmp_path / "scene %20#?.TIFF"
+    uri = path.as_uri().replace("file://", f"file://{authority}", 1)
+    source = RasterInput.resolve(uri)
+    assert source.kind == "geotiff"
+    assert source.location == str(path)
+    assert RasterInput.resolve(path).location == str(path)
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "file://remote/tmp/image.tif",
+        "file://user:secret@localhost/tmp/image.tif",
+        "file://localhost:80/tmp/image.tif",
+        "file:relative.tif",
+        "file:///tmp/image.tif?secret=private",
+        "file:///tmp/image.tif#private",
+        "file:///tmp/image%00.tif",
+    ],
+)
+def test_invalid_local_file_uris_fail_without_echoing_the_uri(uri: str) -> None:
+    """Reject ambiguous file identities before any model or filesystem access."""
+    with pytest.raises(InvalidInputError) as error:
+        RasterInput.resolve(uri)
+    assert uri not in str(error.value)
+    assert "secret" not in str(error.value)
+
+
+def test_local_bbox_is_rejected_while_remote_windows_remain_supported() -> None:
+    """Only local raster streaming rejects the geographic crop option."""
+    bbox = (-1.0, 50.0, 0.0, 51.0)
+    local = RasterInput.resolve("scene.tif")
+    local.validate_streaming()
+    with pytest.raises(InvalidInputError, match="bbox"):
+        local.validate_streaming(bbox)
+    RasterInput.resolve("item.json").validate_streaming(bbox)
+    RasterInput.resolve("https://example.org/scene.tif").validate_streaming(bbox)

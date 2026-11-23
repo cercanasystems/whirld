@@ -1,9 +1,10 @@
 # Bounded-memory segmentation
 
-The 0.3.0 release candidate adds `segment_to_disk()` and `segment --stream` for
+Whirld 0.3.0 adds `segment_to_disk()` and `segment --stream` for
 installed segmentation models, including Prithvi burn-scar and flood. Use the
-reviewed source checkout while publication is pending. Install the `prithvi`
-extra and pull the selected model first.
+published release or the current source checkout. Install the `prithvi` extra
+and pull the selected model first. The checkout additionally supports
+[local GeoTIFF streaming](local-streaming.md), which is unreleased.
 
 ```bash
 whirld segment item.json --model prithvi-flood --sensor sentinel-2-l1c \
@@ -68,8 +69,10 @@ not a promised transaction.
 Streaming accepts STAC JSON paths/file URLs/HTTP(S) URLs and direct HTTP(S)
 GeoTIFFs. Direct input requires an explicit sensor and unambiguous band identity;
 all [COG options](direct-cog.md), bbox and origin-scoped authentication rules apply.
-Local rasters can be referenced by a local STAC item. Direct local raster and REST
-streaming remain deferred. Inputs must be north-up projected grids in meters;
+The current source checkout also accepts direct local TIFF paths/file URLs with
+the [local streaming contract](local-streaming.md): eager local sensor/band/DN
+semantics and no bbox or COG overrides. This enhancement is unreleased. REST
+streaming remains deferred. Inputs must be north-up projected grids in meters;
 STAC assets must share a CRS. Reprojection #21 remains deferred.
 
 Flood requires the explicit Sentinel-2 L1C input contract; burn-scar uses HLS.

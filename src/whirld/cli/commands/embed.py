@@ -61,7 +61,7 @@ def embed_command(
     stream: bool = typer.Option(
         False,
         "--stream",
-        help="Stream STAC/COG embeddings to NPY (bounded memory; default batch: 8).",
+        help="Stream local/STAC/COG embeddings to NPY (default batch: 8).",
     ),
     cog: bool = typer.Option(
         False, "--cog", help="Treat an extensionless HTTP(S) URL as a direct GeoTIFF."
@@ -95,13 +95,14 @@ def embed_command(
         batch_size: Inference batch size override.
         datetime: Acquisition datetime (ISO-8601) for metadata-aware models.
         no_warnings: Suppress the CPU full-precision runtime warning.
-        bbox: STAC/COG read window (EPSG:4326); ignored for local files.
+        bbox: STAC/COG EPSG:4326 window; rejected by local streaming and
+            ignored for eager local reads.
         stac_token: Bearer token scoped to the STAC/COG origin.
         cog: Force direct COG routing for extensionless HTTP(S) URLs.
         bands: Source-position COG band names, overriding TIFF descriptions.
         scale: COG reflectance scale, one value or a value for every source band.
         offset: COG reflectance offset, one value or a value for every source band.
-        stream: Bound STAC read/inference batches and write results incrementally.
+        stream: Bound local/STAC/COG batches and write results incrementally.
     """
     if stream:
         disk_result = api.embed_to_disk(

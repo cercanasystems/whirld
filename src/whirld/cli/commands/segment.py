@@ -31,7 +31,7 @@ def segment_command(
     stream: bool = typer.Option(
         False,
         "--stream",
-        help="Segment STAC/COG windows with bounded memory; requires --output.",
+        help="Segment local/STAC/COG windows in batches; requires --output.",
     ),
     batch_size: int | None = typer.Option(
         None, "--batch-size", help="Streaming chips per batch (default: 4)."
@@ -97,7 +97,8 @@ def segment_command(
         sensor: Sensor override.
         crs: CRS to assign when the input declares none.
         no_warnings: Suppress the CPU full-precision runtime warning.
-        bbox: STAC/COG read window (EPSG:4326); ignored for local files.
+        bbox: STAC/COG EPSG:4326 window; rejected by local streaming and
+            ignored for eager local reads.
         stac_token: Bearer token scoped to the STAC/COG origin.
         cog: Force direct COG routing for extensionless HTTP(S) URLs.
         bands: Source-position COG band names, overriding TIFF descriptions.

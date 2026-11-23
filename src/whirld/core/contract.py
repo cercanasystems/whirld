@@ -25,7 +25,7 @@ from rasterio.enums import Resampling
 from rasterio.warp import reproject
 
 from ..errors import InvalidInputError, UnsupportedSensorError
-from ..io.raster import RasterSource, validate_metric_grid
+from ..io.raster import RasterMetadata, RasterSource, validate_metric_grid
 from ..logging_setup import get_logger
 from .registry import ModelEntry
 
@@ -159,7 +159,7 @@ def translate(
     )
 
 
-def _select_band_indices(raster: RasterSource, native_bands: list[str]) -> list[int]:
+def _select_band_indices(raster: RasterMetadata, native_bands: list[str]) -> list[int]:
     """Reorder/select raster bands to match the sensor's declared band order.
 
     Bands are matched by description string when available (selection by name,
