@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "id": "hls-burn-scars-mini",
+  "dataset_url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars",
+  "dataset_revision": "0376987623e465f458ae6042e7051dcdccf771c8",
+  "license": "CC-BY-4.0",
+  "attribution": "HLS Burn Scars, Phillips, Christopher; Roy, Sujit; Ankur, Kumar; Ramachandran, Rahul (2023), DOI 10.57967/hf/0956. CC BY 4.0. HLS v1.4 imagery with MTBS-derived labels. Source rasters are unchanged; evaluation adds metadata and model predictions.",
+  "selection_policy": "Four cases fixed before model predictions, chosen for individually downloadable source bytes and geographic group separation: validation in MGRS T10TFM/T11SPD and test in T13REQ/T14SPF. Case identifiers retain the official model split membership. All selected MGRS groups are absent from the complete official model training list; test groups are also absent from its validation list. Validation/test groups and WGS84 footprints are disjoint. No threshold fitting or selection by predictive performance.",
+  "exposure_note": "The checkpoint was fine-tuned on HLS Burn Scars. Its official validation split was used for checkpoint selection, so validation scores are descriptive. The test cases/groups are absent from the pinned fine-tuning training and validation lists, but published benchmark reuse and foundation-model pretraining exposure remain possible. This four-case baseline is not an independent dataset or a generalization estimate.",
+  "model": "prithvi-burn-scar",
+  "model_revision": "a3f2c410e45b8ac7417976614528a872f024d831",
+  "model_sha256": "0c5f9334be9a75c9006387ab8f3dc05a55ea7fb5ef7956717316be57c62954d3",
+  "sensor": "hls",
+  "band_names": [
+    "B02",
+    "B03",
+    "B04",
+    "B8A",
+    "B11",
+    "B12"
+  ],
+  "input_units": "reflectance",
+  "split_pins": [
+    {
+      "split": "train",
+      "asset": {
+        "url": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars/resolve/a3f2c410e45b8ac7417976614528a872f024d831/splits/train.txt",
+        "sha256": "f1dca5c488c7a7451f3aa82f20677c18b3b22a2d96b59d68215494e3dba6f393",
+        "size_bytes": 9432
+      }
+    },
+    {
+      "split": "validation",
+      "asset": {
+        "url": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars/resolve/a3f2c410e45b8ac7417976614528a872f024d831/splits/val.txt",
+        "sha256": "50a98be7974a2fec73af62b5f54063d938bcfe93cd9802b90eb33eb78f4d7f3e",
+        "size_bytes": 2880
+      }
+    },
+    {
+      "split": "test",
+      "asset": {
+        "url": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars/resolve/a3f2c410e45b8ac7417976614528a872f024d831/splits/test.txt",
+        "sha256": "c61ddcb5a434da3f5e63edd7c87549af104c6cc69345876a8ed770844bab1788",
+        "size_bytes": 2160
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "T10TFM.2018110.v1",
+      "split": "validation",
+      "spatial_group": "T10TFM",
+      "source_name": "T10TFM.2018110.v1",
+      "image": {
+        "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T10TFM.2018110.v1.4_merged.tif",
+        "sha256": "ffbc22352d92a93c4da645eaf9bbbe644bf43671ec0d5385aecb37d5317c4109",
+        "size_bytes": 12586630
+      },
+      "label": {
+        "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T10TFM.2018110.v1.4.mask.tif",
+        "sha256": "6c2b42063936b0c6d23d89b507a86bcfa0b6ca62de1ed9afce694ac513200be8",
+        "size_bytes": 525272
+      },
+      "bounds": {
+        "west": -121.6055169269046,
+        "south": 41.85307993240281,
+        "east": -121.41711813285298,
+        "north": 41.99377843857281
+      }
+    },
+    {
+      "id": "T11SPD.2020184.v1",
+      "split": "validation",
+      "spatial_group": "T11SPD",
+      "source_name": "T11SPD.2020184.v1",
+      "image": {
+        "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T11SPD.2020184.v1.4_merged.tif",
+        "sha256": "52929acb0fce8bd35c1d4e8fb9fec57928a41631b435ddca1a4903fff8226564",
+        "size_bytes": 12586630
+      },
+      "label": {
+        "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T11SPD.2020184.v1.4.mask.tif",
+        "sha256": "b5523b15df5121927df7b486acb7431e1079d0f11cb9b7dc940ff6aaf716cd48",
+        "size_bytes": 525272
+      },
+      "bounds": {
+        "west": -115.0867960805523,
+        "south": 38.753801883480214,
+        "east": -114.90607817393257,
+        "north": 38.89516935552956
+      }
+    },
+    {
+      "id": "T13REQ.2018156.v1",
+      "split": "test",
+      "spatial_group": "T13REQ",
+      "source_name": "T13REQ.2018156.v1",
+      "image": {
+        "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T13REQ.2018156.v1.4_merged.tif",
+        "sha256": "62c32b2e13c4dce3abe3d061d537ff7b7b3b3d18ee7523db00160cbb82e0e226",
+        "size_bytes": 12586630
+      },
+      "label": {
+        "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T13REQ.2018156.v1.4.mask.tif",
+        "sha256": "9f85f2f7e50f40076caa80b0e488268688a3f397b67a671627e6a9fada97f88f",
+        "size_bytes": 525272
+      },
+      "bounds": {
+        "west": -104.23192459150098,
+        "south": 30.71837985554627,
+        "east": -104.0701835033271,
+        "north": 30.858016815072148
+      }
+    },
+    {
+      "id": "T14SPF.2019345.v1",
+      "split": "test",
+      "spatial_group": "T14SPF",
+      "source_name": "T14SPF.2019345.v1",
+      "image": {
+        "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T14SPF.2019345.v1.4_merged.tif",
+        "sha256": "8fb20fa0d3495743696afd28764b15fab2f6908a77e49d9515111cd7e8f9bdad",
+        "size_bytes": 12586630
+      },
+      "label": {
+        "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T14SPF.2019345.v1.4.mask.tif",
+        "sha256": "3b2e3cdff9ddc672fdaeb569b6a43f926125687355b31193ce78b69d4c0f3ce7",
+        "size_bytes": 525272
+      },
+      "bounds": {
+        "west": -96.89061018220106,
+        "south": 36.64449721048541,
+        "east": -96.71480308200518,
+        "north": 36.78603705629178
+      }
+    }
+  ],
+  "model_config_sha256": "9b40e6d8c6369b863d29fb1d69b6185aa366f8ee4c2de955bbad28d3ee32f466"
+}

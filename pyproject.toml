@@ -57,6 +57,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 whirld = [
+    "evaluation/data/*.json",
     "registry_data/models/*.yaml",
     "registry_data/schema/*.json",
     "registry_data/*.md",
