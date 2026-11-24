@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 import whirld
@@ -91,10 +92,12 @@ def test_human_doctor_explains_cpu_and_first_weight_download(
     monkeypatch.setenv("COLUMNS", "400")
     result = CliRunner().invoke(app, ["doctor"])
     assert result.exit_code == 0, result.output
-    assert "Ready for CPU inference" in result.output
-    assert "408.4 MB" in result.output and "demo" in result.output
-    assert sys.executable in result.output
-    assert str(whirld_home) in result.output
+    text = unstyle(result.output)
+    compact = "".join(text.split())
+    assert "Ready for CPU inference" in " ".join(text.split())
+    assert "408.4 MB" in " ".join(text.split()) and "demo" in text
+    assert "".join(sys.executable.split()) in compact
+    assert "".join(str(whirld_home).split()) in compact
     assert not whirld_home.exists()
 
 
@@ -117,9 +120,12 @@ def test_human_doctor_missing_runtime_prints_active_environment_repair(
     monkeypatch.setenv("COLUMNS", "400")
     result = CliRunner().invoke(app, ["doctor"])
     assert result.exit_code == 7, result.output
-    assert "Torch is missing" in result.output and sys.executable in result.output
-    assert "requirements-quickstart.txt" in result.output
-    assert "Ready for CPU inference" not in result.output
+    text = unstyle(result.output)
+    compact = "".join(text.split())
+    assert "Torch is missing" in " ".join(text.split())
+    assert "".join(sys.executable.split()) in compact
+    assert "requirements-quickstart.txt" in compact
+    assert "Ready for CPU inference" not in " ".join(text.split())
     assert not whirld_home.exists()
 
 
@@ -200,10 +206,12 @@ def test_demo_command_forwards_options_and_prints_result_paths_without_markup(
     )
     assert result.exit_code == 0, result.output
     assert observed == [DemoOptions(output_dir=output, threads=3)]
-    assert "Scored 4 image chips" in result.output
-    assert str(output / "preview.html") in result.output
-    assert str(output / "scores.geojson") in result.output
-    assert "not land-cover confidence" in result.output
+    text = unstyle(result.output)
+    compact = "".join(text.split())
+    assert "Scored 4 image chips" in " ".join(text.split())
+    assert "".join(str(output / "preview.html").split()) in compact
+    assert "".join(str(output / "scores.geojson").split()) in compact
+    assert "not land-cover confidence" in " ".join(text.split())
 
 
 @pytest.mark.parametrize("error", [InvalidInputError, OSError])
@@ -237,8 +245,9 @@ def test_demo_rejects_invalid_threads_before_invoking_runner(
         raise AssertionError("runner must not execute")
 
     monkeypatch.setattr(DemoRunner, "run", unexpected)
-    result = CliRunner().invoke(app, ["demo", "--threads", threads])
-    assert result.exit_code == 2 and "--threads" in result.output
+    result = CliRunner().invoke(app, ["demo", "--threads", threads], color=True)
+    assert result.exit_code == 2, result.output
+    assert "--threads" in unstyle(result.output)
 
 
 def test_direct_demo_diagnoses_non_directory_cache_before_file_logging(
@@ -257,7 +266,7 @@ def test_direct_demo_diagnoses_non_directory_cache_before_file_logging(
     monkeypatch.setattr(whirld, "pull", unexpected)
     result = CliRunner().invoke(app, ["demo", "--output", str(output)])
     assert result.exit_code == 7, result.output
-    assert "cannot be written" in result.output
+    assert "cannot be written" in " ".join(unstyle(result.output).split())
     assert home.read_bytes() == b"existing user file" and not output.exists()
     assert list(tmp_path.iterdir()) == [home]
 

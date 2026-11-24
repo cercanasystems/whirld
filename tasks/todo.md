@@ -74,6 +74,16 @@ workflow-context error was corrected and actionlint1.7.12 now validates CI.
 Hosted check status remains separate from local verification. No release/version
 change, upload or automatic merge.
 
+Native Ubuntu24.04 hosted starter artifacts also match macOS geometry/ranking
+and preview pixels, with maximum score error 6.86e-6 within tolerance and exact
+input/model identities. This run acquired its weights from an empty cache.
+Hosted full-suite feedback identified three CLI assertions sensitive to ANSI
+styling/line wrapping; normalize rendered text and retain semantic exit-code,
+no-acquisition and no-output assertions before rerunning hosted verification.
+The complete 22-test onboarding CLI module passes with forced color, 80 columns
+and CI flags, including three additional long-path output assertions. No runtime
+code or immutable installer change was needed.
+
 Plan recorded before implementation. Demo imagery is bundled and pinned rather
 than relying on an unchanged remote STAC response; preview and inference share
 that single input. The installed starter path remains explicitly unreleased until

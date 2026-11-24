@@ -79,6 +79,19 @@ upstream and opened [PR #32](https://github.com/cercanasystems/whirld/pull/32).
 Hosted checks are tracked separately; stop for manual merge and separately
 approved release preparation/publication.
 
+Hosted native Ubuntu24.04/x86_64 base/starter jobs pass. Independent inspection
+of the actual starter artifact confirms exact macOS geometry/ranking/preview
+pixels and pinned input/model identities, with maximum score error 6.86e-6 within
+the declared tolerance. Pre-demo diagnostics show an empty model cache; the
+reported 7.46 s demo includes real acquisition. The full Linux suite exposed
+three terminal-rendering assumptions in the new CLI tests: ANSI sequences split
+an option token, and narrow wrapping split an error phrase. Assertions normalize
+rendered text while retaining the exit-status and no-acquisition/output checks;
+the runtime behavior and immutable installer payload remain unchanged.
+Also normalized three long-path human-output assertions found by the forced
+probe. All 22 onboarding CLI tests pass with forced color, an 80-column terminal
+and CI environment flags; formatting, lint, types and diff checks pass.
+
 ## 2026-11-22 — Pass 17: local GeoTIFF streaming
 
 Branch: `feat/local-raster-streaming`, from manually merged PR #29/main

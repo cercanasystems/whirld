@@ -167,6 +167,12 @@ With verified weights preseeded and networking disabled, the real demo took
 matched macOS; maximum score difference was 3.85e-6. Neither starter environment
 contained development tools, server packages or the Prithvi backend.
 
+The hosted native Ubuntu24.04/x86_64 starter job subsequently passed too. Its
+pre-demo doctor reported missing weights, so this run includes real acquisition.
+Independent artifact checks confirm exact macOS geometry/ranking and preview
+pixels, pinned source/model identities and a maximum score difference of
+6.86e-6 (within rtol=1e-4/atol=1e-5). The report records 7.46 s for the demo.
+
 Independent checks verified finite normalized scores, exact WGS84 chip geometry
 and source/model provenance. Cold/repeat macOS TIFF, GeoJSON and HTML/PNG results
 were byte-identical. The screenshot in the README shows that actual preview.
