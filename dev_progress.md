@@ -6,6 +6,79 @@ remains.
 
 ---
 
+## 2026-11-24 — Pass 19: first-run onboarding
+
+Branch: `feat/first-run-onboarding`, based on main `7ba2f4c` after PR #30.
+PR #31 remains open; this work is independent of the evaluation baseline.
+Re-read AGENTS.md/lessons, recorded the plan before implementation and assigned
+focused demo, diagnostics and ongoing compliance reviewers. No version change,
+tag, release, PyPI upload or automatic merge is included.
+
+Added installed `whirld doctor` and `whirld demo` commands. Typed diagnostics
+inspect actual optional-runtime imports, Python, cache permissions/capacity,
+active registry identity and verified cached weights without installing,
+downloading or writing cache logs. Missing weights are a ready-to-download
+warning; broken dependencies, stale identities and unsafe paths block the demo.
+Repair commands target the active interpreter and installed source with bundled
+starter constraints. Root/command imports remain lazy, including when native
+Rasterio imports fail, so help and diagnostics still work.
+
+The object-owned CPU RN50 demo uses existing acquisition and classification
+APIs. Shared typed score/preview objects moved into the installed package with
+compatibility re-exports for the three existing examples. A bundled 448-square
+Sentinel-2 RGB crop needs no imagery login or runtime STAC request. Its manifest
+pins source item/date/grid, explicit scale/offset-to-canonical-DN conversion,
+internal mask, exact SHA/bytes and Copernicus attribution; a preparation script
+documents regeneration. Preflight validates the standalone sample before the
+408.4 MB model acquisition. Scoped runtime state and owned output cleanup
+preserve existing results. Outputs include scores, source TIFF, self-contained
+HTML/PNG and a typed provenance report.
+
+Added an independently pinned CPU-only starter profile, README first-result
+flow, actual rendered screenshot, detailed quickstart/troubleshooting and future
+publication checklist. The preview installs from an immutable source archive,
+without Git, a checkout or development tools; published 0.3.0 lacks these commands.
+A new Ubuntu24.04 CI job installs only that runtime and runs actual RN50 outside
+the checkout. Existing development and base-install jobs remain.
+
+Fresh isolated macOS ARM64/Python3.13.7 provisioning took 2.54 s, dependency
+installation 24.46 s, candidate-wheel installation 0.55 s, initial doctor 19.61 s,
+first real demo including model download 35.54 s and cached repeat 3.09 s. These
+exclude uv bootstrap/archive build and are measurements, not time guarantees.
+Independent checks confirm four finite normalized score vectors, exact WGS84
+chip geometry and all sample/checkpoint/registry identities. Cold/repeat TIFF,
+GeoJSON and HTML/PNG are byte-identical; all four winning prompts are urban.
+
+Linux x86_64/Python3.13.7 was independently tested under Docker emulation. The
+minimal official image exposes a missing `libexpat1` runtime; help works and
+doctor/demo give actionable errors without traceback or result writes. Adding
+only that OS library enables the exact CPU starter profile, without system GDAL.
+Runtime installation took 40.27 s; an installed real demo with verified preseeded
+weights and networking disabled took 7.68 s. Geometry/ranks and input/model hashes
+match macOS, with maximum probability error 3.85e-6. Neither starter environment
+includes developer/server/Prithvi packages.
+
+The exact documented uv and pip installations from immutable revision
+`6b70aa931f4dc03bd4abf2e6345c224f4643b277` both pass in new external `.venv`s,
+with installed imports resolving to site-packages and dependency checks passing.
+The uv proof reused dependency/model caches; pip used a new download cache and
+cached model. Pip archive/profile installation took 42.15 s, doctor 13.13 s and
+actual demo 2.51 s. A separate fresh base-only wheel environment proves lazy help,
+actionable missing-runtime diagnostics, zero network/cache writes and intact
+sample/notice/constraint resources. The documented own-image streaming command
+also executed successfully on the copied sample with two prompts.
+
+Final verification: **1052 passed / 12 skipped, 92.71% package/example coverage**;
+Black (195 files), Ruff, mypy (82 files), all seven registry entries and diff
+checks pass. The existing restricted-license test now patches the public API
+boundary and additionally proves the warning precedes acquisition. Hosted
+validation caught an unsupported runner context in job-level environment setup;
+moved it into a step and verified the workflow with checksummed actionlint1.7.12.
+Dedicated final compliance review found no blocker. Committed to the matching
+upstream and opened [PR #32](https://github.com/cercanasystems/whirld/pull/32).
+Hosted checks are tracked separately; stop for manual merge and separately
+approved release preparation/publication.
+
 ## 2026-11-22 — Pass 17: local GeoTIFF streaming
 
 Branch: `feat/local-raster-streaming`, from manually merged PR #29/main

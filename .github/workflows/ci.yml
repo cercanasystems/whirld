@@ -50,7 +50,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      WHIRLD_HOME: ${{ runner.temp }}/whirld-starter-models
       OMP_NUM_THREADS: '2'
       OPENBLAS_NUM_THREADS: '2'
     steps:
@@ -58,9 +57,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13.7'
+      - name: Set isolated model cache
+        run: echo "WHIRLD_HOME=$RUNNER_TEMP/whirld-starter-models" >> "$GITHUB_ENV"
       - uses: actions/cache@v4
         with:
-          path: ${{ env.WHIRLD_HOME }}
+          path: ${{ runner.temp }}/whirld-starter-models
           key: starter-rn50-${{ runner.os }}-${{ hashFiles('src/whirld/registry_data/models/remoteclip-rn50.yaml') }}
       - name: Install only the tested CPU starter runtime
         run: |
