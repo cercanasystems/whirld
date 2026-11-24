@@ -1,0 +1,9 @@
+# Input for the CPU RemoteCLIP starter profile; no development/server/Prithvi tools.
+# Regenerate requirements-quickstart.txt with uv pip compile --torch-backend cpu.
+-r requirements.txt
+torch==2.12.1
+torchvision==0.27.1
+open_clip_torch==3.3.0
+huggingface_hub==1.21.0
+safetensors==0.8.0
+timm==1.0.31

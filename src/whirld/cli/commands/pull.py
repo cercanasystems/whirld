@@ -5,7 +5,6 @@ from __future__ import annotations
 import typer
 from rich.console import Console
 
-from ... import api
 from ...core import governance
 from ...core.registry import Registry
 
@@ -28,6 +27,8 @@ def pull_command(
         force: Re-acquire even if cached.
         quantize: Quantized variant (deferred in this build).
     """
+    from ... import api
+
     entry = Registry().get(model)
     console.print(f"Pulling [bold]{model}[/bold]...")
     console.print(f"  Source:    {entry.source.type}", highlight=False)

@@ -1,3 +1,61 @@
+## Pass 19 — First real result: setup, doctor and packaged RN50 demo
+
+Branch: `feat/first-run-onboarding`, from main `7ba2f4c`. PR #31 remains open;
+this branch is independent of evaluation work. Re-read AGENTS.md/lessons, verified
+branch before edits and assigned dedicated compliance plus demo/diagnostics work.
+User approved the onboarding recommendation. No version/tag/GitHub/PyPI release
+or automatic merge; publication requires separate approval.
+
+- [ ] Package a small attributed Sentinel-2 RGB sample and a manifest with exact
+      bytes/SHA, source item/ROI/date, canonical-DN conversion, native band order,
+      grid and license. Use a reproducible preparation script; preserve masks and
+      require a standalone GTiff. Bundle the small derived data, so first-run
+      imagery needs no login, STAC request or separate asset publication.
+- [ ] Promote shared preview/score objects from examples into installed package
+      code with compatibility re-exports; preserve all three example entrypoints.
+      Add an object-owned CPU RN50 DemoRunner returning typed artifacts/provenance,
+      using preflight, existing model acquisition/inference and self-contained
+      HTML/PNG/GeoJSON. Missing weights may be downloaded; broken runtime or stale
+      cache must fail before large acquisition. Reuse verified models. Reserve a
+      fresh output directory, scope runtime state and clean owned failures/interrupts.
+- [ ] Add typed doctor diagnostics and installed CLI commands with lazy imports.
+      Report interpreter, selected runtime import health, effective model contract,
+      actual cached identity, cache permissions and disk estimate. Missing weights
+      is a ready-to-download warning, not a runtime failure. Display exact active-
+      environment repair commands and upfront model size; install no dependencies
+      implicitly and never seed/modify registry as a side effect of diagnosis.
+- [ ] Provide a minimal, exact-version starter dependency profile and one tested uv
+      .venv/Python3.13.7 path, with pip alternative. Avoid developer tools, other
+      model backends and a repository checkout. Test CPU-friendly PyTorch install
+      selection. Prepare distribution metadata/docs without uploading anything.
+      Until publication, use an explicitly pinned source archive containing these
+      commands; published 0.3.0 lacks them and must not be presented as the installer.
+- [ ] Rewrite README around install -> real demo -> visible result -> own imagery,
+      include an actual screenshot, input/result interpretation, download/runtime
+      expectations and actionable troubleshooting. Keep contributor setup and the
+      deterministic reference smoke path distinct. Maintain TODO/dev_progress.
+- [ ] Verify offline behavior/failure boundaries with meaningful unit/integration
+      tests; run actual RN50 weights, independently inspect scores/geometry/source
+      identity and render the installed preview. Measure cold and warm paths with
+      dependencies/model acquisition clearly separated; promise no arbitrary time.
+      Test fresh installed package outside checkout, base-only lazy help/diagnosis,
+      supported Mac/Linux starter paths, full >=80% coverage/style/type/registry and
+      dedicated final review. Commit/push matching upstream and open a manual PR.
+
+Acceptance: a user following the stated preview installation can run doctor and a
+real-model demo from a fresh directory, without Git/source checkout or dev packages,
+and open a self-contained preview plus GIS-compatible output. All sample/model
+identities and setup limits are explicit; unavailable optional runtimes give useful
+same-environment fixes before large downloads. Existing inference APIs and examples
+remain compatible. No release/version bump or new model support in this pass.
+
+### Review
+
+Plan recorded before implementation. Demo imagery is bundled and pinned rather
+than relying on an unchanged remote STAC response; preview and inference share
+that single input. The installed starter path remains explicitly unreleased until
+manual review, merge and separately approved publication.
+
 ## Pass 17 — Local GeoTIFF/COG streaming
 
 Branch: `feat/local-raster-streaming`, from main `58b9727` after manually merged

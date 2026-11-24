@@ -41,3 +41,5 @@ tests/fixtures/*.tif
 
 # Real-world example downloads and outputs
 example-runs/
+evaluation-runs/
+quickstart-results/

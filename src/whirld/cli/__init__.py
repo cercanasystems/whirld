@@ -1,8 +1,7 @@
 """Whirld command-line interface (Typer).
 
-Exposes the walking-skeleton command surface: ``pull``, ``list``, ``info``, and
-``embed``. Deferred commands (``segment``, ``classify``, ``serve``, ``update``,
-``rm``) are intentionally absent and tracked in ``tasks/todo.md``.
+Exposes model management, inference, setup diagnostics and the packaged demo.
+Optional model runtimes load only when their commands need them.
 
 Domain errors (:class:`~whirld.errors.WhirldError`) are caught centrally and
 converted to the documented process exit codes (PRD section 13), printing the
@@ -21,6 +20,8 @@ from rich.console import Console
 from ..errors import WhirldError
 from ..logging_setup import configure_logging
 from .commands.classify import classify_command
+from .commands.demo import demo_command
+from .commands.doctor import doctor_command
 from .commands.embed import embed_command
 from .commands.info import info_command
 from .commands.list import list_command
@@ -42,6 +43,7 @@ app = typer.Typer(
 
 @app.callback()
 def _main(
+    ctx: typer.Context,
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="DEBUG logging to stderr."
     ),
@@ -50,10 +52,12 @@ def _main(
     """Configure logging before any command runs.
 
     Args:
+        ctx: Command context; doctor must diagnose even an unwritable cache.
         verbose: Enable DEBUG stderr logging.
         quiet: Restrict stderr logging to WARNING and above.
     """
-    configure_logging(verbose=verbose, quiet=quiet, force=True)
+    if ctx.invoked_subcommand not in {"doctor", "demo"}:
+        configure_logging(verbose=verbose, quiet=quiet, force=True)
 
 
 def _handle_errors(func: _F) -> _F:
@@ -85,6 +89,8 @@ app.command("embed")(_handle_errors(embed_command))
 app.command("classify")(_handle_errors(classify_command))
 app.command("segment")(_handle_errors(segment_command))
 app.command("serve")(_handle_errors(serve_command))
+app.command("doctor")(_handle_errors(doctor_command))
+app.command("demo")(_handle_errors(demo_command))
 
 
 if __name__ == "__main__":  # pragma: no cover

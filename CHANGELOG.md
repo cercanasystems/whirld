@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add installed `doctor` diagnostics and a real CPU RN50 `demo` with bundled,
+  attributed Sentinel-2 imagery, a self-contained preview and GIS scores.
+- Add a pinned CPU starter profile, active-environment repair commands and a
+  first-result quickstart independent of repository/development dependencies.
 - Add local GeoTIFF streaming to all three disk APIs and CLI `--stream` modes,
   preserving eager local sensor/band, canonical-DN, mask and grid behavior.
 - Support local TIFF file URLs, sidecar masks/PAM metadata and bounded pre-warp
