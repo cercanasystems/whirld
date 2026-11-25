@@ -62,8 +62,12 @@ eager/stream masks/grid/nodata (100-square, six invalid pixels) agree exactly.
 Each environment observes 16 GETs, all ranged; the small full-extent fixture makes
 no subset-bandwidth or memory claim. Actual optional-model inference is covered
 by the separate real examples above. Candidate source commit `b817fe3` hosted CI
-passes. Final post-documentation artifacts/checksums and review PR are recorded
-below after preparation.
+passes. Committed the release documentation as `c955e97`, pushed the matching
+upstream and opened [PR #34](https://github.com/cercanasystems/whirld/pull/34).
+GitHub reports it mergeable; current PR checks are tracked separately. Candidate
+wheel/source/checksums are local review artifacts under `dist/0.4.0-candidate/`.
+Stop for the user's manual merge and separate publication approval; no tag,
+GitHub release, PyPI upload or automatic merge has been performed.
 
 ## 2026-11-25 — Pass 20: provider contract consistency
 

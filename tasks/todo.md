@@ -19,9 +19,9 @@ separately approves publication. No tag, GitHub/PyPI upload or automatic merge.
       build source then wheel plus SHA256SUMS. Inspect metadata/licenses/notices,
       package resources and docs. Verify fresh independent base/source/starter
       installs outside checkout, documented uv/pip paths and clean-room workflows.~~
-- [ ] Maintain TODO/progress and obtain independent final release review. Commit,
+- [x] ~~Maintain TODO/progress and obtain independent final release review. Commit,
       push a matching upstream and open a release-preparation PR with evidence.
-      Stop for manual merge and separate approval before tags/publication.
+      Stop for manual merge and separate approval before tags/publication.~~
 
 ### Review
 
@@ -41,6 +41,12 @@ small-sample caveats. Full suite: **1472 passed / 12 skipped, 93.53% coverage**;
 Black217/Ruff/mypy91/registry7/diff checks pass. Candidate code b817fe3 hosted CI
 is green. Independent release/OOP/license/resource/docs audit is clear. Only the
 version source changes under src; no dependency upgrades, tags or publication.
+
+Committed/pushed the candidate code and release notes, and opened
+[PR #34](https://github.com/cercanasystems/whirld/pull/34), confirmed mergeable.
+The PR tracks current hosted status. Candidate artifacts/checksums remain local
+under `dist/0.4.0-candidate/`; stop for manual merge and separate publication
+approval. The immutable candidate installer remains pinned to b817fe3.
 
 Plan recorded before release edits. Retain the already tested dependency pins
 unless verification requires a change; verify their resolution rather than
