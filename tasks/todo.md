@@ -1,3 +1,59 @@
+## Release 0.4.0 preparation
+
+Branch: `release/0.4.0`, from main `30eb838` after manually merged PR #33.
+Main CI is green and 0.3.0 is the latest published GitHub release. Re-read
+AGENTS.md/lessons and keep independent release/compliance review involved.
+The next minor groups local streaming, labeled evaluation, onboarding and
+provider hardening. Prepare a reviewable PR; the user manually merges and
+separately approves publication. No tag, GitHub/PyPI upload or automatic merge.
+
+- [x] ~~Set the single version source to 0.4.0 and prepare accurate pending release
+      notes, install/release guides and candidate status. Preserve historical
+      verification records. Provide a runnable immutable candidate installer;
+      published 0.3.0 lacks doctor/demo. Do not advertise future assets as live.~~
+- [x] ~~Revalidate the RN50 demo and all three real-world example entry points with
+      actual pinned weights/data in new output directories. Inspect outputs,
+      geometry, version/model/source provenance and previews; record cache/timing
+      conditions and preserve the execution-versus-quality distinction.~~
+- [x] ~~Run full coverage/style/types/registry checks in Python3.13.7 `.venv` and
+      build source then wheel plus SHA256SUMS. Inspect metadata/licenses/notices,
+      package resources and docs. Verify fresh independent base/source/starter
+      installs outside checkout, documented uv/pip paths and clean-room workflows.~~
+- [x] ~~Maintain TODO/progress and obtain independent final release review. Commit,
+      push a matching upstream and open a release-preparation PR with evidence.
+      Stop for manual merge and separate approval before tags/publication.~~
+
+### Review
+
+Version 0.4.0, candidate install refs and pending release notes are prepared.
+Exact uv/pip immutable archive installs pass in new external Python3.13.7 .venvs;
+site-packages/runtime/distribution/PEP610 identities and dependency boundaries
+hold. The universal CPU profile reproduces every existing pin under constraints.
+Independent fresh wheel/source base installs pass dependency/clean-room checks
+and controlled ranged-HTTP COG execution for all three disk paradigms; optional
+classification/segmentation seams are synthetic, real inference is checked below.
+
+All three primary real-model examples and RN50 demo run with cached verified
+weights; arrays/scores/masks, geometry/nodata and preview pixels match prior
+baselines apart from appversion/timestamps. Four-case evaluation counts/metrics/
+prediction hashes also reproduce exactly, with independent recomputation and
+small-sample caveats. Full suite: **1472 passed / 12 skipped, 93.53% coverage**;
+Black217/Ruff/mypy91/registry7/diff checks pass. Candidate code b817fe3 hosted CI
+is green. Independent release/OOP/license/resource/docs audit is clear. Only the
+version source changes under src; no dependency upgrades, tags or publication.
+
+Committed/pushed the candidate code and release notes, and opened
+[PR #34](https://github.com/cercanasystems/whirld/pull/34), confirmed mergeable.
+The PR tracks current hosted status. Candidate artifacts/checksums remain local
+under `dist/0.4.0-candidate/`; stop for manual merge and separate publication
+approval. The immutable candidate installer remains pinned to b817fe3.
+
+Plan recorded before release edits. Retain the already tested dependency pins
+unless verification requires a change; verify their resolution rather than
+introducing unrelated upgrades during release preparation. Candidate artifacts
+remain local/review-only and PyPI publication stays separate.
+
+
 ## Pass 20 — Provider contract consistency
 
 Branch: `fix/provider-contract-consistency`, from main `26cd93a` after manually

@@ -1,8 +1,9 @@
 # Bounded-memory classification
 
 Whirld 0.2.0 adds `classify_to_disk()` and `classify --stream` for STAC items and
-direct HTTP(S) GeoTIFF/COG inputs. The current source checkout additionally
-supports [local GeoTIFFs](local-streaming.md), an unreleased enhancement. Pull the classification model and install its
+direct HTTP(S) GeoTIFF/COG inputs. The 0.4.0 candidate additionally supports
+[local GeoTIFFs](local-streaming.md), pending review and publication.
+Pull the classification model and install its
 extra first; RemoteCLIP needs the `remoteclip` extra and a separate 605 MB checkpoint.
 See the [classification example](../examples/classification.md) for setup and
 pinned public imagery.
@@ -81,8 +82,8 @@ a promised transaction.
 STAC JSON may be local, a file URL or HTTP(S). Direct remote rasters use HTTP(S),
 an explicit sensor and complete band identity. Remote COG options, bbox windows
 and origin-scoped token rules apply; see [direct COG input](direct-cog.md).
-Unreleased [local raster streaming](local-streaming.md) accepts filesystem paths
-and TIFF file URLs, preserves eager local selection/DN rules and rejects bbox.
+The 0.4.0 candidate [local raster streaming](local-streaming.md) accepts
+filesystem paths and TIFF file URLs, preserves eager local selection/DN rules and rejects bbox.
 REST streaming remains deferred. [Segmentation streaming](segmentation-streaming.md)
 is included in 0.3.0 through its separate mask GeoTIFF workflow.
 Inputs require north-up projected grids in meters; streamed STAC assets must share

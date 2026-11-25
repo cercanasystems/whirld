@@ -127,3 +127,24 @@ version metadata. The API call took 17.66 seconds with two CPU threads; unlike t
 full example timings, that call excludes preview rendering and the example's
 separate checkpoint preflight. It is an execution check, not a performance
 comparison. The final-policy log contained no blank `Cannot read` diagnostics.
+
+## 0.4.0 candidate revalidation
+
+The documented default module command ran on **2026-11-25**, using Python
+3.13.7, Whirld 0.4.0 and CPU/two threads on macOS ARM64. The same pinned
+RemoteCLIP checkpoint was checksum-verified in the existing cache; the run read
+the public Sentinel-2 STAC/COG windows into a new result directory.
+
+All **16 features × four prompt scores**, ranked chip IDs and WGS84 geometry
+exactly match the saved 0.3.0 collection; only its Whirld version field changes.
+Every score is finite and in [0,1], with maximum row-sum error **8.20 × 10⁻⁸**.
+Winners remain **14 urban, one farmland and one water**, with no forest winner.
+The preview PNG was visually inspected and is byte-identical to the prior image.
+Its self-contained HTML embeds those exact PNG bytes; the 797 × 790 viewport,
+16 footprint overlays and visible label bounds were independently checked.
+
+Measured workflow time was **10.18 seconds / 1,588.8 MiB peak process RSS** under
+the timing boundaries above, excluding model download/checkpoint verification.
+These are observations with cached weights and variable network/host activity,
+not performance targets. Exact repeatability on this scene does not validate the
+prompt labels or turn relative scores into calibrated land-cover confidence.

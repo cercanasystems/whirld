@@ -105,3 +105,23 @@ footprints and visible label positions were checked as well.
 These are fresh executions, not timing targets; remote read/cache conditions and
 other host activity can change timing. They do not change the interpretation or
 accuracy limitations above.
+
+## 0.4.0 candidate revalidation
+
+The documented default module command ran on **2026-11-25** with Python 3.13.7,
+Whirld 0.4.0 and CPU/two threads on the macOS ARM64 host above. The checkpoint
+was already cached and verified against the unchanged model revision and SHA-256;
+public STAC/COG windows were retrieved for this new output directory.
+
+All **16 × 1,024 float32 values** are finite and bitwise-identical to the saved
+0.3.0 array. Independent cosine ranking and the complete WGS84 match collection
+are identical: chips **5, 2, 4, 9, 8**, excluding reference 0. The sidecar records
+0.4.0 and matches prior metadata except its version and timestamp. The preview
+PNG was visually inspected and is byte-identical to the prior image; the HTML's
+embedded PNG, 797 × 790 viewport, six footprints and visible label bounds pass
+independent checks.
+
+The workflow measured **45.18 seconds / 2,599.9 MiB peak process RSS**, with model
+download and checkpoint verification outside the existing timer. Network/cache
+conditions and host activity vary. This confirms continued execution and output
+compatibility; it does not establish prediction accuracy or improved performance.

@@ -41,7 +41,7 @@ are allowed. Explicit names replace TIFF descriptions. Duplicate names or two
 source bands matching the same native/alias identity are rejected. The same
 `cog` argument and CLI options work with `embed`, `classify`, and `segment`.
 COG options apply only to direct remote rasters, not local files or STAC JSON.
-Unreleased [local GeoTIFF streaming](local-streaming.md) uses eager local
+The 0.4.0 candidate [local GeoTIFF streaming](local-streaming.md) uses eager local
 canonical-DN and native band-selection rules; it ignores TIFF scale/offset tags
 and rejects remote-only COG options and bbox requests.
 

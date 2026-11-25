@@ -1,10 +1,11 @@
-# Local GeoTIFF streaming (unreleased)
+# Local GeoTIFF streaming (0.4.0 candidate)
 
-The current source checkout adds local files to `embed_to_disk()`,
+The 0.4.0 release candidate adds local files to `embed_to_disk()`,
 `classify_to_disk()` and `segment_to_disk()`, and their CLI `--stream` modes.
-This feature is **not included in the published 0.3.0 artifacts**; no new version
-has been assigned. Install the checkout in your `.venv` as described in the
-[README](../README.md#install-development).
+This feature is **not included in the published 0.3.0 artifacts**. The 0.4.0
+candidate is pending review and publication; install its immutable archive using
+the [quickstart](quickstart.md), or use the reviewed source checkout in a `.venv`.
+See [release status](releases.md).
 
 ## Runnable setup and usage
 
