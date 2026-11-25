@@ -23,6 +23,7 @@ from .. import config
 from ..core.fetch import Manifest, sha256_file
 from ..core.registry import ModelEntry
 from ..errors import ModelNotFoundError, WhirldError
+from ..models.providers import ProviderCatalog
 
 
 class DoctorError(WhirldError):
@@ -125,39 +126,6 @@ class DiagnosticsService:
         self._paths = paths or config.get_paths()
 
     @staticmethod
-    def _requirements(backend: str) -> tuple[tuple[str, str], ...]:
-        """Return distribution/module names needed by the selected local backend."""
-        common = (("numpy", "numpy"), ("rasterio", "rasterio"))
-        if backend == "clay-reference":
-            return common
-        tensor = (("torch", "torch"), ("huggingface_hub", "huggingface_hub"))
-        if backend == "clay":
-            return (
-                common + tensor + (("einops", "einops"), ("safetensors", "safetensors"))
-            )
-        if backend == "remoteclip":
-            return (
-                common
-                + tensor
-                + (
-                    ("open_clip_torch", "open_clip"),
-                    ("safetensors", "safetensors"),
-                )
-            )
-        return (
-            common + tensor + (("terratorch", "terratorch"), ("torchgeo", "torchgeo"))
-        )
-
-    @staticmethod
-    def _extra(backend: str) -> str | None:
-        """Map the installed backend contract to the existing optional extra."""
-        return {
-            "clay": "hf",
-            "remoteclip": "remoteclip",
-            "prithvi": "prithvi",
-        }.get(backend)
-
-    @staticmethod
     def _install_target(extra: str | None) -> tuple[str | None, bool]:
         """Resolve a safe installed origin, returning target and editable status.
 
@@ -209,7 +177,9 @@ class DiagnosticsService:
     @classmethod
     def _repair_runtime(cls, backend: str, *, reinstall: bool = False) -> str:
         """Give a same-interpreter installation command without assuming PyPI upload."""
-        target, editable = cls._install_target(cls._extra(backend))
+        target, editable = cls._install_target(
+            ProviderCatalog.get(backend).optional_extra
+        )
         if target is None:
             return (
                 "Follow the tested installation in the quickstart guide for this "
@@ -439,8 +409,8 @@ class DiagnosticsService:
             )
         )
         dependencies = tuple(
-            self._dependency(distribution, module)
-            for distribution, module in self._requirements(backend)
+            self._dependency(dependency.distribution, dependency.module)
+            for dependency in ProviderCatalog.get(backend).dependencies
         )
         checks.extend(
             DiagnosticCheck(

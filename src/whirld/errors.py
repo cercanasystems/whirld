@@ -17,7 +17,7 @@ Exit codes (PRD section 13):
  4       Unsupported sensor for model
  5       Network error (download failed)
  6       Checksum mismatch
- 7       Invalid input file
+ 7       Invalid input or unsupported operation
  8       Insufficient memory
  9       Security policy violation (Whirld extension)
 ======  ==========================================
@@ -75,9 +75,35 @@ class ChecksumMismatchError(WhirldError):
 
 
 class InvalidInputError(WhirldError):
-    """Input raster is missing, malformed, or lacks a required CRS."""
+    """Input, execution request or model contract cannot be used as supplied."""
 
     exit_code = 7
+
+
+class UnsupportedOperationError(InvalidInputError):
+    """A model cannot perform the requested operation on the shared interface."""
+
+    def __init__(
+        self,
+        model: str,
+        operation: str,
+        *,
+        supported_operations: tuple[str, ...] = (),
+    ) -> None:
+        """Describe the unsupported request and available model operations."""
+        self.model = model
+        self.operation = operation
+        self.supported_operations = supported_operations
+        available = ", ".join(supported_operations)
+        remedy = f" Use: {available}." if available else " Choose a compatible model."
+        super().__init__(f"Model '{model}' does not support '{operation}'.{remedy}")
+
+
+class BackendContractError(InvalidInputError, ValueError):
+    """Backend metadata, input or output violates its declared array contract.
+
+    Also a ValueError for compatibility with existing direct backend callers.
+    """
 
 
 class InsufficientMemoryError(WhirldError):

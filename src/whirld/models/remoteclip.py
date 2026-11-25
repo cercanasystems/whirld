@@ -1,7 +1,7 @@
 """RemoteCLIP backend — zero-shot text-driven classification via open_clip.
 
-RemoteCLIP is an OpenAI-CLIP ViT-B/32 fine-tuned for remote sensing. Given image
-chips and a free-text query, it scores how well each chip matches the query
+RemoteCLIP supplies curated CLIP architectures fine-tuned for remote sensing.
+Given image chips and a free-text query, it scores how well each chip matches the query
 (cosine similarity between the CLIP image and text embeddings).
 
 Requires the ``remoteclip`` extra (``open_clip_torch``). Unlike Clay, no vendoring
@@ -15,7 +15,7 @@ does no further image preprocessing.
 **Scoring.** ``logit_scale``-scaled cosine + softmax over the prompts → per-chip,
 per-query **probabilities** in ``[0, 1]`` (RemoteCLIP's own scoring). Multiple
 queries form a zero-shot classification over those classes; a single query is
-softmaxed against a neutral ``"background"`` prompt for a calibrated match score.
+softmaxed against a neutral ``"background"`` prompt for a prompt-relative match score.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, ClassVar, Protocol
 
 import numpy as np
 
@@ -33,16 +33,17 @@ if TYPE_CHECKING:
 from .. import config
 from ..core.fetch import Manifest
 from ..core.registry import ModelEntry
-from ..errors import ModelNotInstalledError, WhirldError
+from ..errors import BackendContractError, ModelNotInstalledError, WhirldError
 from ..logging_setup import get_logger
-from .base import InferenceContext, ModelBackend, detect_device
+from .base import BackendContract, InferenceContext, ModelBackend, detect_device
 from .checkpoints import CheckpointReader
+from .providers import ProviderCatalog
 
 _log = get_logger("models.remoteclip")
 
 _DEFAULT_BATCH = 16
 # Neutral contrast prompt used when a single query is given, so the softmax yields
-# a calibrated match probability (query vs. background) rather than a constant 1.0.
+# a prompt-relative match probability (query vs. background) rather than a constant 1.0.
 _BACKGROUND_PROMPTS = ["background"]
 
 
@@ -96,6 +97,8 @@ class RemoteCLIPBackend(ModelBackend):
         batch_size: Inference batch size over chips.
     """
 
+    provider_id: ClassVar[str] = "remoteclip"
+
     def __init__(
         self,
         name: str,
@@ -111,6 +114,9 @@ class RemoteCLIPBackend(ModelBackend):
     ) -> None:
         super().__init__(
             name=name, version=version, device=device, batch_size=batch_size
+        )
+        self._contract = BackendContract.create(
+            self.name, channels=ProviderCatalog.get(self.provider_id).input_channels
         )
         self.arch = ModelEntry.validate_remoteclip_architecture(arch)
         self._checkpoint = (
@@ -144,6 +150,7 @@ class RemoteCLIPBackend(ModelBackend):
             ModelNotInstalledError: The checkpoint file is missing.
             WhirldError: The ``remoteclip`` extra is missing or ``model_name`` is unset.
         """
+        entry.require_operation("classify")
         resolved = detect_device(device)
         if not entry.model_name:
             raise WhirldError(
@@ -210,11 +217,9 @@ class RemoteCLIPBackend(ModelBackend):
         """RemoteCLIP is a classification model; embedding is not supported.
 
         Raises:
-            WhirldError: Always — use ``classify`` instead.
+            UnsupportedOperationError: Always; use ``classify`` instead.
         """
-        raise WhirldError(
-            f"Model '{self.name}' does not produce embeddings; use 'classify'."
-        )
+        return super().embed(chips, context)
 
     def classify(
         self,
@@ -227,7 +232,7 @@ class RemoteCLIPBackend(ModelBackend):
         Uses RemoteCLIP's own scoring: L2-normalized image/text features,
         ``logit_scale``-scaled cosine, then softmax over the prompts. With a single
         query, a neutral ``"background"`` prompt is added so the softmax yields a
-        calibrated 0–1 match probability rather than a constant 1.0. The returned
+        prompt-relative 0–1 match probability rather than a constant 1.0. The returned
         columns are the user queries only (the background column is dropped).
 
         Args:
@@ -244,13 +249,16 @@ class RemoteCLIPBackend(ModelBackend):
             ValueError: ``chips`` is not 4-D.
             WhirldError: ``queries`` is empty or all-blank.
         """
-        if chips.ndim != 4:
-            raise ValueError(
-                f"Expected chips of shape (n, bands, h, w), got {chips.shape}."
-            )
+        self._contract.chips(chips)
+        if not isinstance(queries, list) or any(
+            not isinstance(q, str) for q in queries
+        ):
+            self._contract.fail("queries must be a list of strings.")
         queries = [q for q in queries if q and q.strip()]
         if not queries:
-            raise WhirldError("classify requires at least one non-empty --query.")
+            raise BackendContractError(
+                "classify requires at least one non-empty --query."
+            )
         if chips.shape[0] == 0:
             return np.empty((0, len(queries)), dtype=np.float32)
 
@@ -264,8 +272,16 @@ class RemoteCLIPBackend(ModelBackend):
         tokens = tokenizer(prompts).to(self.device)
         scores: list[np.ndarray] = []
         with torch.no_grad():
-            scale = model.logit_scale.exp()
-            text_features = model.encode_text(tokens)
+            log_scale = self._contract.tensor(model.logit_scale, (), "logit scale")
+            scale = self._contract.tensor(
+                log_scale.exp(), (), "exponentiated logit scale"
+            )
+            text_features = self._contract.tensor(
+                model.encode_text(tokens),
+                (len(prompts), None),
+                "text features",
+                nonzero_rows=True,
+            )
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
             for selection in self.batches(chips.shape[0], context):
                 batch = chips[selection]
@@ -274,11 +290,18 @@ class RemoteCLIPBackend(ModelBackend):
                     .float()
                     .to(self.device)
                 )
-                image_features = model.encode_image(pixels)
+                image_features = self._contract.tensor(
+                    model.encode_image(pixels),
+                    (batch.shape[0], text_features.shape[1]),
+                    "image features",
+                    nonzero_rows=True,
+                )
                 image_features = image_features / image_features.norm(
                     dim=-1, keepdim=True
                 )
                 logits = scale * (image_features @ text_features.T)
                 probs = logits.softmax(dim=-1)[:, :n_q]
                 scores.append(probs.cpu().numpy())
-        return np.concatenate(scores, axis=0).astype(np.float32)
+        return self._contract.probabilities(
+            np.concatenate(scores, axis=0).astype(np.float32), chips.shape[0], n_q
+        )

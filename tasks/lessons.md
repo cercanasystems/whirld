@@ -10,6 +10,10 @@ Reviewed at the start of each session.
 
 ## Preserve encapsulation during remediation
 
+- Unsupported methods on concrete providers are a valid shared-interface pattern.
+  Do not treat their presence as an OOP defect or split interfaces by default.
+  Declare capabilities explicitly, reject unsupported requests before expensive
+  work, and use the same domain-error contract for direct and public calls.
 - Treat AGENTS.md's object-orientation requirement as an implementation
   constraint, including when changing existing call sites. Replacing a class's
   validation entry point with a standalone orchestration function shifts

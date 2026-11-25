@@ -26,8 +26,9 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .. import config
-from ..errors import ModelNotFoundError, RegistryError
+from ..errors import ModelNotFoundError, RegistryError, WhirldError
 from ..logging_setup import get_logger
+from ..models.providers import Operation, ProviderCatalog, RemoteCLIPProvider
 
 if TYPE_CHECKING:
     from jsonschema import Draft7Validator
@@ -228,9 +229,9 @@ class ModelEntry(BaseModel):
     category: str
     # Backend implementation that runs this model. A model that reuses an existing
     # backend is pure registry data; only a new architecture needs new code.
-    # The JSON schema requires it (gating new submissions); kept optional here so a
-    # registry cache seeded by an older version still parses (the loader gives a
-    # clear error if it is actually needed and missing).
+    # Optional at the field boundary so missing legacy values receive the same
+    # catalog validation error as other unknown providers. Every usable entry
+    # must declare a supported provider; missing values are not silently inferred.
     backend: str | None = None
     # Provenance tier governing security/auto-merge. Defaults to the safe
     # ``community`` (must ship safetensors); curated entries set ``first-party``.
@@ -270,58 +271,29 @@ class ModelEntry(BaseModel):
     @model_validator(mode="after")
     def _compatible_backend(self) -> ModelEntry:
         """Reject supported-backend declarations with incompatible source/output."""
-        contracts = {
-            "clay-reference": ("reference", "embedding", "embedding", "npy"),
-            "clay": ("huggingface", "embedding", "embedding", "npy"),
-            "remoteclip": ("huggingface", "classification", "scores", "geojson"),
-            "prithvi": ("huggingface", "segmentation", "mask", "geotiff"),
-        }
-        if self.backend not in contracts:
-            raise ValueError(f"Unsupported backend: {self.backend!r}")
-        actual = (self.source.type, self.category, self.output.type, self.output.format)
-        if actual != contracts[self.backend]:
-            raise ValueError(f"Incompatible source/category/output for {self.backend}")
-        if self.source.type == "huggingface" and not (
-            self.source.repo and self.source.revision and self.source.files
-        ):
-            raise ValueError(
-                "Hugging Face sources require repo, pinned revision, and files"
-            )
-        if self.backend == "remoteclip":
-            self.validate_remoteclip_architecture(self.model_name)
-        if self.backend == "prithvi":
-            if self.trust != "first-party":
-                raise ValueError(
-                    "Prithvi's executable configuration requires first-party trust"
-                )
-            if not self.config_file or self.config_file not in self.source.files:
-                raise ValueError(
-                    "Prithvi config_file must be a declared source artifact"
-                )
-            if self.source.files[0].endswith(".safetensors"):
-                raise ValueError(
-                    "Prithvi requires a trusted Lightning checkpoint, not safetensors"
-                )
+        try:
+            definition = ProviderCatalog.get(self.backend)
+        except WhirldError as exc:
+            raise ValueError(exc.message) from exc
+        definition.validate_entry(self)
         return self
+
+    def require_operation(self, operation: Operation) -> None:
+        """Reject unsupported inference before acquiring weights or processing inputs.
+
+        Args:
+            operation: Requested embed, classify or segment operation.
+
+        Raises:
+            UnsupportedOperationError: The selected provider lacks this operation.
+            WhirldError: A programmatically modified entry has an unknown backend.
+        """
+        ProviderCatalog.get(self.backend).require_operation(self.name, operation)
 
     @staticmethod
     def validate_remoteclip_architecture(value: str | None) -> str:
-        """Allow supported local RemoteCLIP definitions, never source selectors.
-
-        open_clip accepts HF/local-directory selectors and other architectures
-        with external text/tokenizer dependencies. Whirld supports these three
-        self-contained definitions; its verified checkpoint is the weights source.
-        """
-        from ..errors import SecurityError
-
-        if value is None or value not in {"RN50", "ViT-B-32", "ViT-L-14"}:
-            raise SecurityError(
-                "RemoteCLIP model_name must be a supported local architecture: "
-                "RN50, ViT-B-32, or ViT-L-14. External source selectors and "
-                "architectures with external tokenizer/model dependencies "
-                "are not allowed."
-            )
-        return value
+        """Delegate the public compatibility helper to the provider security owner."""
+        return RemoteCLIPProvider.validate_architecture(value)
 
     def supported_sensors(self) -> list[str]:
         """Return the sorted list of sensor identifiers this model supports."""

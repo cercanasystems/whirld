@@ -396,6 +396,9 @@ and limitations, and [data provenance](docs/evaluation-data.md) for exact pins.
 
 ## Architecture
 
+See [provider contracts](docs/providers.md) for model ownership, supported
+operations, early capability errors and requirements for adding a provider.
+
 ```
 src/whirld/
   config.py           cache/path layout (WHIRLD_HOME)

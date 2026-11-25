@@ -1,3 +1,61 @@
+## Pass 20 — Provider contract consistency
+
+Branch: `fix/provider-contract-consistency`, from main `26cd93a` after manually
+merged PR #32. Re-read AGENTS.md/lessons; keep independent OOP/compliance review
+involved. Retain the shared provider interface: unsupported concrete operations
+are valid when they fail consistently and capability checks precede expensive
+work. No new model, dynamic plugin system, version bump or release in this pass.
+
+- [x] ~~Define a small typed, closed provider catalog whose objects own supported
+      operations, lazy backend construction, runtime dependencies and provider
+      metadata requirements. Reuse it across registry validation, factory and
+      doctor; retain the current trust/architecture allowlists and cheap imports.~~
+- [x] ~~Introduce one domain error for unsupported operations. Reject unsupported
+      eager, session, streaming, CLI and REST requests before model loading,
+      source reads/preprocessing and automatic device probing where applicable.
+      Preserve supported public signatures, aliases and resident-model behavior.~~
+- [x] ~~Strengthen known provider metadata and actual output shape/dtype/class
+      validation without changing inference math or legitimate family-specific
+      preprocessing. Retain unsupported methods on the common backend interface
+      and use the same error contract for direct calls.~~
+- [x] ~~Add a shared provider conformance matrix and meaningful early-failure
+      regressions covering all four backends/seven bundled entries, missing or
+      malformed metadata, wrong outputs and lazy dispatch/dependency reporting.
+      Preserve batching/failure recovery and existing security boundaries.~~
+- [x] ~~Refresh provider documentation/docstrings and maintain TODO/progress/lessons.
+      Run full >=80% coverage, Black/Ruff/types/registry, fresh installed-package
+      smoke and relevant actual-model checks; obtain independent final review.~~
+
+Acceptance: unsupported operations have consistent domain errors across execution
+paths and do no expensive acquisition/loading/input work. Provider knowledge has
+cohesive owners, registry/backend/doctor contracts agree, and successful model
+outputs remain compatible. Stop before any release or automatic PR merge.
+
+### Review
+
+Implemented with the shared interface intact. Immutable provider definitions own
+capabilities, requirements and lazy construction; backend contract objects own
+input/output checks. Unsupported direct/public operations share one domain error
+(CLI7/HTTP422), and the 72-case public matrix proves early rejection across all
+seven models and eager/session/stream/CLI/REST paths, including resident drift.
+Metadata/channel/normalization checks run before acquisition; security allowlists,
+lease ownership, lazy imports and legitimate multiclass behavior are preserved.
+
+Final frozen full suite: **1472 passed / 12 skipped, 93.53% coverage**. Black217,
+Ruff, mypy91 (including scripts), registry7 and diff checks pass. Independent final
+OOP/design/security review is clear. Cached real RN50 scores/geometry, Clay
+eager/stream embeddings and Prithvi flood eager/stream masks/grid/nodata match
+pre-change baselines exactly. Source-built wheel bytes match the package; a fresh
+25-package base install passes dependency/clean-room smoke and unsupported API/CLI
+checks without Torch or expensive work. Provider documentation, README, changelog,
+progress and the lesson about valid unsupported methods are updated. No model,
+dependency/version change, release or automatic PR merge.
+
+Plan recorded before implementation. Concrete methods may deliberately report
+unsupported operations; this is a normal provider pattern, not an OOP defect.
+The work targets contract enforcement and ownership rather than interface splits.
+
+
 ## PR #32 merge-conflict resolution — 2026-11-25
 
 Working branch: `feat/first-run-onboarding`; main `78622e5` includes manually

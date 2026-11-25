@@ -1,11 +1,11 @@
 """Backend factory: instantiate a model's backend from its registry entry.
 
 Backend **selection is registry-driven**: each model declares a ``backend`` id in
-its YAML, and this factory maps that id to the implementing class. A model that
-reuses an existing backend (another open_clip classifier, another HF-torch encoder,
-another TerraTorch segmenter) is therefore **pure registry data** — no code change.
-Only a genuinely new architecture / loading mechanism needs a new backend class
-plus one branch here.
+its YAML, and the closed provider catalog maps that id to trusted construction.
+Additional weights for an already supported architecture satisfying its provider
+requirements are registry data. A new architecture or loading mechanism needs a
+backend implementation and a trusted provider definition; the registry schema's
+backend enum is checked against that catalog.
 
 Kept separate from ``models/__init__.py`` so ``import whirld.models`` stays cheap;
 each concrete backend (and its heavy imports) is loaded lazily, only when selected.
@@ -15,8 +15,9 @@ from __future__ import annotations
 
 from ..core.fetch import Manifest, ModelStore
 from ..core.registry import ModelEntry
-from ..errors import WhirldError
+from ..errors import RegistryError
 from .base import ModelBackend
+from .providers import ProviderCatalog
 
 
 def load_backend(
@@ -41,35 +42,16 @@ def load_backend(
 
     Raises:
         WhirldError: The entry declares no backend, or an unknown one.
+        RegistryError: Programmatically altered provider metadata is invalid.
+        SecurityError: An architecture selector violates the local allowlist.
     """
-    backend = entry.backend
-    if not backend:
-        raise WhirldError(
-            f"Registry entry '{entry.name}' declares no 'backend'.\n"
-            f"       Upgrade Whirld or restore the bundled registry entry."
-        )
-
-    if backend not in {"clay-reference", "clay", "remoteclip", "prithvi"}:
-        raise WhirldError(
-            f"Model '{entry.name}' declares backend '{backend}', which is not "
-            "implemented in this build."
-        )
+    definition = ProviderCatalog.get(entry.backend)
+    try:
+        definition.validate_entry(entry)
+    except ValueError as exc:
+        raise RegistryError(
+            f"Invalid provider metadata for '{entry.name}': {exc}"
+        ) from exc
     store = store or ModelStore()
     with store.installation_lease(entry, manifest):
-        if backend == "clay-reference":
-            from .clay import ClayBackend  # noqa: PLC0415
-
-            return ClayBackend.load(entry, manifest, device, paths=store.paths)
-        if backend == "clay":
-            from .clay_torch import ClayTorchBackend  # noqa: PLC0415
-
-            return ClayTorchBackend.load(entry, manifest, device, paths=store.paths)
-        if backend == "remoteclip":
-            from .remoteclip import RemoteCLIPBackend  # noqa: PLC0415
-
-            return RemoteCLIPBackend.load(entry, manifest, device, paths=store.paths)
-        if backend == "prithvi":
-            from .prithvi import PrithviBackend  # noqa: PLC0415
-
-            return PrithviBackend.load(entry, manifest, device, paths=store.paths)
-    raise WhirldError(f"Unsupported backend: {backend}")
+        return definition.load(entry, manifest, device, paths=store.paths)

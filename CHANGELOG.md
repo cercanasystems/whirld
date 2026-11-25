@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Centralize provider capabilities, metadata requirements, runtime dependencies
+  and lazy construction; consistently reject unsupported tasks before expensive
+  work across Python, streaming, sessions, CLI and REST. Validate backend input
+  and output contracts while preserving the shared interface and inference math.
 - Add installed `doctor` diagnostics and a real CPU RN50 `demo` with bundled,
   attributed Sentinel-2 imagery, a self-contained preview and GIS scores.
 - Add a pinned CPU starter profile, active-environment repair commands and a

@@ -232,9 +232,11 @@ def embed(
         bbox=bbox,
     )
 
+    store = ModelStore()
+    entry = store.registry.get(model)
+    entry.require_operation("embed")
+
     def resolve(resolved_device: str) -> _Resolved:
-        store = ModelStore()
-        entry = store.registry.get(model)
         manifest = store.load_manifest(model)
         raster = _read_input(
             input,
@@ -385,8 +387,10 @@ def embed_raster(
         fmt=fmt,
     )
 
+    session.require_operation(model, "embed", device=device)
+
     def resolve(resolved_device: str) -> _Resolved:
-        loaded = session.get(model, resolved_device)
+        loaded = session.get(model, resolved_device, operation="embed")
         return loaded.entry, loaded.manifest, loaded.backend, raster
 
     def compute(p: _Prepared) -> EmbedResult:
@@ -458,9 +462,11 @@ def classify(
     ClassificationOptions.from_arguments(top_k=top_k, threshold=threshold, bbox=bbox)
     queries = _as_queries(query)
 
+    store = ModelStore()
+    entry = store.registry.get(model)
+    entry.require_operation("classify")
+
     def resolve(resolved_device: str) -> _Resolved:
-        store = ModelStore()
-        entry = store.registry.get(model)
         manifest = store.load_manifest(model)
         raster = _read_input(
             input,
@@ -598,8 +604,10 @@ def classify_raster(
     ClassificationOptions.from_arguments(top_k=top_k, threshold=threshold)
     queries = _as_queries(query)
 
+    session.require_operation(model, "classify", device=device)
+
     def resolve(resolved_device: str) -> _Resolved:
-        loaded = session.get(model, resolved_device)
+        loaded = session.get(model, resolved_device, operation="classify")
         return loaded.entry, loaded.manifest, loaded.backend, raster
 
     def compute(p: _Prepared) -> ClassifyResult:
@@ -705,9 +713,11 @@ def segment(
     SegmentationOptions.from_arguments(threshold=threshold, bbox=bbox)
     resolved_model = _resolve_segment_model(model, head)
 
+    store = ModelStore()
+    entry = store.registry.get(resolved_model)
+    entry.require_operation("segment")
+
     def resolve(resolved_device: str) -> _Resolved:
-        store = ModelStore()
-        entry = store.registry.get(resolved_model)
         manifest = store.load_manifest(resolved_model)
         raster = _read_input(
             input,
@@ -840,8 +850,10 @@ def segment_raster(
     SegmentationOptions.from_arguments(threshold=threshold)
     resolved_model = _resolve_segment_model(model, head)
 
+    session.require_operation(resolved_model, "segment", device=device)
+
     def resolve(resolved_device: str) -> _Resolved:
-        loaded = session.get(resolved_model, resolved_device)
+        loaded = session.get(resolved_model, resolved_device, operation="segment")
         return loaded.entry, loaded.manifest, loaded.backend, raster
 
     def compute(p: _Prepared) -> SegmentResult:

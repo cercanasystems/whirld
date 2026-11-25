@@ -6,21 +6,23 @@ chip by projecting per-band pooled statistics through a fixed seeded random
 matrix. It imports no torch and downloads nothing, so the whole embed pipeline
 runs offline and is exactly testable.
 
-The real encoder is a drop-in alternative behind the same
-:class:`~whirld.models.base.ModelBackend` interface. The intended shape of that
-path is documented in :meth:`ClayBackend.embed` so swapping it in later does not
-disturb the translation pipeline, CLI, or output code.
+The learned Clay v1.5 encoder implements the same shared interface in
+:mod:`whirld.models.clay_torch`. This reference provider remains a deterministic
+offline option for testing the complete translation and embedding pipeline.
 """
 
 from __future__ import annotations
+
+from typing import ClassVar
 
 import numpy as np
 
 from .. import config
 from ..core.fetch import Manifest
 from ..core.registry import ModelEntry
+from ..errors import BackendContractError
 from ..logging_setup import get_logger
-from .base import ModelBackend, detect_device
+from .base import BackendContract, ModelBackend, detect_device
 
 _log = get_logger("models.clay")
 
@@ -34,14 +36,21 @@ class ClayBackend(ModelBackend):
         device: Resolved inference device string.
     """
 
+    provider_id: ClassVar[str] = "clay-reference"
+
     def __init__(self, manifest: Manifest, device: str) -> None:
         super().__init__(name=manifest.name, version=manifest.version, device=device)
         if manifest.embed_dim is None or manifest.seed is None:
-            raise ValueError(
+            raise BackendContractError(
                 "Clay reference backend requires embed_dim and seed in the manifest."
             )
-        self.embed_dim = int(manifest.embed_dim)
-        self._seed = int(manifest.seed)
+        self._contract = BackendContract.create(self.name, embed_dim=manifest.embed_dim)
+        self.embed_dim = manifest.embed_dim
+        if isinstance(manifest.seed, bool) or manifest.seed < 0:
+            raise BackendContractError(
+                "Clay reference requires a nonnegative integer seed."
+            )
+        self._seed = manifest.seed
         self._projection: np.ndarray | None = None
         self._bias: np.ndarray | None = None
 
@@ -67,6 +76,7 @@ class ClayBackend(ModelBackend):
         Returns:
             A ready :class:`ClayBackend`.
         """
+        entry.require_operation("embed")
         resolved = detect_device(device)
         _log.info("Loading clay-v1 reference backend on device '%s'.", resolved)
         return cls(manifest=manifest, device=resolved)
@@ -106,10 +116,7 @@ class ClayBackend(ModelBackend):
         Returns:
             Array ``(n_chips, embed_dim)``, float32.
         """
-        if chips.ndim != 4:
-            raise ValueError(
-                f"Expected chips of shape (n, bands, h, w), got {chips.shape}."
-            )
+        self._contract.chips(chips)
         if chips.shape[0] == 0:
             return np.empty((0, self.embed_dim), dtype=np.float32)
 
@@ -121,4 +128,4 @@ class ClayBackend(ModelBackend):
 
         projection, bias = self._ensure_projection(features.shape[1])
         embeddings = np.tanh(features @ projection.T + bias)
-        return embeddings.astype(np.float32)
+        return self._contract.embeddings(embeddings.astype(np.float32), chips.shape[0])

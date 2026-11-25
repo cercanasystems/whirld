@@ -10,7 +10,7 @@ import pytest
 
 import whirld
 from whirld.config import get_paths
-from whirld.errors import InvalidInputError
+from whirld.errors import InvalidInputError, UnsupportedOperationError
 
 
 @pytest.mark.parametrize("batch_size", [1, 4, 20])
@@ -83,5 +83,5 @@ def test_streaming_rejects_nonembedding_model(
     whirld_home: Path, stac_item: Path
 ) -> None:
     """Unsupported capabilities fail before acquiring weights or reading assets."""
-    with pytest.raises(InvalidInputError, match="embedding model"):
+    with pytest.raises(UnsupportedOperationError, match="embed"):
         whirld.embed_to_disk(stac_item, model="remoteclip", device="cpu")

@@ -84,7 +84,7 @@ def test_model_batch_policy_is_local_to_each_call(kind: str) -> None:
         backend = PrithviBackend(
             "test", "1", "cpu", classes=2, model=model, batch_size=3
         )
-    chips = np.ones((5, 3, 2, 2), dtype=np.float32)
+    chips = np.ones((5, 6 if kind == "prithvi" else 3, 2, 2), dtype=np.float32)
 
     def run(context: InferenceContext) -> np.ndarray:
         """Exercise each public backend method, with its unchanged call signature."""
@@ -147,7 +147,7 @@ def test_concurrent_calls_keep_independent_batch_policies() -> None:
 
     def run(marker: int, batch_size: int) -> np.ndarray:
         """Invoke one request with distinct pixels and a per-call batch policy."""
-        chips = np.full((5, 3, 2, 2), marker, dtype=np.float32)
+        chips = np.full((5, 6, 2, 2), marker, dtype=np.float32)
         return backend.segment(chips, context=_context(batch_size))
 
     with ThreadPoolExecutor(max_workers=2) as executor:

@@ -6,6 +6,70 @@ remains.
 
 ---
 
+## 2026-11-25 — Pass 20: provider contract consistency
+
+Branch: `fix/provider-contract-consistency`, from main `26cd93a` after the
+user's manual PR #32 merge. Re-read AGENTS.md/lessons, recorded the plan before
+implementation and assigned catalog, adapter and independent OOP/compliance
+work. The user explicitly accepts unsupported methods on concrete providers;
+retain the shared interface and enforce consistent errors before expensive work.
+No model, dependency, version or release changes are included.
+
+Added a closed catalog of immutable Pydantic provider definitions. Provider
+objects own operations, runtime dependencies/extras, trusted lazy construction,
+source/output compatibility and family metadata requirements. Registry entries,
+the leased backend loader and doctor delegate to that owner. The schema's closed
+backend enum is retained and tested against the catalog. Registry/catalog imports
+remain free of NumPy, Rasterio and optional model frameworks.
+
+All unsupported methods now raise `UnsupportedOperationError`, an input-domain
+error with CLI exit 7 / HTTP 422. Eager APIs validate the checked entry before
+device selection, installation reads or raster work; their closures reuse that
+same store/entry. Streaming owners defer automatic device selection until after
+capability validation. Sessions check the actual resident entry and recheck the
+resolved cache/load boundary, including registry edits and automatic devices.
+REST performs metadata inspection off-loop before reading or decoding uploads;
+its error mapping respects domain-error inheritance. Normal multipart parsing
+may still spool uploads before the service boundary.
+
+Backend-owned frozen contracts check normalized NCHW float32 inputs and actual
+tensor/array results before extraction, normalization or argmax can hide wrong
+shapes, nonfinite values, dimensions or class counts. `BackendContractError`
+retains ValueError compatibility and maps to the same input-domain status.
+Metadata validation now checks fixed Clay architecture dimensions/patches and
+wavelengths, nonnegative reference seeds, every sensor's normalization alignment,
+provider-owned RGB/six-band counts, RemoteCLIP's local architecture allowlist and
+trusted Prithvi artifacts/classes. Multiclass Prithvi remains supported up to
+255 classes, with uint8 label 255 reserved for nodata. Inference arithmetic,
+preprocessing and batching policy are unchanged.
+
+Added 198 offline checks across catalog, adapters, doctor and public boundaries.
+The 72-case public matrix covers every bundled model's unsupported tasks through
+eager/session/stream/CLI/REST with explicit traps for device probes, model loading,
+installation reads, raster reads and upload materialization. It also checks
+resident-entry drift. Existing batching/concurrency tests retain their assertions;
+their synthetic Prithvi inputs now have the documented six channels.
+
+Actual cached-weight comparisons are exact: RN50 four score vectors/properties/
+geometry, Clay eager/stream four-by-1024 embeddings and metadata except timestamps,
+and Prithvi flood eager/stream 513-by-461 masks/grid/nodata all match saved
+pre-change baselines. No weights were downloaded for these checks. A wheel built
+from the source archive matches every packaged file; the archive includes the
+new provider guide. A fresh 25-package base `.venv` passes dependency checks and
+the archive's clean-room smoke, including eager/stream reference workflows and
+evaluation-manifest loading. Installed catalog/registry remain lightweight;
+unsupported installed API/CLI requests reject before expensive work without
+Torch installed.
+
+Final frozen verification: **1472 passed / 12 skipped, 93.53% package/example
+coverage**; Black (217 files), Ruff, mypy (91 including scripts), all seven
+registry entries and diff checks pass. Independent final design/OOP/security
+review found no remaining blocker. The [provider guide](docs/providers.md)
+documents ownership, valid unsupported methods, error/preflight boundaries and
+extension requirements; README and changelog link/describe the changes. Work
+remains on the feature branch for review; manual merge and release publication
+remain separate.
+
 ## 2026-11-25 — PR #32 integration with updated main
 
 The user manually merged PR #31 and pulled main `78622e5`, producing six

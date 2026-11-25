@@ -44,8 +44,12 @@ _STATUS_BY_ERROR: dict[type[WhirldError], int] = {
 
 
 def _status_for(exc: WhirldError) -> int:
-    """Return the HTTP status code for a domain error (default 500)."""
-    return _STATUS_BY_ERROR.get(type(exc), 500)
+    """Map the most specific known domain-error ancestor to its HTTP status."""
+    for error_type in type(exc).__mro__:
+        status = _STATUS_BY_ERROR.get(error_type)
+        if status is not None:
+            return status
+    return 500
 
 
 def create_app(
