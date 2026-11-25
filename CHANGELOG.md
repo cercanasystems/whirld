@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a small labeled HLS burn-scar evaluation suite with hash-pinned CC BY 4.0
+  imagery/labels, official split/group checks, exact-grid bounded scoring and
+  separate validation/test reports. Record actual model/config/data provenance,
+  conditional quality metrics and prediction coverage. See [evaluation](docs/evaluation.md).
 - Add local GeoTIFF streaming to all three disk APIs and CLI `--stream` modes,
   preserving eager local sensor/band, canonical-DN, mask and grid behavior.
 - Support local TIFF file URLs, sidecar masks/PAM metadata and bounded pre-warp
