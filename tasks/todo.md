@@ -1,3 +1,35 @@
+## Release 0.4.0 preparation
+
+Branch: `release/0.4.0`, from main `30eb838` after manually merged PR #33.
+Main CI is green and 0.3.0 is the latest published GitHub release. Re-read
+AGENTS.md/lessons and keep independent release/compliance review involved.
+The next minor groups local streaming, labeled evaluation, onboarding and
+provider hardening. Prepare a reviewable PR; the user manually merges and
+separately approves publication. No tag, GitHub/PyPI upload or automatic merge.
+
+- [ ] Set the single version source to 0.4.0 and prepare accurate pending release
+      notes, install/release guides and candidate status. Preserve historical
+      verification records. Provide a runnable immutable candidate installer;
+      published 0.3.0 lacks doctor/demo. Do not advertise future assets as live.
+- [ ] Revalidate the RN50 demo and all three real-world example entry points with
+      actual pinned weights/data in new output directories. Inspect outputs,
+      geometry, version/model/source provenance and previews; record cache/timing
+      conditions and preserve the execution-versus-quality distinction.
+- [ ] Run full coverage/style/types/registry checks in Python3.13.7 `.venv` and
+      build source then wheel plus SHA256SUMS. Inspect metadata/licenses/notices,
+      package resources and docs. Verify fresh independent base/source/starter
+      installs outside checkout, documented uv/pip paths and clean-room workflows.
+- [ ] Maintain TODO/progress and obtain independent final release review. Commit,
+      push a matching upstream and open a release-preparation PR with evidence.
+      Stop for manual merge and separate approval before tags/publication.
+
+### Review
+
+Plan recorded before release edits. Retain the already tested dependency pins
+unless verification requires a change; verify their resolution rather than
+introducing unrelated upgrades during release preparation. Candidate artifacts
+remain local/review-only and PyPI publication stays separate.
+
 ## Pass 20 — Provider contract consistency
 
 Branch: `fix/provider-contract-consistency`, from main `26cd93a` after manually
