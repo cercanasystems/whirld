@@ -18,7 +18,7 @@ from whirld.core.fetch import Manifest, ModelStore
 from whirld.core.inference_metadata import AcquisitionMetadata
 from whirld.core.options import CogOptions, StreamingSegmentationOptions
 from whirld.core.segmentation_stream import SegmentationStream
-from whirld.errors import InvalidInputError, WhirldError
+from whirld.errors import InvalidInputError, UnsupportedOperationError, WhirldError
 from whirld.io.segmentation_stream import SegmentationMetadata
 from whirld.io.stac_stream import ChipBatch, RasterWindowReader
 from whirld.models.base import InferenceContext, ModelBackend
@@ -348,7 +348,7 @@ def test_nonsegmentation_model_rejected_before_installation(
 ) -> None:
     """Category mismatch cannot open a source or load an unrelated checkpoint."""
     store = FixtureStore()
-    with pytest.raises(InvalidInputError, match="segmentation model"):
+    with pytest.raises(UnsupportedOperationError, match="segment"):
         SegmentationStream(store, "cpu").run(
             "item.json",
             model="clay-v1",
@@ -357,7 +357,8 @@ def test_nonsegmentation_model_rejected_before_installation(
         )
     assert store.manifest_calls == []
     record = usage(whirld_home)
-    assert record["error"] == "InvalidInputError" and record["chip_count"] is None
+    assert record["error"] == "UnsupportedOperationError"
+    assert record["chip_count"] is None
 
 
 @pytest.mark.parametrize(

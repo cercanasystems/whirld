@@ -10,6 +10,7 @@ from .._version import __version__
 from ..core.session import ModelSession
 from ..errors import WhirldError
 from ..io.raster import read_raster_from_bytes
+from ..models.providers import Operation
 from .responses import (
     classification_response,
     embedding_response,
@@ -101,10 +102,29 @@ class InferenceService:
             )
         return ModelsResponse(models=infos)
 
+    async def _require_operation(
+        self, model: str, operation: Operation, *, head: str | None = None
+    ) -> None:
+        """Check a task off-loop before reading or decoding an upload.
+
+        Args:
+            model: Model identifier or the supported segmentation alias.
+            operation: Requested public task.
+            head: Optional segmentation head used to resolve the existing alias.
+
+        Raises:
+            WhirldError: The model is unknown or cannot perform the task.
+        """
+        resolved = (
+            api._resolve_segment_model(model, head) if operation == "segment" else model
+        )
+        await to_thread.run_sync(self._session.require_operation, resolved, operation)
+
     async def embed(self, options: EmbedRequest) -> Response:
         """Materialize, embed, and serialize an upload within this service's bound."""
         async with self._slots:
             self._ensure_open()
+            await self._require_operation(options.model, "embed")
             data = await options.file.read()
             return await to_thread.run_sync(self._embed, data, options)
 
@@ -127,6 +147,7 @@ class InferenceService:
         """Materialize and classify an upload while serializing shared model access."""
         async with self._slots:
             self._ensure_open()
+            await self._require_operation(options.model, "classify")
             data = await options.file.read()
             return await to_thread.run_sync(self._classify, data, options)
 
@@ -148,6 +169,7 @@ class InferenceService:
         """Materialize and segment an upload while serializing shared model access."""
         async with self._slots:
             self._ensure_open()
+            await self._require_operation(options.model, "segment", head=options.head)
             data = await options.file.read()
             return await to_thread.run_sync(self._segment, data, options)
 

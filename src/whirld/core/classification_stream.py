@@ -7,7 +7,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from ..errors import InvalidInputError
 from ..io.classification_stream import (
     ClassificationMetadata,
     ClassificationStreamWriter,
@@ -56,9 +55,9 @@ class ClassificationStream:
     """
 
     def __init__(self, store: ModelStore, device: str | None = None) -> None:
-        """Bind installation identity and select one device for subsequent runs."""
+        """Bind installation identity; defer device selection until task validation."""
         self._store = store
-        self._device = detect_device(device)
+        self._device = device if device is not None else "auto"
 
     def _reader(
         self,
@@ -179,8 +178,8 @@ class ClassificationStream:
         error: str | None = None
         try:
             entry = self._store.registry.get(model)
-            if entry.category != "classification":
-                raise InvalidInputError("Streaming requires a classification model.")
+            entry.require_operation("classify")
+            self._device = detect_device(self._device)
             manifest = self._store.load_manifest(model)
             version, quantized = manifest.version, manifest.quantized
             with self._reader(

@@ -50,9 +50,9 @@ class SegmentationStream:
     """
 
     def __init__(self, store: ModelStore, device: str | None = None) -> None:
-        """Bind installation identity and resolve the requested inference device."""
+        """Bind installation identity; defer device selection until task validation."""
         self._store = store
-        self._device = detect_device(device)
+        self._device = device if device is not None else "auto"
 
     def _reader(
         self,
@@ -168,8 +168,8 @@ class SegmentationStream:
         error: str | None = None
         try:
             entry = self._store.registry.get(model)
-            if entry.category != "segmentation":
-                raise InvalidInputError("Streaming requires a segmentation model.")
+            entry.require_operation("segment")
+            self._device = detect_device(self._device)
             manifest = self._store.load_manifest(model)
             version, quantized = manifest.version, manifest.quantized
             with self._reader(

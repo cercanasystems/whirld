@@ -105,7 +105,13 @@ def test_health_remains_responsive_and_inference_is_serialized(
 
     monkeypatch.setattr(f"whirld.api.{route}_raster", blocking_backend)
     payload = s2_tif.read_bytes()
-    fields = {"model": "clay-v1"}
+    fields = {
+        "model": {
+            "embed": "clay-v1",
+            "classify": "remoteclip",
+            "segment": "prithvi-burn-scar",
+        }[route]
+    }
     if route == "classify":
         fields["query"] = "forest"
     with (

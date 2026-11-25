@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 
@@ -30,9 +30,9 @@ if TYPE_CHECKING:
 from .. import config
 from ..core.fetch import Manifest
 from ..core.registry import ModelEntry
-from ..errors import ModelNotInstalledError, WhirldError
+from ..errors import BackendContractError, ModelNotInstalledError, WhirldError
 from ..logging_setup import get_logger
-from .base import InferenceContext, ModelBackend, detect_device
+from .base import BackendContract, InferenceContext, ModelBackend, detect_device
 from .checkpoints import CheckpointReader
 
 _log = get_logger("models.clay_torch")
@@ -77,6 +77,8 @@ class ClayTorchBackend(ModelBackend):
         batch_size: Inference batch size over chips.
     """
 
+    provider_id: ClassVar[str] = "clay"
+
     def __init__(
         self,
         name: str,
@@ -93,8 +95,13 @@ class ClayTorchBackend(ModelBackend):
         super().__init__(
             name=name, version=version, device=device, batch_size=batch_size
         )
-        self.embed_dim = int(embed_dim)
-        self.patch_size = int(patch_size)
+        if embed_dim is None or patch_size is None:
+            raise BackendContractError("Clay requires embedding and patch dimensions.")
+        self._contract = BackendContract.create(
+            self.name, embed_dim=embed_dim, patch_size=patch_size
+        )
+        self.embed_dim = embed_dim
+        self.patch_size = patch_size
         self._checkpoint = (
             CheckpointReader(ckpt_path, trusted=trusted_checkpoint)
             if ckpt_path is not None
@@ -125,6 +132,11 @@ class ClayTorchBackend(ModelBackend):
             ModelNotInstalledError: The checkpoint file is missing.
             WhirldError: The ``hf`` extra is not installed.
         """
+        entry.require_operation("embed")
+        if entry.output.embed_dim is None or entry.band_contract.patch_size is None:
+            raise BackendContractError(
+                "Clay requires declared embedding and patch dimensions."
+            )
         resolved = detect_device(device)
         ckpt = (paths or config.get_paths()).model_file(
             entry.name, manifest.weights_file
@@ -138,8 +150,8 @@ class ClayTorchBackend(ModelBackend):
             name=manifest.name,
             version=manifest.version,
             device=resolved,
-            embed_dim=entry.output.embed_dim or 1024,
-            patch_size=entry.band_contract.patch_size or 8,
+            embed_dim=entry.output.embed_dim,
+            patch_size=entry.band_contract.patch_size,
             ckpt_path=ckpt,
             trusted_checkpoint=entry.trust == "first-party",
         )
@@ -200,22 +212,40 @@ class ClayTorchBackend(ModelBackend):
             ValueError: ``chips`` is not 4-D.
             WhirldError: Wavelength metadata is missing from the contract.
         """
-        if chips.ndim != 4:
-            raise ValueError(
-                f"Expected chips of shape (n, bands, h, w), got {chips.shape}."
-            )
+        self._contract.chips(chips)
         if chips.shape[0] == 0:
             return np.empty((0, self.embed_dim), dtype=np.float32)
 
         wavelengths = context.wavelengths if context else None
         if not wavelengths:
-            raise WhirldError(
+            raise BackendContractError(
                 f"Model '{self.name}' needs per-band wavelengths, but the band "
                 f"contract declares none for this sensor."
             )
+        if len(wavelengths) != chips.shape[1] or any(
+            not np.isfinite(wave) or wave <= 0 for wave in wavelengths
+        ):
+            self._contract.fail(
+                "wavelengths must be positive, finite and match input channels."
+            )
         gsd = context.gsd_m if context else float(self.patch_size)
+        if not np.isfinite(gsd) or gsd <= 0:
+            self._contract.fail("ground sample distance must be positive and finite.")
 
         latlons = context.latlons if context else None
+        if latlons is not None and (
+            len(latlons) != chips.shape[0]
+            or any(
+                len(ll) != 2
+                or not np.isfinite(ll).all()
+                or abs(ll[0]) > 90
+                or abs(ll[1]) > 180
+                for ll in latlons
+            )
+        ):
+            self._contract.fail(
+                "latlons must contain one finite valid (latitude, longitude) per chip."
+            )
         acq_dt = context.acquisition_datetime if context else None
 
         torch = _import_torch()
@@ -228,9 +258,22 @@ class ClayTorchBackend(ModelBackend):
                 datacube = self._build_datacube(
                     batch, wavelengths, gsd, acq_dt, batch_latlons, torch
                 )
-                encoded, *_ = encoder(datacube)
+                result = encoder(datacube)
+                if not isinstance(result, (tuple, list)) or not result:
+                    self._contract.fail(
+                        "Clay encoder must return its encoded token sequence."
+                    )
+                encoded = self._contract.tensor(
+                    result[0],
+                    (batch.shape[0], None, self.embed_dim),
+                    "Clay encoded tokens",
+                )
+                if encoded.shape[1] == 0:
+                    self._contract.fail("Clay encoder returned no CLS token.")
                 outputs.append(encoded[:, 0, :].cpu().numpy())
-        return np.concatenate(outputs, axis=0).astype(np.float32)
+        return self._contract.embeddings(
+            np.concatenate(outputs, axis=0).astype(np.float32), chips.shape[0]
+        )
 
     def _build_datacube(
         self,

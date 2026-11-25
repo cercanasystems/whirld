@@ -21,6 +21,7 @@ from ..errors import InvalidInputError
 from ..logging_setup import get_logger
 from ..models.base import ModelBackend, detect_device
 from ..models.loader import load_backend
+from ..models.providers import Operation
 from .fetch import Manifest, ModelStore
 from .registry import ModelEntry, Registry
 
@@ -88,12 +89,48 @@ class ModelSession:
         """Sorted names of models currently resident in the cache."""
         return sorted({name for (name, _device) in self._cache})
 
-    def get(self, model: str, device: str | None = None) -> LoadedModel:
+    def require_operation(
+        self, model: str, operation: Operation, *, device: str | None = None
+    ) -> ModelEntry:
+        """Validate a requested task without loading a model or probing devices.
+
+        Args:
+            model: Registered model identifier.
+            operation: Requested public task.
+            device: Explicit cache key, or the session default for None/auto.
+
+        Returns:
+            The checked resident entry, or this store's current registry entry.
+
+        Raises:
+            UnsupportedOperationError: The selected provider cannot perform it.
+            ModelNotFoundError: This store has no such model.
+
+        The actual resolved cache entry is rechecked by get before use, including
+        when an auto device differs from this session's default.
+        """
+        selected = self._device if device in (None, "auto") else device
+        with self._lock:
+            cached = self._cache.get((model, selected))
+            entry = (
+                cached.entry if cached is not None else self._store.registry.get(model)
+            )
+            entry.require_operation(operation)
+            return entry
+
+    def get(
+        self,
+        model: str,
+        device: str | None = None,
+        *,
+        operation: Operation | None = None,
+    ) -> LoadedModel:
         """Return a resident model, loading and caching it on first request.
 
         Args:
             model: Model identifier (e.g. ``clay-v1``).
             device: Device override; defaults to the session device.
+            operation: Optional task checked before device probing and loading.
 
         Returns:
             The cached :class:`LoadedModel`.
@@ -103,17 +140,23 @@ class ModelSession:
             ModelNotInstalledError: Model has not been pulled.
             WhirldError: No backend is registered for the model.
         """
+        if operation is not None:
+            self.require_operation(model, operation, device=device)
         resolved = detect_device(device) if device is not None else self._device
         key = (model, resolved)
         with self._lock:
             cached = self._cache.get(key)
             if cached is not None:
+                if operation is not None:
+                    cached.entry.require_operation(operation)
                 return cached
 
             _log.info(
                 "Loading model '%s' on device '%s' into session.", model, resolved
             )
             entry = self._store.registry.get(model)
+            if operation is not None:
+                entry.require_operation(operation)
             manifest = self._store.load_manifest(model)
             backend = load_backend(entry, manifest, resolved, store=self._store)
             loaded = LoadedModel(entry=entry, manifest=manifest, backend=backend)

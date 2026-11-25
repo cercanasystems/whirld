@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from ..errors import InvalidInputError
+from ..errors import BackendContractError
 from ..io.embedding_stream import EmbeddingMetadata, EmbeddingStreamWriter
 from ..io.input import RasterInput
 from ..io.stac_stream import RasterWindowReader, StacWindowReader
@@ -45,9 +45,9 @@ class EmbeddingStream:
     """
 
     def __init__(self, store: ModelStore, device: str | None = None) -> None:
-        """Bind installation identity and resolve the inference device once."""
+        """Bind installation identity; defer device selection until task validation."""
         self._store = store
-        self._device = detect_device(device)
+        self._device = device if device is not None else "auto"
 
     def run(
         self,
@@ -102,8 +102,13 @@ class EmbeddingStream:
         error: str | None = None
         try:
             entry = self._store.registry.get(model)
-            if entry.category != "embedding" or entry.output.embed_dim is None:
-                raise InvalidInputError("Streaming requires an embedding model.")
+            entry.require_operation("embed")
+            dimension = entry.output.embed_dim
+            if dimension is None:
+                raise BackendContractError(
+                    f"Model '{model}' contract: embedding dimension is missing."
+                )
+            self._device = detect_device(self._device)
             manifest = self._store.load_manifest(model)
             version, quantized = manifest.version, manifest.quantized
             size = options.chip_size or entry.band_contract.chip_size_px
@@ -166,7 +171,7 @@ class EmbeddingStream:
                     model=entry.name,
                     model_version=version,
                     crs=reader.crs,
-                    embed_dim=entry.output.embed_dim,
+                    embed_dim=dimension,
                     chip_size_px=size,
                     resolution_m=reader.resolution_m,
                 )

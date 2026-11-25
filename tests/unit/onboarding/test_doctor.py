@@ -623,17 +623,32 @@ def test_missing_runtime_rows_include_same_environment_repair(
 
 
 @pytest.mark.parametrize(
-    ("backend", "required", "excluded"),
+    ("model", "backend", "required", "excluded"),
     [
-        ("clay-reference", "numpy", "torch"),
-        ("clay", "einops", "terratorch"),
-        ("remoteclip", "open_clip", "terratorch"),
-        ("prithvi", "terratorch", "open_clip"),
+        ("clay-v1", "clay-reference", "numpy", "torch"),
+        ("clay-v1.5", "clay", "einops", "terratorch"),
+        ("remoteclip-rn50", "remoteclip", "open_clip", "terratorch"),
+        ("prithvi-flood", "prithvi", "terratorch", "open_clip"),
     ],
 )
 def test_only_the_selected_backend_runtime_is_required(
-    backend: str, required: str, excluded: str
+    tmp_path: Path,
+    healthy_dependencies: None,
+    model: str,
+    backend: str,
+    required: str,
+    excluded: str,
 ) -> None:
     """Diagnostics avoid requiring every optional model family for a single workflow."""
-    modules = {module for _, module in DiagnosticsService._requirements(backend)}
+    from whirld.models.providers import ProviderCatalog
+
+    report = service(tmp_path).inspect(model)
+    modules = {dependency.module for dependency in report.dependencies}
     assert required in modules and excluded not in modules
+    assert tuple(
+        (dependency.distribution, dependency.module)
+        for dependency in report.dependencies
+    ) == tuple(
+        (dependency.distribution, dependency.module)
+        for dependency in ProviderCatalog.get(backend).dependencies
+    )

@@ -16,9 +16,10 @@ segmentation; the PRD's before/after temporal stacking does not apply.
 
 from __future__ import annotations
 
+from numbers import Real
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast
 
 import numpy as np
 import yaml
@@ -29,10 +30,11 @@ if TYPE_CHECKING:
 from .. import config
 from ..core.fetch import Manifest
 from ..core.registry import ModelEntry
-from ..errors import ModelNotInstalledError, WhirldError
+from ..errors import BackendContractError, ModelNotInstalledError, WhirldError
 from ..logging_setup import get_logger
-from .base import InferenceContext, ModelBackend, detect_device
+from .base import BackendContract, InferenceContext, ModelBackend, detect_device
 from .checkpoints import CheckpointReader
+from .providers import ProviderCatalog
 
 _log = get_logger("models.prithvi")
 
@@ -125,6 +127,8 @@ class PrithviBackend(ModelBackend):
         batch_size: Inference batch size over chips.
     """
 
+    provider_id: ClassVar[str] = "prithvi"
+
     def __init__(
         self,
         name: str,
@@ -141,7 +145,14 @@ class PrithviBackend(ModelBackend):
         super().__init__(
             name=name, version=version, device=device, batch_size=batch_size
         )
-        self.classes = int(classes)
+        if classes is None:
+            raise BackendContractError("Prithvi requires a class count.")
+        self._contract = BackendContract.create(
+            self.name,
+            classes=classes,
+            channels=ProviderCatalog.get(self.provider_id).input_channels,
+        )
+        self.classes = classes
         self._deployment = (
             PrithviDeployment(
                 config_path, CheckpointReader(ckpt_path, trusted=trusted_checkpoint)
@@ -174,6 +185,9 @@ class PrithviBackend(ModelBackend):
             ModelNotInstalledError: The checkpoint or config file is missing.
             WhirldError: The entry lacks ``config_file`` or the extra is absent.
         """
+        entry.require_operation("segment")
+        if entry.output.classes is None:
+            raise BackendContractError("Prithvi requires a declared class count.")
         resolved = detect_device(device)
         if not entry.config_file:
             raise WhirldError(
@@ -196,7 +210,7 @@ class PrithviBackend(ModelBackend):
             name=manifest.name,
             version=manifest.version,
             device=resolved,
-            classes=entry.output.classes or 2,
+            classes=entry.output.classes,
             config_path=cfg,
             ckpt_path=ckpt,
             trusted_checkpoint=entry.trust == "first-party",
@@ -226,11 +240,9 @@ class PrithviBackend(ModelBackend):
         """Prithvi is a segmentation model; embedding is not supported.
 
         Raises:
-            WhirldError: Always — use ``segment`` instead.
+            UnsupportedOperationError: Always; use ``segment`` instead.
         """
-        raise WhirldError(
-            f"Model '{self.name}' does not produce embeddings; use 'segment'."
-        )
+        return super().embed(chips, context)
 
     def segment(
         self,
@@ -257,10 +269,14 @@ class PrithviBackend(ModelBackend):
         Raises:
             ValueError: ``chips`` is not 4-D.
         """
-        if chips.ndim != 4:
-            raise ValueError(
-                f"Expected chips of shape (n, bands, h, w), got {chips.shape}."
-            )
+        self._contract.chips(chips)
+        if (
+            isinstance(threshold, bool)
+            or not isinstance(threshold, Real)
+            or not np.isfinite(threshold)
+            or not 0 <= threshold <= 1
+        ):
+            self._contract.fail("threshold must be a finite number in [0, 1].")
         if chips.shape[0] == 0:
             return np.empty((0, chips.shape[2], chips.shape[3]), dtype=np.uint8)
 
@@ -278,14 +294,21 @@ class PrithviBackend(ModelBackend):
                     .unsqueeze(2)
                     .to(self.device)
                 )
-                logits = _as_logits(model(pixels))
+                logits = self._contract.tensor(
+                    _as_logits(model(pixels)),
+                    (batch.shape[0], self.classes, batch.shape[2], batch.shape[3]),
+                    "segmentation logits",
+                )
                 if abs(threshold - 0.5) < 1e-9 or logits.shape[1] != 2:
                     mask = logits.argmax(dim=1)
                 else:
                     prob = logits.softmax(dim=1)[:, 1]
                     mask = (prob >= threshold).to(torch.uint8)
                 outputs.append(mask.to(torch.uint8).cpu().numpy())
-        return np.concatenate(outputs, axis=0).astype(np.uint8)
+        return self._contract.masks(
+            np.concatenate(outputs, axis=0).astype(np.uint8),
+            (chips.shape[0], chips.shape[2], chips.shape[3]),
+        )
 
 
 def _as_logits(output: Tensor | _LogitOutput) -> Tensor:

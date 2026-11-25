@@ -20,7 +20,7 @@ from whirld.core.options import (
     ClassificationQueries,
     StreamingClassificationOptions,
 )
-from whirld.errors import InvalidInputError, WhirldError
+from whirld.errors import InvalidInputError, UnsupportedOperationError, WhirldError
 from whirld.io.stac_stream import ChipBatch, RasterWindowReader
 from whirld.models.base import InferenceContext, ModelBackend
 
@@ -224,7 +224,7 @@ def test_unsupported_model_rejected_before_source_or_backend(
 
     monkeypatch.setattr(stream, "_reader", unexpected)
     monkeypatch.setattr(classification_stream, "load_backend", unexpected)
-    with pytest.raises(InvalidInputError, match="classification model"):
+    with pytest.raises(UnsupportedOperationError, match="classify"):
         stream.run(
             "item.json",
             model=model,
