@@ -34,6 +34,11 @@ model extras. A separate 51-package starter environment passes doctor, a real
 four-chip RN50 demo using verified cached weights and evaluation-manifest loading
 outside the checkout. No new dependencies or runtime changes were necessary.
 
+Committed/pushed the resolution as merge `26c025f` to the existing upstream;
+GitHub confirms PR #32 is mergeable and fresh hosted checks have started. Main
+remains `78622e5`. The PR tracks hosted results; manual merge/publication remain
+with the user.
+
 ## 2026-11-24 — Pass 19: first-run onboarding
 
 Branch: `feat/first-run-onboarding`, based on main `7ba2f4c` after PR #30.

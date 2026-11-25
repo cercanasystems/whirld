@@ -11,9 +11,9 @@ compliance review. Keep the existing PR/history; no force push or PR merge.
 - [x] ~~Verify the combined project on Python3.13.7 in `.venv`: full coverage suite,
       Black/Ruff/mypy, registry and conflict/diff checks, source/wheel resources
       and installed base smoke. Obtain independent final resolution review.~~
-- [ ] Record results, commit the merge and push the existing matching upstream;
+- [x] ~~Record results, commit the merge and push the existing matching upstream;
       confirm PR #32 is conflict-free and check hosted validation. Leave manual
-      merge and release publication with the user.
+      merge and release publication with the user.~~
 
 ### Review
 
@@ -26,6 +26,10 @@ pass. A source-built wheel preserves all package files and both resource sets;
 the source archive includes guides, baseline JSON, screenshot, profiles and scripts.
 Fresh installed base-only clean-room smoke and starter doctor/real RN50 demo pass
 outside the checkout; the four-case evaluation manifest loads in both environments.
+
+Resolution merged/pushed as `26c025f`; GitHub confirms PR #32 is `MERGEABLE`.
+Main remains `78622e5`. Hosted validation has started on the resolved branch;
+its final status is tracked in the PR. No automatic PR merge or release.
 
 Plan recorded before conflict resolution. Preserve both implemented milestones;
 resolve documentation/package metadata without changing runtime behavior.
