@@ -29,6 +29,26 @@ separately; model/server extras can be selected on the wheel path as shown below
 
 ## Build and verify release artifacts
 
+### Onboarding preview and future PyPI publication
+
+The first-result preview adds `doctor` and `demo` without changing the package
+version. Its quickstart uses an immutable GitHub source archive; the published
+0.3.0 wheel predates these commands. Do not upload a different payload under an
+existing published version.
+
+PyPI publication is not enabled by this work. The public `whirld` JSON endpoint
+returned HTTP 404 during the 2026-11-24 read-only preflight; that does not reserve
+the project name or grant publishing rights. After manual merge, prepare a
+separate versioned release PR and obtain explicit publication approval.
+
+Before an approved upload, choose the release version, refresh the starter pins,
+replace preview install/image URLs with reviewed release refs, and make README
+navigation links absolute so they work on PyPI. Build the wheel from the source
+archive, validate metadata/long-description rendering, verify the bundled imagery
+notice and constraints, and repeat the standalone starter install and real demo.
+Configure account ownership/Trusted Publishing only as part of that separately
+approved publication step. Model/data licenses remain distinct from package code.
+
 Use Python 3.13.7 in a `.venv`. From the reviewed source checkout, build the
 source distribution, then build the wheel from that archive using an isolated
 PEP 517 build. With `uv` available:

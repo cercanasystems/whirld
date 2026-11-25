@@ -7,7 +7,6 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from ... import api
 from ._cog import CogArguments
 from ._stac import parse_bbox, resolve_stac_token
 
@@ -104,6 +103,8 @@ def embed_command(
         offset: COG reflectance offset, one value or a value for every source band.
         stream: Bound local/STAC/COG batches and write results incrementally.
     """
+    from ... import api
+
     if stream:
         disk_result = api.embed_to_disk(
             input,

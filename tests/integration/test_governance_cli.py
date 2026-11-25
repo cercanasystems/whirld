@@ -6,11 +6,12 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 from typer.testing import CliRunner
 
 from whirld.cli import app
 from whirld.core.fetch import Manifest
-from whirld.core.registry import Registry
+from whirld.core.registry import ModelEntry, Registry
 
 runner = CliRunner()
 
@@ -25,6 +26,9 @@ def test_pull_shows_oss_license(whirld_home: Path) -> None:
 
 def test_pull_warns_non_oss(whirld_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A non-OSS license triggers a prominent terms warning at pull time."""
+    from whirld import api
+    from whirld.cli.commands import pull as pull_command_module
+
     entry = (
         Registry()
         .get("clay-v1")
@@ -32,10 +36,22 @@ def test_pull_warns_non_oss(whirld_home: Path, monkeypatch: pytest.MonkeyPatch) 
     )
 
     class _FakeRegistry:
-        def get(self, name):  # type: ignore[no-untyped-def]
+        """Provide a restricted model contract at the registry boundary."""
+
+        def get(self, name: str) -> ModelEntry:
+            """Resolve only the fixture's explicitly selected model."""
+            assert name == entry.name
             return entry
 
-    def _fake_pull(name, **kwargs):  # type: ignore[no-untyped-def]
+    recorded = Console(record=True)
+
+    def _fake_pull(
+        name: str, *, force: bool = False, quantize: str | None = None
+    ) -> Manifest:
+        """Observe terms before acquisition without downloading fixture weights."""
+        assert "not a recognized open-source license" in recorded.export_text(
+            clear=False
+        )
         return Manifest(
             name=name,
             version="1.0.0",
@@ -45,7 +61,8 @@ def test_pull_warns_non_oss(whirld_home: Path, monkeypatch: pytest.MonkeyPatch) 
         )
 
     monkeypatch.setattr("whirld.cli.commands.pull.Registry", _FakeRegistry)
-    monkeypatch.setattr("whirld.cli.commands.pull.api.pull", _fake_pull)
+    monkeypatch.setattr(pull_command_module, "console", recorded)
+    monkeypatch.setattr(api, "pull", _fake_pull)
 
     result = runner.invoke(app, ["pull", "clay-v1"])
     assert result.exit_code == 0, result.output

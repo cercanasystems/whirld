@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "sentinel2-sacramento-rgb-20240722",
+  "file": "starter-rgb.tif",
+  "sha256": "c058a03a0da3efe368c5517b2eb5c8778cab31bb219ab4b345579665971aca4e",
+  "size_bytes": 2060413,
+  "width": 448,
+  "height": 448,
+  "crs": "EPSG:32610",
+  "transform": [
+    10.0,
+    0.0,
+    626263.264324059,
+    0.0,
+    -10.0,
+    4271775.166891648
+  ],
+  "band_names": [
+    "B04",
+    "B03",
+    "B02"
+  ],
+  "sensor": "sentinel-2-l2a",
+  "dtype": "float32",
+  "units": "canonical_dn",
+  "nodata": -9999.0,
+  "source_item_url": "https://earth-search.aws.element84.com/v1/collections/sentinel-2-l2a/items/S2A_10SFH_20240722_0_L2A",
+  "source_item_id": "S2A_10SFH_20240722_0_L2A",
+  "source_bbox": [
+    -121.57,
+    38.53,
+    -121.48,
+    38.6
+  ],
+  "source_datetime": "2024-07-22T19:03:53.453000Z",
+  "source_crop_window": [
+    174,
+    171,
+    448,
+    448
+  ],
+  "attribution": "Contains modified Copernicus Sentinel data 2024, via Element 84. Cropped RGB bands converted to canonical DN; display uses a percentile stretch.",
+  "license_url": "https://sentinels.copernicus.eu/documents/247904/690755/Sentinel_Data_Legal_Notice",
+  "preparation": "read_stac_item on the stated ROI, target 10 m; central 448x448 window; canonical_DN=(stored*scale+offset)/0.0001 using B04:scale=0.0001,offset=-0.1;B03:scale=0.0001,offset=-0.1;B02:scale=0.0001,offset=-0.1; float32, band order B04/B03/B02; all-band invalid pixels stored as -9999 with internal mask; no model normalization baked in."
+}

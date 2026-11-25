@@ -1,3 +1,132 @@
+## PR #32 merge-conflict resolution — 2026-11-25
+
+Working branch: `feat/first-run-onboarding`; main `78622e5` includes manually
+merged evaluation PR #31. Re-read AGENTS.md/lessons and assigned dedicated
+compliance review. Keep the existing PR/history; no force push or PR merge.
+
+- [x] ~~Merge updated main and resolve all six conflicts while retaining evaluation
+      and onboarding changes: ignored outputs, changelog entries, JSON/PNG source
+      resources, all wheel package data, and both TODO/progress histories. Inspect
+      the automatically merged README and shared example/evaluation boundaries.~~
+- [x] ~~Verify the combined project on Python3.13.7 in `.venv`: full coverage suite,
+      Black/Ruff/mypy, registry and conflict/diff checks, source/wheel resources
+      and installed base smoke. Obtain independent final resolution review.~~
+- [x] ~~Record results, commit the merge and push the existing matching upstream;
+      confirm PR #32 is conflict-free and check hosted validation. Leave manual
+      merge and release publication with the user.~~
+
+### Review
+
+Resolved all six metadata/documentation conflicts, retaining both milestones and
+main's historical checked/struck evaluation tasks. README retains both entrypoints.
+Runtime bytes match their respective branches. Independent final review is clear.
+Combined full suite: **1274 passed / 12 skipped, 93.30% coverage**; Black (212),
+Ruff, mypy (90 including scripts), seven registry entries and conflict/diff checks
+pass. A source-built wheel preserves all package files and both resource sets;
+the source archive includes guides, baseline JSON, screenshot, profiles and scripts.
+Fresh installed base-only clean-room smoke and starter doctor/real RN50 demo pass
+outside the checkout; the four-case evaluation manifest loads in both environments.
+
+Resolution merged/pushed as `26c025f`; GitHub confirms PR #32 is `MERGEABLE`.
+Main remains `78622e5`. Hosted validation has started on the resolved branch;
+its final status is tracked in the PR. No automatic PR merge or release.
+
+Plan recorded before conflict resolution. Preserve both implemented milestones;
+resolve documentation/package metadata without changing runtime behavior.
+
+
+## Pass 19 — First real result: setup, doctor and packaged RN50 demo
+
+Branch: `feat/first-run-onboarding`, originally from main `7ba2f4c` while
+PR #31 was open. The 2026-11-25 integration above incorporates its merged work. Re-read AGENTS.md/lessons, verified
+branch before edits and assigned dedicated compliance plus demo/diagnostics work.
+User approved the onboarding recommendation. No version/tag/GitHub/PyPI release
+or automatic merge; publication requires separate approval.
+
+- [x] ~~Package a small attributed Sentinel-2 RGB sample and a manifest with exact
+      bytes/SHA, source item/ROI/date, canonical-DN conversion, native band order,
+      grid and license. Use a reproducible preparation script; preserve masks and
+      require a standalone GTiff. Bundle the small derived data, so first-run
+      imagery needs no login, STAC request or separate asset publication.~~
+- [x] ~~Promote shared preview/score objects from examples into installed package
+      code with compatibility re-exports; preserve all three example entrypoints.
+      Add an object-owned CPU RN50 DemoRunner returning typed artifacts/provenance,
+      using preflight, existing model acquisition/inference and self-contained
+      HTML/PNG/GeoJSON. Missing weights may be downloaded; broken runtime or stale
+      cache must fail before large acquisition. Reuse verified models. Reserve a
+      fresh output directory, scope runtime state and clean owned failures/interrupts.~~
+- [x] ~~Add typed doctor diagnostics and installed CLI commands with lazy imports.
+      Report interpreter, selected runtime import health, effective model contract,
+      actual cached identity, cache permissions and disk estimate. Missing weights
+      is a ready-to-download warning, not a runtime failure. Display exact active-
+      environment repair commands and upfront model size; install no dependencies
+      implicitly and never seed/modify registry as a side effect of diagnosis.~~
+- [x] ~~Provide a minimal, exact-version starter dependency profile and one tested uv
+      .venv/Python3.13.7 path, with pip alternative. Avoid developer tools, other
+      model backends and a repository checkout. Test CPU-friendly PyTorch install
+      selection. Prepare distribution metadata/docs without uploading anything.
+      Until publication, use an explicitly pinned source archive containing these
+      commands; published 0.3.0 lacks them and must not be presented as the installer.~~
+- [x] ~~Rewrite README around install -> real demo -> visible result -> own imagery,
+      include an actual screenshot, input/result interpretation, download/runtime
+      expectations and actionable troubleshooting. Keep contributor setup and the
+      deterministic reference smoke path distinct. Maintain TODO/dev_progress.~~
+- [x] ~~Verify offline behavior/failure boundaries with meaningful unit/integration
+      tests; run actual RN50 weights, independently inspect scores/geometry/source
+      identity and render the installed preview. Measure cold and warm paths with
+      dependencies/model acquisition clearly separated; promise no arbitrary time.
+      Test fresh installed package outside checkout, base-only lazy help/diagnosis,
+      supported Mac/Linux starter paths, full >=80% coverage/style/type/registry and
+      dedicated final review. Commit/push matching upstream and open a manual PR.~~
+
+Acceptance: a user following the stated preview installation can run doctor and a
+real-model demo from a fresh directory, without Git/source checkout or dev packages,
+and open a self-contained preview plus GIS-compatible output. All sample/model
+identities and setup limits are explicit; unavailable optional runtimes give useful
+same-environment fixes before large downloads. Existing inference APIs and examples
+remain compatible. No release/version bump or new model support in this pass.
+
+### Review
+
+Completed implementation on the matching upstream and opened
+[PR #32](https://github.com/cercanasystems/whirld/pull/32) for manual review/merge.
+The exact pinned uv and pip source-archive commands both pass in fresh external
+Python3.13.7 `.venv`s, without Git/editable imports or developer/server/Prithvi
+packages. A fresh base-only wheel also proves lazy CLI/help, actionable optional-
+runtime failures and no network/cache mutation. Sample/notice/profile resources
+match their source hashes. Actual installed RN50 runs pass on macOS ARM64 and
+Linux x86_64 under emulation; the minimal Linux image needs only `libexpat1`,
+which doctor diagnoses explicitly. Network-disabled Linux inference matches
+macOS geometry/ranks/identities, with maximum probability error 3.85e-6. Cold and
+warm timings and cache conditions are recorded in `docs/quickstart.md`.
+
+Independent verification confirms normalized finite scores, exact WGS84 chip
+footprints and source/checkpoint/registry identities; repeated macOS TIFF,
+GeoJSON and HTML/PNG outputs are byte-identical. The actual preview screenshot
+was inspected. The own-image streaming command executes successfully. Existing
+example compatibility tests pass. Final full suite: **1052 passed / 12 skipped,
+92.71% coverage**; Black (195 files), Ruff, mypy (82 files), seven registry entries
+and diff checks pass. Final compliance review found no blocker. An initial
+workflow-context error was corrected and actionlint1.7.12 now validates CI.
+Hosted check status remains separate from local verification. No release/version
+change, upload or automatic merge.
+
+Native Ubuntu24.04 hosted starter artifacts also match macOS geometry/ranking
+and preview pixels, with maximum score error 6.86e-6 within tolerance and exact
+input/model identities. This run acquired its weights from an empty cache.
+Hosted full-suite feedback identified three CLI assertions sensitive to ANSI
+styling/line wrapping; normalize rendered text and retain semantic exit-code,
+no-acquisition and no-output assertions before rerunning hosted verification.
+The complete 22-test onboarding CLI module passes with forced color, 80 columns
+and CI flags, including three additional long-path output assertions. No runtime
+code or immutable installer change was needed.
+
+Plan recorded before implementation. Demo imagery is bundled and pinned rather
+than relying on an unchanged remote STAC response; preview and inference share
+that single input. The installed starter path remains explicitly unreleased until
+manual review, merge and separately approved publication.
+
+
 ## Pass 18 — Small labeled segmentation evaluation baseline
 
 Branch: `feat/labeled-evaluation-baseline`, from main `7ba2f4c` after manually

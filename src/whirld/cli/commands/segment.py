@@ -7,7 +7,6 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from ... import api
 from ...errors import InvalidInputError
 from ._cog import CogArguments
 from ._stac import parse_bbox, resolve_stac_token
@@ -105,6 +104,8 @@ def segment_command(
         scale: COG reflectance scale, one value or a value for every source band.
         offset: COG reflectance offset, one value or a value for every source band.
     """
+    from ... import api
+
     if stream:
         if output is None:
             raise InvalidInputError("--stream requires --output for GeoTIFF.")

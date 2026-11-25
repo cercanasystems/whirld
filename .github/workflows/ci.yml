@@ -46,3 +46,53 @@ jobs:
           .venv/bin/python -m pip install -r requirements.txt .
           .venv/bin/python -m pip check
           PATH="$PWD/.venv/bin:$PATH" WHIRLD_HOME="$RUNNER_TEMP/whirld-smoke" .venv/bin/python scripts/clean_room_test.py
+  starter-install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.7'
+      - name: Set isolated model cache
+        run: echo "WHIRLD_HOME=$RUNNER_TEMP/whirld-starter-models" >> "$GITHUB_ENV"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/whirld-starter-models
+          key: starter-rn50-${{ runner.os }}-${{ hashFiles('src/whirld/registry_data/models/remoteclip-rn50.yaml') }}
+      - name: Install only the tested CPU starter runtime
+        run: |
+          python -m pip install uv==0.11.20
+          uv venv --python 3.13.7 .venv
+          uv pip install --python .venv/bin/python --torch-backend cpu -r requirements-quickstart.txt '.[remoteclip]'
+          uv pip check --python .venv/bin/python
+      - name: Run installed diagnostics and real demo outside the checkout
+        run: |
+          starter_cli="$PWD/.venv/bin/whirld"
+          starter_python="$PWD/.venv/bin/python"
+          mkdir -p "$RUNNER_TEMP/whirld-starter-run"
+          cd "$RUNNER_TEMP/whirld-starter-run"
+          "$starter_cli" doctor --json > doctor.json
+          "$starter_cli" demo --output result
+          "$starter_python" - <<'PY'
+          import importlib.util
+          import json
+          import os
+          from pathlib import Path
+          import whirld
+          assert not Path(whirld.__file__).is_relative_to(Path(os.environ['GITHUB_WORKSPACE']) / 'src')
+          for name in ('pytest', 'terratorch', 'torchgeo', 'fastapi', 'black', 'ruff'):
+              assert importlib.util.find_spec(name) is None, name
+          report = json.loads(Path('result/report.json').read_text())
+          assert report['model'] == 'remoteclip-rn50' and report['feature_count'] == 4
+          assert report['device'] == 'cpu'
+          assert Path('result/preview.html').is_file()
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: starter-linux-result
+          path: ${{ runner.temp }}/whirld-starter-run
+          retention-days: 3

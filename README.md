@@ -1,24 +1,53 @@
 # Whirld
 
-**Local-first CLI and Python library for running geospatial foundation models**
+**Run geospatial foundation models locally, with georeferenced results.**
 
-Concept: "Like ollama, but for geospatial foundation models"
+Whirld handles band selection, resampling, normalization and image chips for
+embedding, text-prompt classification and segmentation. Start with a real model
+and a small included Sentinel-2 image; open the result in your browser or GIS.
 
-Whirld owns the *sensor-to-model translation contract*. Give it a GeoTIFF and a
-model name; it detects the sensor, selects the right bands **by spectral alias**,
-resamples, normalizes, chips the image, runs inference, and writes a georeferenced
-output. You write one command.
+## Quickstart — unreleased preview
+
+The `doctor` and `demo` commands below are new. **The published 0.3.0 wheel does
+not include them.** This preview installs a pinned source archive without Git, a
+repository checkout or development tools. PyPI publication is a separate step.
+
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) once, then run
+these commands in a new directory on macOS or Linux. uv provisions Python 3.13.7
+if needed. The starter profile installs the RemoteCLIP runtime with CPU PyTorch.
 
 ```bash
-whirld pull clay-v1
-whirld embed --model clay-v1 my_sentinel2_scene.tif
-# → s2_small_embeddings.npy (512-dim vector per chip) + metadata sidecar
+uv venv --python 3.13.7 .venv
+uv pip install --python .venv/bin/python --torch-backend cpu \
+  -r https://raw.githubusercontent.com/cercanasystems/whirld/6b70aa931f4dc03bd4abf2e6345c224f4643b277/requirements-quickstart.txt \
+  'whirld[remoteclip] @ https://github.com/cercanasystems/whirld/archive/6b70aa931f4dc03bd4abf2e6345c224f4643b277.zip'
+.venv/bin/whirld doctor
+.venv/bin/whirld demo --output quickstart-results
 ```
 
-Try the [three runnable real-world examples](examples/README.md): find similar
-landscapes with Clay, compare land-cover prompts with RemoteCLIP, and map a
-burn-scar prediction with Prithvi. Each uses pinned open imagery and real weights,
-and produces georeferenced results plus a self-contained browser preview.
+Open **`quickstart-results/preview.html`** in your browser. No map server, imagery
+account, GPU or system GDAL installation is needed for this tested starter path.
+The first demo downloads **408.4 MB** of RN50 weights; later runs reuse the
+verified model cache. Python/runtime installation downloads are additional. Plan
+for at least 4 GB RAM and sufficient free disk space. Doctor checks setup first
+and gives repair commands for the active environment.
+
+<img src="https://raw.githubusercontent.com/cercanasystems/whirld/6b70aa931f4dc03bd4abf2e6345c224f4643b277/docs/images/quickstart-preview.png" alt="Actual RN50 demo: four labeled urban image chips over Sacramento and its river" width="900">
+
+The preview shows which of four landscape prompts scores highest for each image
+chip. These are prompt-relative model scores, not calibrated land-cover confidence
+or ground truth. The included crop is predominantly urban; all four chips select
+the urban prompt in the recorded run.
+
+The result directory also contains `scores.geojson` for QGIS, the exact sample
+TIFF and `report.json` with model/sample identities and runtime details. Choose a
+new output directory for another run; existing results are preserved. The sample
+contains modified Copernicus Sentinel data 2024, via Element 84.
+
+See the [quickstart guide](docs/quickstart.md) for pip installation, troubleshooting,
+recorded setup times, data attribution and the next step with your own imagery.
+The [three larger examples](examples/README.md) cover similarity, classification
+and burn-scar mapping after the first result.
 
 ---
 
