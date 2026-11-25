@@ -1,3 +1,25 @@
+## PR #32 merge-conflict resolution — 2026-11-25
+
+Working branch: `feat/first-run-onboarding`; main `78622e5` includes manually
+merged evaluation PR #31. Re-read AGENTS.md/lessons and assigned dedicated
+compliance review. Keep the existing PR/history; no force push or PR merge.
+
+- [ ] Merge updated main and resolve all six conflicts while retaining evaluation
+      and onboarding changes: ignored outputs, changelog entries, JSON/PNG source
+      resources, all wheel package data, and both TODO/progress histories. Inspect
+      the automatically merged README and shared example/evaluation boundaries.
+- [ ] Verify the combined project on Python3.13.7 in `.venv`: full coverage suite,
+      Black/Ruff/mypy, registry and conflict/diff checks, source/wheel resources
+      and installed base smoke. Obtain independent final resolution review.
+- [ ] Record results, commit the merge and push the existing matching upstream;
+      confirm PR #32 is conflict-free and check hosted validation. Leave manual
+      merge and release publication with the user.
+
+### Review
+
+Plan recorded before conflict resolution. Preserve both implemented milestones;
+resolve documentation/package metadata without changing runtime behavior.
+
 ## Pass 19 — First real result: setup, doctor and packaged RN50 demo
 
 Branch: `feat/first-run-onboarding`, from main `7ba2f4c`. PR #31 remains open;
