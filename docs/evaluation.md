@@ -1,9 +1,17 @@
 # Small labeled segmentation baseline
 
-The source checkout includes a fixed four-case **burn-scar quality evaluation**
+The 0.4.0 release candidate includes a fixed four-case **burn-scar quality evaluation**
 using `prithvi-burn-scar` and openly licensed HLS Burn Scars imagery/labels. This
-is unreleased; it is not part of the published 0.3.0 artifacts. It complements
-execution/parity checks with ground-truth metrics for one existing task.
+is pending review and publication, and is absent from the published 0.3.0
+artifacts. It complements execution/parity checks with ground-truth metrics for
+one existing task. See [release status](releases.md).
+
+The 0.4.0 candidate reran all four cases offline with verified cached data and
+weights. Prediction hashes, independently recomputed counts and split metrics
+exactly match the pinned baseline below; model/config/data identities are
+unchanged. This reproducibility check does not broaden the sample's quality
+claims. Current candidate evidence is summarized in the
+[release guide](releases.md#candidate-verification).
 
 ## Run
 

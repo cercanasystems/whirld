@@ -132,3 +132,31 @@ GeoJSON. No example script change was needed. All 33 hermetic example regression
 tests pass. These results establish continuing compatibility and contract
 fidelity; they are not prediction-accuracy or GPU-performance evidence. Runtime
 and network/cache conditions vary, so the historical timings remain separate.
+
+## 0.4.0 candidate revalidation
+
+All three documented module entry points were executed again on **2026-11-25**
+with Python 3.13.7, Whirld 0.4.0, CPU and two Torch threads on the macOS ARM64
+host above. Each run used a new output directory and the same checksum-verified
+cached checkpoint. The first two retrieved the public Sentinel-2 STAC/COG windows;
+the third freshly downloaded its pinned 6.3 MB HLS sample. No model weights were
+downloaded during these measurements.
+
+| Workflow | Verified output | Elapsed | Peak process RSS |
+|---|---|---:|---:|
+| Clay, reference 0 | 16 × 1024; ranks 5/2/4/9/8 | 45.18 s | 2,599.9 MiB |
+| RemoteCLIP | 16 features × four scores | 10.18 s | 1,588.8 MiB |
+| Prithvi | 512 × 512; 208989 burned / 262144 valid pixels | 8.52 s | 3,049.5 MiB |
+
+The complete embedding array and ranked matches, classification feature scores
+and geometry, and burn-scar mask/grid/nodata match the saved 0.3.0 results exactly.
+Embedding metadata differs only in timestamp/version; the classification collection
+records 0.4.0. Model revisions and checkpoint identities are unchanged. Preview
+PNGs were visually inspected and match the previous PNG bytes; HTML embedded
+images, viewports, footprint counts and visible label bounds were checked.
+
+These are observed workflow timings under the boundaries above, with cached
+weights and variable network/host activity. They establish execution compatibility,
+not prediction accuracy, a speed improvement or accelerator support. The separate
+[labeled evaluation](../docs/evaluation.md) provides quality metrics for its fixed
+burn-scar cases; these three example outputs are not held-out accuracy estimates.

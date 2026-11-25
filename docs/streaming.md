@@ -29,10 +29,11 @@ embeddings = numpy.load(result.output_path, mmap_mode="r")
 
 ## Supported inputs and numerical behavior
 
-`embed_to_disk()` accepts local GeoTIFFs (unreleased), local STAC JSON paths,
+`embed_to_disk()` accepts local GeoTIFFs (0.4.0 candidate), local STAC JSON paths,
 file URLs, and HTTP(S) item URLs. See [local streaming](local-streaming.md) for
 runnable commands and the local canonical-DN, band selection and bbox contract;
-local support requires the current source checkout, beyond published 0.3.0.
+local support requires the [0.4.0 candidate](quickstart.md), beyond published
+0.3.0; candidate publication remains pending.
 Direct HTTP(S) TIFF URLs are also supported with an explicit sensor and complete
 band identity; see [direct COG input](direct-cog.md) for `CogOptions` and CLI flags.
 It preserves band order, radiometry, masks/nodata, overlap, padded edge footprints,

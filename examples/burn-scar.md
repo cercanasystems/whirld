@@ -131,3 +131,24 @@ the timing boundaries above. It completed with no blank GDAL `Cannot read`
 diagnostics after the scoped header-file policy correction. These repeat checks
 establish compatibility and output fidelity, not prediction accuracy or a lower
 system-memory requirement.
+
+## 0.4.0 candidate revalidation
+
+The documented module command ran on **2026-11-25** with Python 3.13.7, Whirld
+0.4.0 and CPU/two threads on macOS ARM64. The existing curated checkpoint was
+checksum-verified; the run freshly downloaded the pinned **6,295,168-byte** HLS
+sample into a new output directory and verified its unchanged source SHA-256.
+
+The **512 × 512 uint8 mask** is bitwise-identical to the saved 0.3.0 mask:
+**208,989 predicted burned / 262,144 valid pixels (79.72%)**. Source dimensions,
+CRS and affine are preserved, valid classes remain 0/1 with nodata 255, and output
+validity agrees with the source bands. Independent float32 checks confirm the
+reflectance is normalized once, without an extra reflectance factor. The source
+and overlay PNGs were visually inspected and match prior PNG bytes; both HTML
+files embed those images exactly and preserve their 512-square viewports.
+
+The workflow measured **8.52 seconds / 3,049.5 MiB peak process RSS** under the
+existing timer, excluding checkpoint verification and model download. Cache,
+network and host activity affect these observations. The predicted burn fraction
+is descriptive; this official demonstration image remains separate from the
+fixed held-out cases in the [labeled evaluation](../docs/evaluation.md).

@@ -6,6 +6,65 @@ remains.
 
 ---
 
+## 2026-11-25 — Release 0.4.0 preparation
+
+Branch: `release/0.4.0`, from main `30eb838` after the user's manual PR #33
+merge. Merged-main CI is green. Re-read AGENTS.md/lessons, recorded the release
+plan and assigned independent docs, actual-example and release-compliance work.
+This is preparation for manual review/merge; no tag, GitHub/PyPI upload or
+automatic merge is included. Publication needs separate approval after merge.
+
+Set the single version source to 0.4.0 and synchronized the `.venv` distribution
+metadata. Candidate code is pinned at `b817fe333be33a6ce96d417915a39a323e2aae37`
+for runnable immutable uv/pip archive instructions without a checkout. Notes and
+guides cover local streaming, labeled evaluation, first-result setup/demo and
+provider-contract hardening since 0.3.0. All 0.4 assets remain explicitly pending;
+published 0.3.0 and historical measurements remain distinct. Compatibility notes
+describe stricter metadata/float32 NCHW/output validation and early unsupported-
+operation CLI7/HTTP422 errors while preserving valid inference arithmetic.
+
+Exact fresh external uv and pip archive installs pass on Python3.13.7, report
+0.4.0 in runtime/distribution metadata and identify the pinned archive in PEP610
+origin data. Imports resolve to site-packages, dependency checks pass, and no
+developer/server/Prithvi packages are installed. Doctor and actual cached RN50
+produce four scores, geometry and preview pixels exactly matching prior output
+apart from application version. Pip install took 23.04 s, doctor 16.52 s and demo
+2.53 s with existing dependency/model caches; uv reports 2.14 s resolution,
+0.27 s preparation and 0.40 s installation internal phases, not total wall time.
+Universal CPU dependency resolution under the existing constraints reproduces
+every starter pin exactly; no dependency upgrades are included.
+
+All three documented primary example entry points re-run with real pinned
+weights, CPU/two threads and application version 0.4.0. Clay returns exact
+16-by-1024 embeddings and reference ranking 5/2/4/9/8 (45.18 s, 2599.9 MiB peak
+RSS); RemoteCLIP returns exact 16-by-4 scores/geometry apart from the version
+field (10.18 s, 1588.8 MiB); burn-scar returns the exact 512-square mask/grid/nodata
+with 208989 burn / 262144 valid pixels (8.52 s, 3049.5 MiB). RN50 demo reproduces
+its four-score result (2.41 s). Weights are cached and verified; public imagery is
+read afresh. PNG bytes and HTML image/footprint structure match prior previews.
+The four cached evaluation cases also reproduce every prediction hash, count and
+split metric, with independent confusion-matrix recomputation: validation/test IoU
+0.7459745025 / 0.8400137229, coverage 1.0. Guides record cache/timing boundaries and
+small-sample limits; these execution checks do not establish general accuracy.
+
+Full candidate suite: **1472 passed / 12 skipped, 93.53% package/example coverage**.
+Black (217 files), Ruff, mypy (91 including scripts), seven registry entries and
+diff checks pass. Source-built wheel metadata reports 0.4.0, Python>=3.13.7 and
+Apache-2.0; every package file/resource matches source. Root/vendor licenses,
+imagery notice, profiles, evaluation data/baseline and all docs/examples ship;
+caches, secrets and weights are excluded. Independent fresh 25-package wheel and
+source installs pass dependency checks and archive-provided clean-room workflows.
+Independent release/OOP/resource/license review is clear. Both installed base
+environments also pass controlled HTTP-range COG checks without optional model
+frameworks: actual reference local/eager/stream embeddings (nine-by-512), synthetic
+classification eager/stream GeoJSON (four features), and synthetic segmentation
+eager/stream masks/grid/nodata (100-square, six invalid pixels) agree exactly.
+Each environment observes 16 GETs, all ranged; the small full-extent fixture makes
+no subset-bandwidth or memory claim. Actual optional-model inference is covered
+by the separate real examples above. Candidate source commit `b817fe3` hosted CI
+passes. Final post-documentation artifacts/checksums and review PR are recorded
+below after preparation.
+
 ## 2026-11-25 — Pass 20: provider contract consistency
 
 Branch: `fix/provider-contract-consistency`, from main `26cd93a` after the

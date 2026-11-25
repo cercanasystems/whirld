@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — pending
+
+Release candidate only: no 0.4.0 tag or assets have been published. This release
+preparation groups [PR #30](https://github.com/cercanasystems/whirld/pull/30)
+(local streaming), [#31](https://github.com/cercanasystems/whirld/pull/31)
+(evaluation), [#32](https://github.com/cercanasystems/whirld/pull/32)
+(onboarding) and [#33](https://github.com/cercanasystems/whirld/pull/33)
+(provider contracts). Manual PR merge and separate publication approval remain
+required. Install the immutable candidate via the [quickstart](docs/quickstart.md).
+
+### Included
 
 - Centralize provider capabilities, metadata requirements, runtime dependencies
   and lazy construction; consistently reject unsupported tasks before expensive
@@ -19,8 +29,36 @@
   preserving eager local sensor/band, canonical-DN, mask and grid behavior.
 - Support local TIFF file URLs, sidecar masks/PAM metadata and bounded pre-warp
   nonfinite filtering; reject local bbox and remote-only COG options.
-- Reuse existing staged writers and output formats without a version bump or
-  REST behavior change. See [local streaming](docs/local-streaming.md).
+- Reuse existing staged writers and output formats; REST streaming remains
+  deferred. See [local streaming](docs/local-streaming.md).
+
+### Compatibility
+
+Supported inference math, public signatures and output formats remain unchanged.
+Unsupported operations now consistently raise `UnsupportedOperationError` before
+model acquisition/loading, device probing or source processing where applicable.
+It derives from `InvalidInputError`: CLI exit 7 and HTTP 422. Existing code that
+caught generic `NotImplementedError` should catch the domain exception instead.
+
+Direct backend inputs must follow the documented normalized **float32 NCHW**
+contract. Registry metadata must declare valid dimensions, channel counts,
+aligned normalization/spectral metadata, architecture/config and class counts.
+Learned outputs must have the expected shape, finite float32 embeddings/scores,
+or uint8 masks within declared classes. Malformed inputs that formerly failed
+later or were silently coerced now fail earlier with an actionable domain error;
+`BackendContractError` retains `ValueError` compatibility for direct callers.
+See [provider contracts](docs/providers.md) for the exact requirements and limits.
+
+Python support remains >=3.13.7, verified with 3.13.7. Existing dependency pins,
+model checkpoints, security allowlists and license obligations are retained.
+Candidate verification: **1,472 passed / 12 skipped, 93.53% coverage**;
+formatting, lint, types and all seven registry entries pass. Fresh independent
+wheel/source base installs and the exact uv/pip archive quickstarts pass outside
+the checkout. All three real-model examples, the RN50 demo and the four-case
+labeled evaluation reproduce their pinned prior outputs/metrics. See the
+[release guide](docs/releases.md) for artifact checks, timings and cache
+conditions. These execution/parity results do not establish broad model quality
+or GPU performance. Historical 0.3.0 evidence below remains dated with that release.
 
 ## 0.3.0 — 2026-11-22
 

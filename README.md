@@ -6,11 +6,12 @@ Whirld handles band selection, resampling, normalization and image chips for
 embedding, text-prompt classification and segmentation. Start with a real model
 and a small included Sentinel-2 image; open the result in your browser or GIS.
 
-## Quickstart — unreleased preview
+## Quickstart — 0.4.0 release candidate
 
-The `doctor` and `demo` commands below are new. **The published 0.3.0 wheel does
-not include them.** This preview installs a pinned source archive without Git, a
-repository checkout or development tools. PyPI publication is a separate step.
+**0.4.0 is a release candidate, pending manual review and publication.** The
+published 0.3.0 wheel does not include `doctor` or `demo`. Install the immutable
+0.4.0 candidate below without Git, a repository checkout or development tools.
+PyPI publication is separate.
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) once, then run
 these commands in a new directory on macOS or Linux. uv provisions Python 3.13.7
@@ -19,8 +20,8 @@ if needed. The starter profile installs the RemoteCLIP runtime with CPU PyTorch.
 ```bash
 uv venv --python 3.13.7 .venv
 uv pip install --python .venv/bin/python --torch-backend cpu \
-  -r https://raw.githubusercontent.com/cercanasystems/whirld/6b70aa931f4dc03bd4abf2e6345c224f4643b277/requirements-quickstart.txt \
-  'whirld[remoteclip] @ https://github.com/cercanasystems/whirld/archive/6b70aa931f4dc03bd4abf2e6345c224f4643b277.zip'
+  -r https://raw.githubusercontent.com/cercanasystems/whirld/b817fe333be33a6ce96d417915a39a323e2aae37/requirements-quickstart.txt \
+  'whirld[remoteclip] @ https://github.com/cercanasystems/whirld/archive/b817fe333be33a6ce96d417915a39a323e2aae37.zip'
 .venv/bin/whirld doctor
 .venv/bin/whirld demo --output quickstart-results
 ```
@@ -51,7 +52,12 @@ and burn-scar mapping after the first result.
 
 ---
 
-## Status: 0.3.0 published
+## Status: 0.4.0 candidate; 0.3.0 published
+
+The 0.4.0 candidate groups local GeoTIFF streaming for all three workflows, a
+labeled burn-scar evaluation baseline, first-run diagnostics/demo and consistent
+provider contracts. Review the [pending notes](CHANGELOG.md) and
+[release guide](docs/releases.md). No 0.4.0 tag or release assets are published yet.
 
 [Whirld 0.3.0](https://github.com/cercanasystems/whirld/releases/tag/v0.3.0)
 includes Prithvi flood support, bounded-memory segmentation, and RemoteCLIP
@@ -60,10 +66,16 @@ See [flood support](docs/flood-model.md),
 [segmentation streaming](docs/segmentation-streaming.md), and
 [model variants](docs/model-variants.md).
 
-The current checkout additionally supports [local GeoTIFF streaming](docs/local-streaming.md)
-for all three workflows. This is unreleased and is not part of the 0.3.0 artifacts.
-The [labeled evaluation suite](docs/evaluation.md) adds a small, hash-pinned HLS
-burn-scar quality baseline with separate validation/test metrics; it is also unreleased.
+The 0.4.0 candidate adds [local GeoTIFF streaming](docs/local-streaming.md)
+for all three workflows and a [labeled evaluation suite](docs/evaluation.md) with
+a small, hash-pinned HLS burn-scar baseline and separate validation/test metrics.
+These additions are absent from the published 0.3.0 artifacts.
+
+Provider checks now reject unsupported operations before expensive work with
+`UnsupportedOperationError` (CLI exit 7, HTTP 422). Direct backend callers must
+supply normalized float32 NCHW chips and valid model metadata; output shapes,
+dtypes and class counts are checked. Valid inference math and output formats
+remain unchanged. See [provider contracts](docs/providers.md).
 
 This repository implements the Whirld MVP (see
 [`whirld-prd-mvp.md`](whirld-prd-mvp.md)): **three model paradigms** (embed / classify /
@@ -88,7 +100,7 @@ download + sha256-verify genuine checkpoints and run the real networks.
   policy; see [Registry governance](#registry-governance-security--license)).
 - **`pull` contract**: resolve → acquire → **sha256 verify** → `manifest.json`,
   with the documented exit codes.
-- **CLI** (`pull`, `list`, `info`, `embed`, `classify`, `segment`, `serve`, `rm`),
+- **CLI** (`doctor`, `demo`, `pull`, `list`, `info`, `embed`, `classify`, `segment`, `serve`, `rm`),
   **public Python API**, structured logging, and a local `usage.jsonl` record.
 - **REST API** (`whirld serve`): `GET /health`, `GET /models`, `POST /embed`
   (multipart upload → `.npz` bundle with metadata, raw `.npy`, or JSON), `POST /classify`
@@ -152,7 +164,7 @@ quantized variants.
 
 ---
 
-## Install 0.3.0
+## Install the previous published release (0.3.0)
 
 Download the wheel, source archive and `SHA256SUMS` from the
 [0.3.0 release](https://github.com/cercanasystems/whirld/releases/tag/v0.3.0).
@@ -169,8 +181,10 @@ python3.13 -m venv .venv
 Install optional model/server runtimes from the wheel, for example
 `.venv/bin/python -m pip install './whirld-0.3.0-py3-none-any.whl[remoteclip]'`.
 Other extras are `hf`, `prithvi` and `serve`; model weights download separately.
-The examples use the pinned development environment below. PyPI publication is
-separate. See [release notes](CHANGELOG.md) for compatibility and verification.
+The 0.4.0 first-result commands and local streaming require the candidate
+installation above. The larger source examples use the pinned development
+environment below. PyPI publication is separate. See [release notes](CHANGELOG.md)
+for compatibility and verification.
 
 ## Install (development)
 
@@ -354,8 +368,8 @@ disk summary. Defaults retain the best five matches; `--all` / `top_k=None` reta
 all threshold-passing chips. Completed features are sorted on disk, then written
 incrementally. See [classification streaming](docs/classification-streaming.md)
 for memory/disk budgets, exact options and publication guarantees.
-Local raster support is [unreleased](docs/local-streaming.md); the guide includes
-runnable embedding, classification and segmentation commands.
+Local raster support is included in the [0.4.0 candidate](docs/local-streaming.md);
+the guide includes runnable embedding, classification and segmentation commands.
 
 ## Bounded-memory raster embeddings
 
@@ -430,7 +444,7 @@ src/whirld/
     stac_auth.py      StacAccessPolicy: per-read credentials + GDAL scope
     scene.py          Typed raster scenes and source adapter contract
     cog.py            Direct COG metadata + eager/windowed adapters
-    local.py          Local GeoTIFF headers + bounded windows (unreleased)
+    local.py          Local GeoTIFF headers + bounded windows (0.4.0 candidate)
     input.py          Typed local/STAC/direct-COG routing
     stac_stream.py    Shared resource lifetime + normalized chip batches
     embedding_stream.py EmbeddingStreamWriter: staged incremental NPY/JSON output

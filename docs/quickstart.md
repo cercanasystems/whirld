@@ -1,8 +1,10 @@
 # Your first real Whirld result
 
-The onboarding commands are **unreleased**. Use the pinned preview below; the
-published 0.3.0 artifacts do not contain `doctor` or `demo`. Publication and a
-version bump remain separate review/approval steps.
+This guide installs the **0.4.0 release candidate**, pending manual review and
+publication. The published 0.3.0 artifacts do not contain `doctor` or `demo`.
+The immutable candidate archive below works without Git, a checkout or developer
+dependencies. No 0.4.0 release assets are published yet; see
+[release status](releases.md).
 
 ## Install and run
 
@@ -14,8 +16,8 @@ the `.venv` interpreter explicitly.
 ```bash
 uv venv --python 3.13.7 .venv
 uv pip install --python .venv/bin/python --torch-backend cpu \
-  -r https://raw.githubusercontent.com/cercanasystems/whirld/6b70aa931f4dc03bd4abf2e6345c224f4643b277/requirements-quickstart.txt \
-  'whirld[remoteclip] @ https://github.com/cercanasystems/whirld/archive/6b70aa931f4dc03bd4abf2e6345c224f4643b277.zip'
+  -r https://raw.githubusercontent.com/cercanasystems/whirld/b817fe333be33a6ce96d417915a39a323e2aae37/requirements-quickstart.txt \
+  'whirld[remoteclip] @ https://github.com/cercanasystems/whirld/archive/b817fe333be33a6ce96d417915a39a323e2aae37.zip'
 .venv/bin/whirld doctor
 .venv/bin/whirld demo --output quickstart-results
 ```
@@ -41,8 +43,8 @@ official CPU wheel index; Whirld itself still comes from the pinned archive.
 python3.13 -m venv .venv
 .venv/bin/python -m pip install \
   --extra-index-url https://download.pytorch.org/whl/cpu \
-  -r https://raw.githubusercontent.com/cercanasystems/whirld/6b70aa931f4dc03bd4abf2e6345c224f4643b277/requirements-quickstart.txt \
-  'whirld[remoteclip] @ https://github.com/cercanasystems/whirld/archive/6b70aa931f4dc03bd4abf2e6345c224f4643b277.zip'
+  -r https://raw.githubusercontent.com/cercanasystems/whirld/b817fe333be33a6ce96d417915a39a323e2aae37/requirements-quickstart.txt \
+  'whirld[remoteclip] @ https://github.com/cercanasystems/whirld/archive/b817fe333be33a6ce96d417915a39a323e2aae37.zip'
 .venv/bin/whirld doctor
 .venv/bin/whirld demo --output quickstart-results
 ```
@@ -84,7 +86,7 @@ installed models remain. Use a different `--output` directory to repeat.
 
 | Observation | Next step |
 |---|---|
-| `doctor` or `demo` is unknown | Install this preview; 0.3.0 predates these commands. Check `.venv/bin/whirld --help`. |
+| `doctor` or `demo` is unknown | Install the 0.4.0 candidate; 0.3.0 predates these commands. Check `.venv/bin/whirld --help`. |
 | Runtime is missing or an import is broken | Run `doctor`; its command targets the active interpreter, package source and pinned constraints. Broken imports use an explicit reinstall. |
 | `libexpat.so.1` is missing in a minimal Linux image | Install the distribution's Expat runtime (`libexpat1` on Debian/Ubuntu), then rerun doctor. Reinstalling the Python package alone cannot supply it. |
 | Model weights are absent | Run the demo; it displays the size and downloads the curated weights. |
@@ -127,7 +129,13 @@ governs the imagery; the application/model Apache licenses are separate.
 Remote source or GDAL changes may produce different bytes; distributed sample
 identity is always checked against its committed manifest.
 
-## Recorded verification
+## 0.4.0 candidate verification
+
+Current candidate installation and real-model checks are recorded in the
+[release guide](releases.md#candidate-verification). The historical measurements
+below describe the earlier onboarding implementation, not new 0.4.0 timings.
+
+## Recorded onboarding verification — 2026-11-24
 
 Verified on 2026-11-24 with Python 3.13.7 and uv 0.11.20. A fresh macOS ARM64
 environment used isolated Python, dependency and model download caches. The
@@ -146,9 +154,9 @@ These phases exclude installing uv and building a source archive; they are
 observations on one machine/network, not a setup-time promise. Source-archive
 installation is verified separately below.
 
-The exact uv commands above were then run in a new external `.venv` against the
-immutable GitHub archive/profile, reusing the downloaded Python/dependency/model
-caches. The package built from the archive, dependency checks passed and the
+The equivalent uv archive/profile commands were then run in a new external
+`.venv` against onboarding revision `6b70aa931f4dc03bd4abf2e6345c224f4643b277`,
+reusing the downloaded Python/dependency/model caches. The package built from the archive, dependency checks passed and the
 installed doctor/demo produced the real four-chip result. Imports resolved to
 that environment's `site-packages`, without a checkout or development packages.
 
