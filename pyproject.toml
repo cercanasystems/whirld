@@ -61,6 +61,7 @@ whirld = [
     "demo/data/*.tif",
     "demo/data/*.md",
     "onboarding/data/*.txt",
+    "evaluation/data/*.json",
     "registry_data/models/*.yaml",
     "registry_data/schema/*.json",
     "registry_data/*.md",

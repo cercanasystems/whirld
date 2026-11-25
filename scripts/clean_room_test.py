@@ -171,6 +171,12 @@ def main() -> int:
     _step(f"python {sys.version.split()[0]}, rasterio {rasterio.__version__}")
     _step(f"GDAL (bundled) {rasterio.__gdal_version__}")
     _check_lazy_import()
+    from whirld.evaluation.runner import SuiteLoader
+
+    suite = SuiteLoader.load().suite
+    if suite.id != "hls-burn-scars-mini" or len(suite.cases) != 4:
+        _fail("packaged labeled evaluation manifest is missing or invalid")
+    _step("packaged labeled evaluation manifest loads without model extras")
 
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)

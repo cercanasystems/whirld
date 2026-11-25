@@ -1,7 +1,7 @@
 include LICENSE README.md CHANGELOG.md dev_progress.md whirld-prd-mvp.md
 include requirements.txt requirements-dev.txt .env.example
 include requirements-quickstart.in requirements-quickstart.txt
-recursive-include docs *.md *.png
+recursive-include docs *.md *.json *.png
 recursive-include examples *.py *.md
 recursive-include scripts *.py *.sh
 recursive-include tests *.py *.json

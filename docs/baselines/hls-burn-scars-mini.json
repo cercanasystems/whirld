@@ -1,0 +1,357 @@
+{
+  "schema_version": 1,
+  "suite": {
+    "schema_version": 1,
+    "id": "hls-burn-scars-mini",
+    "dataset_url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars",
+    "dataset_revision": "0376987623e465f458ae6042e7051dcdccf771c8",
+    "license": "CC-BY-4.0",
+    "attribution": "HLS Burn Scars, Phillips, Christopher; Roy, Sujit; Ankur, Kumar; Ramachandran, Rahul (2023), DOI 10.57967/hf/0956. CC BY 4.0. HLS v1.4 imagery with MTBS-derived labels. Source rasters are unchanged; evaluation adds metadata and model predictions.",
+    "selection_policy": "Four cases fixed before model predictions, chosen for individually downloadable source bytes and geographic group separation: validation in MGRS T10TFM/T11SPD and test in T13REQ/T14SPF. Case identifiers retain the official model split membership. All selected MGRS groups are absent from the complete official model training list; test groups are also absent from its validation list. Validation/test groups and WGS84 footprints are disjoint. No threshold fitting or selection by predictive performance.",
+    "exposure_note": "The checkpoint was fine-tuned on HLS Burn Scars. Its official validation split was used for checkpoint selection, so validation scores are descriptive. The test cases/groups are absent from the pinned fine-tuning training and validation lists, but published benchmark reuse and foundation-model pretraining exposure remain possible. This four-case baseline is not an independent dataset or a generalization estimate.",
+    "model": "prithvi-burn-scar",
+    "model_revision": "a3f2c410e45b8ac7417976614528a872f024d831",
+    "model_sha256": "0c5f9334be9a75c9006387ab8f3dc05a55ea7fb5ef7956717316be57c62954d3",
+    "model_config_sha256": "9b40e6d8c6369b863d29fb1d69b6185aa366f8ee4c2de955bbad28d3ee32f466",
+    "sensor": "hls",
+    "band_names": [
+      "B02",
+      "B03",
+      "B04",
+      "B8A",
+      "B11",
+      "B12"
+    ],
+    "input_units": "reflectance",
+    "split_pins": [
+      {
+        "split": "train",
+        "asset": {
+          "url": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars/resolve/a3f2c410e45b8ac7417976614528a872f024d831/splits/train.txt",
+          "sha256": "f1dca5c488c7a7451f3aa82f20677c18b3b22a2d96b59d68215494e3dba6f393",
+          "size_bytes": 9432
+        }
+      },
+      {
+        "split": "validation",
+        "asset": {
+          "url": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars/resolve/a3f2c410e45b8ac7417976614528a872f024d831/splits/val.txt",
+          "sha256": "50a98be7974a2fec73af62b5f54063d938bcfe93cd9802b90eb33eb78f4d7f3e",
+          "size_bytes": 2880
+        }
+      },
+      {
+        "split": "test",
+        "asset": {
+          "url": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M-BurnScars/resolve/a3f2c410e45b8ac7417976614528a872f024d831/splits/test.txt",
+          "sha256": "c61ddcb5a434da3f5e63edd7c87549af104c6cc69345876a8ed770844bab1788",
+          "size_bytes": 2160
+        }
+      }
+    ],
+    "cases": [
+      {
+        "id": "T10TFM.2018110.v1",
+        "split": "validation",
+        "spatial_group": "T10TFM",
+        "source_name": "T10TFM.2018110.v1",
+        "image": {
+          "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T10TFM.2018110.v1.4_merged.tif",
+          "sha256": "ffbc22352d92a93c4da645eaf9bbbe644bf43671ec0d5385aecb37d5317c4109",
+          "size_bytes": 12586630
+        },
+        "label": {
+          "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T10TFM.2018110.v1.4.mask.tif",
+          "sha256": "6c2b42063936b0c6d23d89b507a86bcfa0b6ca62de1ed9afce694ac513200be8",
+          "size_bytes": 525272
+        },
+        "bounds": {
+          "west": -121.6055169269046,
+          "south": 41.85307993240281,
+          "east": -121.41711813285298,
+          "north": 41.99377843857281
+        }
+      },
+      {
+        "id": "T11SPD.2020184.v1",
+        "split": "validation",
+        "spatial_group": "T11SPD",
+        "source_name": "T11SPD.2020184.v1",
+        "image": {
+          "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T11SPD.2020184.v1.4_merged.tif",
+          "sha256": "52929acb0fce8bd35c1d4e8fb9fec57928a41631b435ddca1a4903fff8226564",
+          "size_bytes": 12586630
+        },
+        "label": {
+          "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T11SPD.2020184.v1.4.mask.tif",
+          "sha256": "b5523b15df5121927df7b486acb7431e1079d0f11cb9b7dc940ff6aaf716cd48",
+          "size_bytes": 525272
+        },
+        "bounds": {
+          "west": -115.0867960805523,
+          "south": 38.753801883480214,
+          "east": -114.90607817393257,
+          "north": 38.89516935552956
+        }
+      },
+      {
+        "id": "T13REQ.2018156.v1",
+        "split": "test",
+        "spatial_group": "T13REQ",
+        "source_name": "T13REQ.2018156.v1",
+        "image": {
+          "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T13REQ.2018156.v1.4_merged.tif",
+          "sha256": "62c32b2e13c4dce3abe3d061d537ff7b7b3b3d18ee7523db00160cbb82e0e226",
+          "size_bytes": 12586630
+        },
+        "label": {
+          "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T13REQ.2018156.v1.4.mask.tif",
+          "sha256": "9f85f2f7e50f40076caa80b0e488268688a3f397b67a671627e6a9fada97f88f",
+          "size_bytes": 525272
+        },
+        "bounds": {
+          "west": -104.23192459150098,
+          "south": 30.71837985554627,
+          "east": -104.0701835033271,
+          "north": 30.858016815072148
+        }
+      },
+      {
+        "id": "T14SPF.2019345.v1",
+        "split": "test",
+        "spatial_group": "T14SPF",
+        "source_name": "T14SPF.2019345.v1",
+        "image": {
+          "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T14SPF.2019345.v1.4_merged.tif",
+          "sha256": "8fb20fa0d3495743696afd28764b15fab2f6908a77e49d9515111cd7e8f9bdad",
+          "size_bytes": 12586630
+        },
+        "label": {
+          "url": "https://huggingface.co/datasets/ibm-nasa-geospatial/hls_burn_scars/resolve/0376987623e465f458ae6042e7051dcdccf771c8/validation/subsetted_512x512_HLS.S30.T14SPF.2019345.v1.4.mask.tif",
+          "sha256": "3b2e3cdff9ddc672fdaeb569b6a43f926125687355b31193ce78b69d4c0f3ce7",
+          "size_bytes": 525272
+        },
+        "bounds": {
+          "west": -96.89061018220106,
+          "south": 36.64449721048541,
+          "east": -96.71480308200518,
+          "north": 36.78603705629178
+        }
+      }
+    ]
+  },
+  "manifest_sha256": "7b3965f54b44892bc6bc5537bb2b3d462570547cc0f762cc92409cf7457cb9b1",
+  "model": {
+    "name": "prithvi-burn-scar",
+    "version": "2.0.0",
+    "revision": "a3f2c410e45b8ac7417976614528a872f024d831",
+    "checkpoint_sha256": "0c5f9334be9a75c9006387ab8f3dc05a55ea7fb5ef7956717316be57c62954d3",
+    "config_sha256": "9b40e6d8c6369b863d29fb1d69b6185aa366f8ee4c2de955bbad28d3ee32f466",
+    "registry_sha256": "f94bc48770385ee5a341a57c872d0327f8ca222f24cacbe7a27d588912efa960"
+  },
+  "runtime": {
+    "python": "3.13.7",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "whirld": "0.3.0",
+    "numpy": "2.5.0",
+    "rasterio": "1.5.2",
+    "torch": "2.12.1",
+    "terratorch": "1.2.8",
+    "device": "cpu",
+    "seed": 2
+  },
+  "options": {
+    "output_dir": "evaluation-runs/repeat",
+    "cache_dir": "evaluation-runs/cache",
+    "split": "all",
+    "threshold": 0.5,
+    "batch_size": 1,
+    "cache_mb": 8,
+    "threads": 2,
+    "offline": true
+  },
+  "created_at": "2026-11-23T10:30:58.442797Z",
+  "cases": [
+    {
+      "id": "T10TFM.2018110.v1",
+      "split": "validation",
+      "counts": {
+        "tp": 9752,
+        "fp": 12703,
+        "tn": 239234,
+        "fn": 443,
+        "label_ignored": 12,
+        "prediction_invalid_positive": 0,
+        "prediction_invalid_negative": 0
+      },
+      "metrics": {
+        "precision": 0.434290803829882,
+        "recall": 0.9565473271211378,
+        "f1": 0.5973660030627871,
+        "iou": 0.425888723906018,
+        "accuracy": 0.9498496940472739,
+        "coverage": 1.0
+      },
+      "prediction_sha256": "984cc57e124f8edf26c6c48a34f1aeb2b9e106668c4ac405e271f41296f95b2e",
+      "prediction_file": "T10TFM.2018110.v1.prediction.tif",
+      "width": 512,
+      "height": 512,
+      "crs": "PROJCS[\"UTM Zone 10, Northern Hemisphere\",GEOGCS[\"Unknown datum based upon the WGS 84 ellipsoid\",DATUM[\"Not specified (based on WGS 84 spheroid)\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-123],PARAMETER[\"scale_factor\",0.9996],PARAMETER[\"false_easting\",500000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+      "transform": [
+        30.0,
+        0.0,
+        615750.0,
+        0.0,
+        -30.0,
+        4650030.0
+      ]
+    },
+    {
+      "id": "T11SPD.2020184.v1",
+      "split": "validation",
+      "counts": {
+        "tp": 37410,
+        "fp": 2339,
+        "tn": 221820,
+        "fn": 575,
+        "label_ignored": 0,
+        "prediction_invalid_positive": 0,
+        "prediction_invalid_negative": 0
+      },
+      "metrics": {
+        "precision": 0.9411557523459709,
+        "recall": 0.9848624457022509,
+        "f1": 0.9625131859932591,
+        "iou": 0.9277353437159012,
+        "accuracy": 0.9888839721679688,
+        "coverage": 1.0
+      },
+      "prediction_sha256": "c5c48118d01bf299ec48a88eb6072eb214439a413b858542e6187a2deabf8e74",
+      "prediction_file": "T11SPD.2020184.v1.prediction.tif",
+      "width": 512,
+      "height": 512,
+      "crs": "PROJCS[\"UTM Zone 11, Northern Hemisphere\",GEOGCS[\"Unknown datum based upon the WGS 84 ellipsoid\",DATUM[\"Not specified (based on WGS 84 spheroid)\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-117],PARAMETER[\"scale_factor\",0.9996],PARAMETER[\"false_easting\",500000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+      "transform": [
+        30.0,
+        0.0,
+        666240.0,
+        0.0,
+        -30.0,
+        4306890.0
+      ]
+    },
+    {
+      "id": "T13REQ.2018156.v1",
+      "split": "test",
+      "counts": {
+        "tp": 9618,
+        "fp": 1783,
+        "tn": 250601,
+        "fn": 142,
+        "label_ignored": 0,
+        "prediction_invalid_positive": 0,
+        "prediction_invalid_negative": 0
+      },
+      "metrics": {
+        "precision": 0.8436102096307342,
+        "recall": 0.9854508196721311,
+        "f1": 0.9090307641415812,
+        "iou": 0.8332322619769558,
+        "accuracy": 0.9926567077636719,
+        "coverage": 1.0
+      },
+      "prediction_sha256": "b263d6827b420ba5758883c63616ef228b65b45336f00b342478987c4d504b1f",
+      "prediction_file": "T13REQ.2018156.v1.prediction.tif",
+      "width": 512,
+      "height": 512,
+      "crs": "PROJCS[\"UTM Zone 13, Northern Hemisphere\",GEOGCS[\"Unknown datum based upon the WGS 84 ellipsoid\",DATUM[\"Not specified (based on WGS 84 spheroid)\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-105],PARAMETER[\"scale_factor\",0.9996],PARAMETER[\"false_easting\",500000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+      "transform": [
+        30.0,
+        0.0,
+        573540.0,
+        0.0,
+        -30.0,
+        3414120.0
+      ]
+    },
+    {
+      "id": "T14SPF.2019345.v1",
+      "split": "test",
+      "counts": {
+        "tp": 5073,
+        "fp": 846,
+        "tn": 256198,
+        "fn": 27,
+        "label_ignored": 0,
+        "prediction_invalid_positive": 0,
+        "prediction_invalid_negative": 0
+      },
+      "metrics": {
+        "precision": 0.8570704510897111,
+        "recall": 0.9947058823529412,
+        "f1": 0.9207732099101552,
+        "iou": 0.8531786074672049,
+        "accuracy": 0.9966697692871094,
+        "coverage": 1.0
+      },
+      "prediction_sha256": "bd3a47655a397edaf31f4158572bf617e347703391e1d8035164dd100f616c62",
+      "prediction_file": "T14SPF.2019345.v1.prediction.tif",
+      "width": 512,
+      "height": 512,
+      "crs": "PROJCS[\"UTM Zone 14, Northern Hemisphere\",GEOGCS[\"Unknown datum based upon the WGS 84 ellipsoid\",DATUM[\"Not specified (based on WGS 84 spheroid)\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-99],PARAMETER[\"scale_factor\",0.9996],PARAMETER[\"false_easting\",500000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+      "transform": [
+        30.0,
+        0.0,
+        688560.0,
+        0.0,
+        -30.0,
+        4073220.0000000005
+      ]
+    }
+  ],
+  "splits": [
+    {
+      "split": "validation",
+      "case_count": 2,
+      "counts": {
+        "tp": 47162,
+        "fp": 15042,
+        "tn": 461054,
+        "fn": 1018,
+        "label_ignored": 12,
+        "prediction_invalid_positive": 0,
+        "prediction_invalid_negative": 0
+      },
+      "metrics": {
+        "precision": 0.7581827535206739,
+        "recall": 0.978870900788709,
+        "f1": 0.854507899695608,
+        "iou": 0.7459745025465819,
+        "accuracy": 0.969367279829708,
+        "coverage": 1.0
+      }
+    },
+    {
+      "split": "test",
+      "case_count": 2,
+      "counts": {
+        "tp": 14691,
+        "fp": 2629,
+        "tn": 506799,
+        "fn": 169,
+        "label_ignored": 0,
+        "prediction_invalid_positive": 0,
+        "prediction_invalid_negative": 0
+      },
+      "metrics": {
+        "precision": 0.8482101616628176,
+        "recall": 0.9886271870794078,
+        "f1": 0.9130515848353015,
+        "iou": 0.8400137229115444,
+        "accuracy": 0.9946632385253906,
+        "coverage": 1.0
+      }
+    }
+  ],
+  "metric_domain": "Quality ratios are conditional on valid labels with valid predictions; coverage and missing-prediction positive/negative counts must accompany them."
+}

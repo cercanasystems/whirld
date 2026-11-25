@@ -62,6 +62,8 @@ See [flood support](docs/flood-model.md),
 
 The current checkout additionally supports [local GeoTIFF streaming](docs/local-streaming.md)
 for all three workflows. This is unreleased and is not part of the 0.3.0 artifacts.
+The [labeled evaluation suite](docs/evaluation.md) adds a small, hash-pinned HLS
+burn-scar quality baseline with separate validation/test metrics; it is also unreleased.
 
 This repository implements the Whirld MVP (see
 [`whirld-prd-mvp.md`](whirld-prd-mvp.md)): **three model paradigms** (embed / classify /
@@ -376,6 +378,22 @@ behavior, output guarantees, and deferred reprojection support.
 For actual Clay weights and public Sentinel-2 imagery, use the reproducible
 [real-model validation workflow](docs/real-model-streaming.md).
 
+## Labeled quality evaluation
+
+Evaluate the existing Prithvi burn-scar head against four CC BY 4.0 HLS image/label
+pairs, using fixed model/data pins, geographic split checks and a 0.5 threshold:
+
+```bash
+.venv/bin/python scripts/evaluate_segmentation.py \
+  --output-dir evaluation-runs/validation --split validation
+```
+
+Install the Prithvi extra and pull `prithvi-burn-scar` first. The report retains
+per-case confusion counts, IoU/F1/precision/recall/accuracy, coverage, and model/data
+provenance. Validation and test aggregates stay separate. See the
+[evaluation guide](docs/evaluation.md) for setup, test execution, recorded baseline
+and limitations, and [data provenance](docs/evaluation-data.md) for exact pins.
+
 ## Architecture
 
 ```
@@ -385,6 +403,7 @@ src/whirld/
   logging_setup.py    app log + usage.jsonl
   api.py              orchestration (pull, embed, classify) — one shared pipeline
   registry_data/      bundled registry: model YAMLs + JSON schema
+  evaluation/         pinned labeled suite, asset/runtime owners + windowed metrics
   core/
     registry.py       typed (Pydantic) registry loading + validation
     fetch.py          ModelStore: acquisition, manifests, transactions + leases

@@ -4,26 +4,37 @@ Working branch: `feat/first-run-onboarding`; main `78622e5` includes manually
 merged evaluation PR #31. Re-read AGENTS.md/lessons and assigned dedicated
 compliance review. Keep the existing PR/history; no force push or PR merge.
 
-- [ ] Merge updated main and resolve all six conflicts while retaining evaluation
+- [x] ~~Merge updated main and resolve all six conflicts while retaining evaluation
       and onboarding changes: ignored outputs, changelog entries, JSON/PNG source
       resources, all wheel package data, and both TODO/progress histories. Inspect
-      the automatically merged README and shared example/evaluation boundaries.
-- [ ] Verify the combined project on Python3.13.7 in `.venv`: full coverage suite,
+      the automatically merged README and shared example/evaluation boundaries.~~
+- [x] ~~Verify the combined project on Python3.13.7 in `.venv`: full coverage suite,
       Black/Ruff/mypy, registry and conflict/diff checks, source/wheel resources
-      and installed base smoke. Obtain independent final resolution review.
+      and installed base smoke. Obtain independent final resolution review.~~
 - [ ] Record results, commit the merge and push the existing matching upstream;
       confirm PR #32 is conflict-free and check hosted validation. Leave manual
       merge and release publication with the user.
 
 ### Review
 
+Resolved all six metadata/documentation conflicts, retaining both milestones and
+main's historical checked/struck evaluation tasks. README retains both entrypoints.
+Runtime bytes match their respective branches. Independent final review is clear.
+Combined full suite: **1274 passed / 12 skipped, 93.30% coverage**; Black (212),
+Ruff, mypy (90 including scripts), seven registry entries and conflict/diff checks
+pass. A source-built wheel preserves all package files and both resource sets;
+the source archive includes guides, baseline JSON, screenshot, profiles and scripts.
+Fresh installed base-only clean-room smoke and starter doctor/real RN50 demo pass
+outside the checkout; the four-case evaluation manifest loads in both environments.
+
 Plan recorded before conflict resolution. Preserve both implemented milestones;
 resolve documentation/package metadata without changing runtime behavior.
 
+
 ## Pass 19 — First real result: setup, doctor and packaged RN50 demo
 
-Branch: `feat/first-run-onboarding`, from main `7ba2f4c`. PR #31 remains open;
-this branch is independent of evaluation work. Re-read AGENTS.md/lessons, verified
+Branch: `feat/first-run-onboarding`, originally from main `7ba2f4c` while
+PR #31 was open. The 2026-11-25 integration above incorporates its merged work. Re-read AGENTS.md/lessons, verified
 branch before edits and assigned dedicated compliance plus demo/diagnostics work.
 User approved the onboarding recommendation. No version/tag/GitHub/PyPI release
 or automatic merge; publication requires separate approval.
@@ -112,6 +123,85 @@ that single input. The installed starter path remains explicitly unreleased unti
 manual review, merge and separately approved publication.
 
 
+## Pass 18 — Small labeled segmentation evaluation baseline
+
+Branch: `feat/labeled-evaluation-baseline`, from main `7ba2f4c` after manually
+merged PR #30. Re-read AGENTS.md/lessons and verified branch before edits. Assign
+an independent compliance reviewer and parallel dataset/design work. Scope the
+first predictive baseline to one existing binary segmentation model; no model,
+REST, inference-policy, version or release changes. The user manually merges PRs.
+
+- [x] ~~Verify primary dataset/model sources, an explicit open data license, source
+      revisions, label meanings, input units and geographically disjoint official
+      train/validation/test membership. Prefer HLS Burn Scars with the current
+      Prithvi burn-scar head's non-overlapping split lists; freeze a small subset
+      by deterministic IDs before looking at predictions. Pin every downloaded
+      image/label/split artifact with SHA-256 and byte size; do not commit rasters.
+      Record known fine-tuning/model-selection exposure and pretraining uncertainty.~~
+- [x] ~~Write the evaluation contract before implementation: typed immutable
+      manifest/options/report/count schemas, explicit label-ignore and prediction
+      nodata/coverage rules, exact grid matching, fixed thresholds and separate
+      validation/test aggregates. No training, threshold search or test-driven
+      case selection in this pass. Check spatial groups and actual footprints.~~
+- [x] ~~Implement cohesive asset retrieval, preparation, inference and raster-score
+      owners behind a thin script. Use the existing public segment_to_disk API,
+      explicit input radiometry and fixed window reads. Verify data/checkpoint
+      identity, preserve prior outputs, clean incomplete owned work, and publish
+      strict JSON with case/split metrics and complete reproducibility metadata.~~
+- [x] ~~Test independently calculated confusion counts, undefined ratios, masks,
+      unexpected classes, alignment/split errors, asset corruption and cleanup.
+      Exercise the actual streaming preprocessing/writer path offline and verify
+      fixed scoring windows. Keep opt-in real downloads out of normal CI.~~
+- [x] ~~Execute the frozen validation and test cases with the actual pinned model
+      and open imagery/labels; record IoU, F1, precision, recall, accuracy and
+      scored-pixel coverage per case and split. Repeat/check reproducibility and
+      execute documented commands. Distinguish this small baseline from published
+      full-dataset results and broad generalization claims.~~
+- [x] ~~Maintain README, evaluation guide, TODO and dev_progress; run coverage >=80%,
+      Black/Ruff/mypy, registry and fresh base-install/package checks. Complete
+      independent scientific/compliance review.~~
+- [x] ~~Commit/push the feature branch and prepare a reviewable PR; stop for manual
+      merge. No release/tag/version action.~~
+
+Acceptance: a user can reproduce an explicitly licensed, hash-pinned small quality
+baseline with existing weights and no full-dataset download. Split membership,
+spatial isolation and metric denominators are validated rather than inferred from
+filenames. Scores never silently drop prediction failures or pool validation/test.
+Reports identify data, labels, model/checkpoint, preprocessing, options and runtime.
+The suite establishes one task baseline and leaves embedding/classification quality
+benchmarks and additional models for later work.
+
+### Review
+
+The frozen suite uses four CC BY 4.0 HLS pairs at immutable dataset/model
+revisions, with 52,447,608 bytes of raster data. It verifies all official split
+identifiers, geographic group exclusions and actual selected image/label grids
+and footprints. Test groups are absent from both official train and validation.
+No cases or inference policy changed after viewing predictions.
+
+Actual curated Prithvi CPU runs produce validation/test IoU **0.7459745025 /
+0.8400137229**, with coverage 1.0 and explicit per-case results (including the
+lower-IoU first validation case). Separate split commands and a four-case offline
+repeat produce identical counts, metrics, grids and prediction SHA-256 values.
+An independent TIFF/NumPy calculation reproduces every count and ratio. The
+reference JSON report records source/model/config/registry/runtime provenance.
+
+222 new offline tests pass, covering metric denominators/abstentions, exact grids,
+split/URL/header errors, real inference/writer paths, asset and checkpoint/config
+corruption, runtime restoration, interruptions and atomic report cleanup. Review
+reproduced and closed an unpinned-sidecar loophole: standalone cached artifacts
+now reject associated mask/PAM/overview files. Final full suite: **1154 passed /
+12 skipped, 92.95% package/example coverage**. Black (193 files), Ruff, mypy
+(80 source/example/script files), seven registry entries and diff checks pass.
+Fresh base-only Python 3.13.7 source-built wheel installation, 25-package dependency
+checks and archive clean-room smoke pass. All packaged Python bytes match the
+current tree; exact manifest and baseline documentation ship in the expected
+artifacts. Missing optional runtimes fail clearly before network access. Final
+scientific/compliance review found no blocker. Committed/pushed to the matching
+upstream and opened [PR #31](https://github.com/cercanasystems/whirld/pull/31).
+Hosted CI is tracked separately; stop for the user's manual merge. No release or
+version action.
+
 ## Pass 17 — Local GeoTIFF/COG streaming
 
 Branch: `feat/local-raster-streaming`, from main `58b9727` after manually merged
@@ -176,11 +266,12 @@ feature release/version bump.
 
 ### Next separate milestone
 
-- [ ] Build a small labeled evaluation suite after this PR is reviewed/merged:
+- [x] ~~Build a small labeled evaluation suite after this PR is reviewed/merged:
       pin open imagery and labels, keep spatial train/test separation, define
       task-appropriate metrics and record reproducible model/input provenance.
       Establish a baseline before selecting more model families. Keep execution
-      equivalence checks distinct from predictive-quality evaluation.
+      equivalence checks distinct from predictive-quality evaluation.~~ Completed
+      in Pass 18 for one binary segmentation task.
 
 ## Release 0.3.0 preparation and example revalidation
 

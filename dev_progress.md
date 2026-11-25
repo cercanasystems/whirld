@@ -6,10 +6,39 @@ remains.
 
 ---
 
+## 2026-11-25 — PR #32 integration with updated main
+
+The user manually merged PR #31 and pulled main `78622e5`, producing six
+metadata/documentation conflicts in PR #32. Re-read AGENTS.md/lessons, recorded
+the plan and assigned independent compliance review before resolving them on
+`feat/first-run-onboarding`. Merge main into the existing feature branch without
+rewriting history or changing main.
+
+Retain both evaluation and onboarding changelog entries, ignored output paths,
+TODO/progress histories and wheel package data. The source manifest now includes
+both JSON evaluation reports and the PNG quickstart screenshot, alongside starter
+constraints. Review the automatically merged README for both workflows. Runtime
+source behavior is unchanged; verify the combined suite and installed artifacts
+before committing/pushing the resolution. No release or automatic PR merge.
+
+Combined verification: **1274 passed / 12 skipped, 93.30% package/example
+coverage**. Black (212 files), Ruff, mypy (90 files including both new scripts),
+all seven registry entries and conflict/diff checks pass. Independent review
+confirms both histories and workflows survive, evaluation runtime bytes equal
+main and onboarding/runtime bytes equal the previous PR head. A wheel built
+from the source archive preserves every package file plus both sets of resources;
+the archive retains the baseline JSON, guides, screenshot, profiles and scripts.
+A fresh 25-package base environment passes dependency checks and the archive's
+clean-room smoke, including loading the four-case evaluation manifest without
+model extras. A separate 51-package starter environment passes doctor, a real
+four-chip RN50 demo using verified cached weights and evaluation-manifest loading
+outside the checkout. No new dependencies or runtime changes were necessary.
+
 ## 2026-11-24 — Pass 19: first-run onboarding
 
 Branch: `feat/first-run-onboarding`, based on main `7ba2f4c` after PR #30.
-PR #31 remains open; this work is independent of the evaluation baseline.
+PR #31 was open when this pass began; its merged evaluation baseline is now
+integrated by the 2026-11-25 resolution recorded above.
 Re-read AGENTS.md/lessons, recorded the plan before implementation and assigned
 focused demo, diagnostics and ongoing compliance reviewers. No version change,
 tag, release, PyPI upload or automatic merge is included.
@@ -91,6 +120,75 @@ the runtime behavior and immutable installer payload remain unchanged.
 Also normalized three long-path human-output assertions found by the forced
 probe. All 22 onboarding CLI tests pass with forced color, an 80-column terminal
 and CI environment flags; formatting, lint, types and diff checks pass.
+
+## 2026-11-23 — Pass 18: labeled burn-scar evaluation baseline
+
+Branch: `feat/labeled-evaluation-baseline`, from main `7ba2f4c` after the user's
+manual PR #30 merge. Re-read AGENTS.md and lessons, verified the branch before
+edits, recorded the plan and assigned independent dataset, metric/test and
+scientific/compliance work. Scope is one existing segmentation task; no new model,
+inference-policy, REST, version, tag or release change.
+
+Added a frozen four-case HLS Burn Scars suite, CC BY 4.0, with two validation and
+two test pairs fixed before inspecting predictions. Individually downloadable
+TIFFs at immutable dataset revision require 52,447,608 bytes rather than the full
+archive. Every image, label and official model split list is size/hash pinned.
+All selected groups are absent from fine-tuning training; test groups are also
+absent from model validation. Exact identifiers and selected actual footprints
+are checked. The data guide distinguishes the old dataset directory names from
+the newer model splits, model-selection exposure, incomplete neighboring-training
+footprint audits and unknown foundation pretraining exposure.
+
+Typed immutable schemas describe the manifest, options, confusion counts and
+reports. Asset, preparation, CPU-runtime, runner and scoring objects own their
+resources. `scripts/evaluate_segmentation.py` calls the existing public
+`segment_to_disk()` API with fixed threshold 0.5 and explicit CPU settings.
+Unchanged six-band float64 reflectance is described through a scale-one STAC
+adapter, preserving native UTM WKT, 30 m grid, actual nodata -1000 and valid zeros.
+Labels use int16 0/1 with -1 and TIFF invalid observations ignored. Scoring rejects
+grid/class errors and reads windows no larger than 256 pixels per dimension.
+
+Per-case counts and separate split micro metrics include IoU, F1, precision,
+recall, accuracy and coverage. Prediction-invalid positive/negative labels remain
+explicit; ratios are conditional on scored pixels, and undefined denominators
+become JSON null. Reports identify the original manifest, actual checkpoint and
+deployment-config hashes, registry fingerprint, runtime/settings, exact grids and
+prediction hashes. New outputs are reserved exclusively; failed runs remove owned
+work and preserve existing results. CPU/Python/NumPy RNG, thread and Lightning seed
+environment changes are scoped/restored; accelerator isolation is not claimed.
+
+Real curated Prithvi inference and all documented evaluation commands pass on
+Python 3.13.7, CPU/two threads, deployment seed 2. Validation/test IoU is
+**0.7459745025 / 0.8400137229**, F1 **0.8545078997 / 0.9130515848**, with coverage
+1.0 throughout. The first validation case's IoU 0.425889 remains visible alongside
+the other cases. No threshold or source selection changed after inference. The
+separate validation/test runs and four-case offline repeat produce identical
+counts, metrics, grids and prediction SHA-256 values. Independent NumPy checks
+against saved TIFFs reproduce every count and ratio without the production scorer.
+The [guide](docs/evaluation.md), [data provenance](docs/evaluation-data.md) and
+[reference report](docs/baselines/hls-burn-scars-mini.json) record the evidence.
+
+Review found and reproduced an unpinned-sidecar loophole: an external label mask
+could hide errors while its TIFF hash stayed unchanged. Standalone cached assets
+now reject such companions, including orphan sidecars, before use. Regressions
+retain the genuine raster mask behavior in generic scoring. Checkpoint/config
+tampering, malformed split text, header and geographic partition errors,
+abstentions, interrupted inference/publication and runtime restoration also have
+offline tests retaining real streaming preprocessing and writers.
+
+Final verification: **1154 passed / 12 skipped, 92.95% package/example coverage**,
+including 222 new offline checks. Black (193 files), Ruff, mypy (80 including the
+new script), all seven registry entries and diff checks pass. Independent final
+scientific/AGENTS review is clear. A wheel built from the source archive installs
+into a fresh base-only Python 3.13.7 `.venv`; all 25 dependencies and archive
+clean-room workflows pass. Packaged Python files match the current source and
+installed files byte-for-byte. The exact four-case manifest ships in wheel/source;
+the source archive includes the script, guides and baseline JSON. Base-only
+evaluation exits with an actionable extra-install message, zero network calls and
+no residual output/cache. No new dependencies or version changes. Committed/pushed
+to the matching upstream and opened
+[PR #31](https://github.com/cercanasystems/whirld/pull/31). Hosted CI is tracked
+separately; the user merges manually and release publication remains separate.
 
 ## 2026-11-22 — Pass 17: local GeoTIFF streaming
 
