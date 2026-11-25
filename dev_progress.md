@@ -70,6 +70,12 @@ extension requirements; README and changelog link/describe the changes. Work
 remains on the feature branch for review; manual merge and release publication
 remain separate.
 
+At the user's request, committed the implementation as `ef1a882`, pushed
+`origin/fix/provider-contract-consistency` and opened
+[PR #33](https://github.com/cercanasystems/whirld/pull/33). GitHub confirms the PR
+is mergeable; hosted checks are running. Local verification above remains
+separate from hosted status. Stop for the user's manual review/merge.
+
 ## 2026-11-25 — PR #32 integration with updated main
 
 The user manually merged PR #31 and pulled main `78622e5`, producing six

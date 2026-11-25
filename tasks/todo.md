@@ -51,6 +51,11 @@ checks without Torch or expensive work. Provider documentation, README, changelo
 progress and the lesson about valid unsupported methods are updated. No model,
 dependency/version change, release or automatic PR merge.
 
+Committed the implementation as `ef1a882`, pushed the matching upstream and
+opened [PR #33](https://github.com/cercanasystems/whirld/pull/33). GitHub reports
+the PR mergeable; hosted checks are running and tracked in the PR. Stop for the
+user's manual review/merge.
+
 Plan recorded before implementation. Concrete methods may deliberately report
 unsupported operations; this is a normal provider pattern, not an OOP defect.
 The work targets contract enforcement and ownership rather than interface splits.
